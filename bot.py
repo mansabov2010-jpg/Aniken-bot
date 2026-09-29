@@ -3,7 +3,7 @@ import os
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
-TOKEN = 8845458932:AAHDQOxJN_LVVaqDw1iur0nKWNAbFjhSp1w
+TOKEN = "8845458932:AAHDQOxJN_LVVaqDw1iur0nKWNAbFjhSp1w"
 ADMIN_ID = 7986354170
 
 bot = telebot.TeleBot(TOKEN)
@@ -195,4 +195,4 @@ def process_broadcast(message):
 
 print("Bot ishga tushdi...")
 bot.infinity_polling()
-                
+        
