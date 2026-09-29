@@ -4,7 +4,7 @@ import time
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
-TOKEN = "8981883684:AAEjZyKwS4-7lIlKNOkM_5LqovV_-tyz3OI"
+TOKEN = "8981883684:AAEj9PzhB0LbPsMY0AJP68byGb7KS47Xs_M"
 ADMIN_ID = 7986354170
 
 bot = telebot.TeleBot(TOKEN)
