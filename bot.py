@@ -5,12 +5,12 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeybo
 
 TOKEN = "8845458932:AAHb3PfSBb9AclEhAuRJgj6h0wGewFSxyUM"
 ADMIN_ID = 7986354170
-FORCE_SUB_CHANNEL = "@AnikenChannel"
 
 bot = telebot.TeleBot(TOKEN)
 DB_FILE = "anime_db.json"
 USERS_FILE = "users.json"
 SCHEDULE_FILE = "schedule.json"
+SETTINGS_FILE = "settings.json"
 
 def load_data(file, default):
     if os.path.exists(file):
@@ -28,12 +28,16 @@ def save_data(file, data):
 db = load_data(DB_FILE, {})
 users = load_data(USERS_FILE, [])
 schedule_data = load_data(SCHEDULE_FILE, "Hozircha umumiy anime jadvallari kiritilmagan.")
+settings = load_data(SETTINGS_FILE, {"force_sub": None})
 
 def check_subscription(user_id):
-    if not FORCE_SUB_CHANNEL:
+    if user_id == ADMIN_ID:
+        return True
+    channel = settings.get("force_sub")
+    if not channel:
         return True
     try:
-        member = bot.get_chat_member(FORCE_SUB_CHANNEL, user_id)
+        member = bot.get_chat_member(channel, user_id)
         if member.status in ['member', 'administrator', 'creator']:
             return True
     except Exception:
@@ -43,8 +47,9 @@ def check_subscription(user_id):
 def get_admin_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("➕ Yeni anime bo'limi"), KeyboardButton("🔄 Mavjud animeni almashtirish"))
-    markup.add(KeyboardButton("📅 Jadvalni yangilash"), KeyboardButton("📋 Animelar ro'yxati"))
-    markup.add(KeyboardButton("📊 Statistika"), KeyboardButton("🚀 Start (Asosiy menyu)"))
+    markup.add(KeyboardButton("📢 Majburiy kanal"), KeyboardButton("📅 Jadvalni yangilash"))
+    markup.add(KeyboardButton("📋 Animelar ro'yxati"), KeyboardButton("📊 Statistika"))
+    markup.add(KeyboardButton("🚀 Start (Asosiy menyu)"))
     return markup
 
 def get_user_keyboard():
@@ -60,11 +65,16 @@ def send_welcome(message):
         users.append(user_id)
         save_data(USERS_FILE, users)
         
-    if FORCE_SUB_CHANNEL and not check_subscription(user_id):
+    force_channel = settings.get("force_sub")
+    if force_channel and not check_subscription(user_id):
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("📢 Kanalga obuna bo'lish", url=f"https://t.me/{FORCE_SUB_CHANNEL.replace('@', '')}"))
+        clean_channel = force_channel.replace('@', '')
+        if "t.me/" in force_channel:
+            markup.add(InlineKeyboardButton("📢 Kanalga obuna bo'lish", url=force_channel))
+        else:
+            markup.add(InlineKeyboardButton("📢 Kanalga obuna bo'lish", url=f"https://t.me/{clean_channel}"))
         markup.add(InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_sub"))
-        bot.send_message(message.chat.id, f"⚠️ Botdan foydalanish uchun avval quyidagi kanalimizga obuna bo'ling:\n\n{FORCE_SUB_CHANNEL}", reply_markup=markup)
+        bot.send_message(message.chat.id, f"⚠️ Botdan foydalanish uchun avval quyidagi kanalimizga obuna bo'ling:\n\n{force_channel}", reply_markup=markup)
         return
 
     if user_id == ADMIN_ID:
@@ -76,14 +86,17 @@ def send_welcome(message):
 def callback_sub(call):
     if check_subscription(call.from_user.id):
         bot.answer_callback_query(call.id, "Rahmat! Obuna tasdiqlandi ✅")
-        bot.delete_message(call.message.chat.id, call.message.message_id)
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
         send_welcome(call.message)
     else:
         bot.answer_callback_query(call.id, "Siz hali kanalga obuna bo'lmadingiz! ❌", show_alert=True)
 
 @bot.message_handler(func=lambda message: message.text in ["🎬 Animelar ro'yxati", "🚀 Start (Asosiy menyu)"])
 def show_anime_groups(message):
-    if FORCE_SUB_CHANNEL and not check_subscription(message.from_user.id):
+    if not check_subscription(message.from_user.id):
         send_welcome(message)
         return
     if not db:
@@ -96,7 +109,7 @@ def show_anime_groups(message):
 
 @bot.message_handler(func=lambda message: message.text == "🔍 Qidirish")
 def search_anime_prompt(message):
-    if FORCE_SUB_CHANNEL and not check_subscription(message.from_user.id):
+    if not check_subscription(message.from_user.id):
         send_welcome(message)
         return
     msg = bot.send_message(message.chat.id, "Qidirmoqchi bo'lgan anime nomini yozib yuboring (masalan: *Death note*):", parse_mode="Markdown")
@@ -117,7 +130,7 @@ def process_search(message):
 
 @bot.message_handler(func=lambda message: message.text == "📅 Anime jadvallari")
 def show_schedule(message):
-    if FORCE_SUB_CHANNEL and not check_subscription(message.from_user.id):
+    if not check_subscription(message.from_user.id):
         send_welcome(message)
         return
     bot.send_message(message.chat.id, f"📅 *Barcha uchun umumiy anime jadvallari:*\n\n{schedule_data}", parse_mode="Markdown")
@@ -127,6 +140,26 @@ def about_bot(message):
     bot.send_message(message.chat.id, "🤖 Bu bot orqali sevimli animelaringizni qismlarga bo'lingan holda osongina ko'rishingiz mumkin.")
 
 # --- ADMIN FUNKSIYALARI ---
+@bot.message_handler(func=lambda message: message.text == "📢 Majburiy kanal" and message.from_user.id == ADMIN_ID)
+def admin_force_sub_menu(message):
+    current = settings.get("force_sub")
+    text = f"📢 *Majburiy obuna sozlamasi*\n\nHozirgi kanal: `{current if current else 'O\'rnatilmagan (O\'chiq)'}`\n\nYangi kanal username yoki havolasini yuboring (masalan: `@KanalNomi` yoki `https://t.me/...`)\nAgar majburiy obunani o'chirmoqchi bo'lsangiz: `ochirish` deb yuboring."
+    msg = bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    bot.register_next_step_handler(msg, save_force_sub_channel)
+
+def save_force_sub_channel(message):
+    global settings
+    text = message.text.strip()
+    if text.lower() == "ochirish":
+        settings["force_sub"] = None
+        save_data(SETTINGS_FILE, settings)
+        bot.send_message(message.chat.id, "✅ Majburiy obuna muvaffaqiyatli o'chirildi!", reply_markup=get_admin_keyboard())
+        return
+    
+    settings["force_sub"] = text
+    save_data(SETTINGS_FILE, settings)
+    bot.send_message(message.chat.id, f"✅ Majburiy kanal o'rnatildi: {text}\n\n*Eslatma:* Botni o'sha kanalga admin qilganingizga ishonch hosil qiling!", parse_mode="Markdown", reply_markup=get_admin_keyboard())
+
 @bot.message_handler(func=lambda message: message.text == "➕ Yeni anime bo'limi" and message.from_user.id == ADMIN_ID)
 def admin_add_anime(message):
     msg = bot.send_message(message.chat.id, "Yangi anime bo'limi nomini kiriting:")
@@ -185,7 +218,8 @@ def admin_list(message):
 
 @bot.message_handler(func=lambda message: message.text == "📊 Statistika" and message.from_user.id == ADMIN_ID)
 def admin_stats(message):
-    text = f"📊 *Statistika:*\n\n👥 Foydalanuvchilar: {len(users)} ta\n📁 Anime bo'limlari: {len(db)} ta"
+    current_channel = settings.get("force_sub")
+    text = f"📊 *Statistika:*\n\n👥 Foydalanuvchilar: {len(users)} ta\n📁 Anime bo'limlari: {len(db)} ta\n📢 Majburiy kanal: `{current_channel if current_channel else 'O\'rnatilmagan'}`"
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_admin_keyboard())
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -220,7 +254,10 @@ def callback_handler(call):
             bot.send_video(call.message.chat.id, db[anime_name][part], caption=f"🎬 {anime_name} — {part}-qism")
 
     elif data == "back_to_list":
-        bot.delete_message(call.message.chat.id, call.message.message_id)
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
         show_anime_groups(call.message)
 
     elif data.startswith("del_") and user_id == ADMIN_ID:
@@ -229,14 +266,20 @@ def callback_handler(call):
             del db[anime_name]
             save_data(DB_FILE, db)
         bot.answer_callback_query(call.id, f"'{anime_name}' o'chirildi!")
-        bot.delete_message(call.message.chat.id, call.message.message_id)
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
         bot.send_message(call.message.chat.id, "Boshqaruv paneli:", reply_markup=get_admin_keyboard())
 
     elif data.startswith("rep_") and user_id == ADMIN_ID:
         anime_name = data.replace("rep_", "")
         msg = bot.send_message(call.message.chat.id, f"'{anime_name}' uchun yangi qism raqamini kiriting:")
         bot.register_next_step_handler(msg, step_part_num, anime_name)
-        bot.delete_message(call.message.chat.id, call.message.message_id)
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
 
 print("Bot ishga tushdi...")
 bot.infinity_polling()
