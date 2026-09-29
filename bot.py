@@ -22,9 +22,9 @@ def load_db():
 
 def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Foydalanuvchilar bazasini yuklash (Statistika va xabar tarqatish uchun)
+# Foydalanuvchilar bazasini yuklash
 def load_users():
     if os.path.exists("users.json"):
         try:
@@ -53,7 +53,7 @@ def get_admin_keyboard():
     )
     return markup
 
-# Foydalanuvchi uchun doimiy pastki menyu (Reply keyboard)
+# Foydalanuvchi uchun doimiy pastki menyu
 def get_user_reply_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("🎬 Animelar ro'yxati"), KeyboardButton("ℹ️ Bot haqida"))
@@ -63,7 +63,6 @@ def get_user_reply_keyboard():
 def send_welcome(message):
     user_id = message.from_user.id
     
-    # Foydalanuvchini bazaga qo'shib borish
     users = load_users()
     if user_id not in users:
         users.append(user_id)
@@ -81,7 +80,6 @@ def send_welcome(message):
             "👋 Assalomu alaykum! Botimizga xush kelibsiz.\n\nKerakli anime va qismlarni topish uchun pastdagi tugmalardan foydalaning:",
             reply_markup=get_user_reply_keyboard()
         )
-        # Barcha animelarni foydalanuvchiga inline tugma qilib chiqaramiz
         show_user_anime_list(message.chat.id)
 
 def show_user_anime_list(chat_id):
@@ -102,7 +100,6 @@ def user_list_handler(message):
 def about_bot(message):
     bot.send_message(message.chat.id, "🤖 Bu bot orqali sevimli animelaringizni qismma-qism topib tomosha qilishingiz mumkin.")
 
-# Callback query'larni boshqarish (Admin va Foydalanuvchi tugmalari)
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     user_id = call.from_user.id
@@ -125,7 +122,7 @@ def callback_handler(call):
     elif data == "stats" and user_id == ADMIN_ID:
         users = load_users()
         total_animes = len(db)
-        text = f"📊 **Bot statistikasi:**\n\n👥 Foydalanuvchilar soni: {len(users)} ta\n🎬 Animelar soni: {total_animes} ta"
+        text = f"📊 *Bot statistikasi:*\n\n👥 Foydalanuvchilar soni: {len(users)} ta\n🎬 Animelar soni: {total_animes} ta"
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_home"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
@@ -142,19 +139,18 @@ def callback_handler(call):
         if anime_name in db:
             del db[anime_name]
             save_db(db)
-        bot.answer_callback_query(call.id, f"'{anime_name'}' o'chirildi!")
+        bot.answer_callback_query(call.id, f"{anime_name} o'chirildi!")
         bot.edit_message_text("Admin boshqaruv paneli:", call.message.chat.id, call.message.message_id, reply_markup=get_admin_keyboard())
 
     elif data.startswith("user_anime_"):
         anime_name = data.replace("user_anime_", "")
         if anime_name in db:
             markup = InlineKeyboardMarkup(row_width=2)
-            # Qismlarni tartibli chiqarish (1-qism, 2-qism...)
             parts = sorted(db[anime_name].keys(), key=lambda x: int(x) if x.isdigit() else x)
             for part in parts:
                 markup.add(InlineKeyboardButton(f"{part}-qism", callback_data=f"watch_{anime_name}_{part}"))
             markup.add(InlineKeyboardButton("⬅️ Orqaga", callback_data="user_back"))
-            bot.edit_message_text(f"📺 **{anime_name}** - Qismlarni tanlang:", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+            bot.edit_message_text(f"📺 *{anime_name}* - Qismlarni tanlang:", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
 
     elif data.startswith("watch_"):
         parts_data = data.replace("watch_", "").split("_", 1)
@@ -168,7 +164,6 @@ def callback_handler(call):
         bot.delete_message(call.message.chat.id, call.message.message_id)
         show_user_anime_list(call.message.chat.id)
 
-# Admin uchun: Anime qo'shish bosqichlari
 def process_anime_name(message):
     anime_name = message.text.strip()
     msg = bot.send_message(message.chat.id, f"'{anime_name}' uchun qism raqamini kiriting (masalan: 1):")
@@ -176,7 +171,7 @@ def process_anime_name(message):
 
 def process_part_number(message, anime_name):
     part = message.text.strip()
-    msg = bot.send_message(message.chat.id, f"'{anime_name}' ning {part}-qismining **VIDEOSINI** yuboring:")
+    msg = bot.send_message(message.chat.id, f"'{anime_name}' ning {part}-qismining *VIDEOSINI* yuboring:", parse_mode="Markdown")
     bot.register_next_step_handler(msg, process_video_file, anime_name, part)
 
 def process_video_file(message, anime_name, part):
@@ -190,7 +185,6 @@ def process_video_file(message, anime_name, part):
     else:
         bot.send_message(message.chat.id, "⚠️ Iltimos, faqat video fayl yuboring! Qaytadan urinib ko'ring.")
 
-# Admin uchun: Xabar tarqatish (Broadcast)
 def process_broadcast(message):
     text = message.text
     users = load_users()
@@ -205,4 +199,3 @@ def process_broadcast(message):
 
 print("Bot ishga tushdi...")
 bot.infinity_polling()
-    
