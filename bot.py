@@ -10,7 +10,6 @@ bot = telebot.TeleBot(TOKEN)
 DB_FILE = "anime_db.json"
 CONFIG_FILE = "config.json"
 
-# Ma'lumotlar bazasini yuklash
 def load_db():
     if os.path.exists(DB_FILE):
         try:
@@ -24,7 +23,6 @@ def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Foydalanuvchilar bazasini yuklash
 def load_users():
     if os.path.exists("users.json"):
         try:
@@ -40,7 +38,6 @@ def save_users(users):
 
 db = load_db()
 
-# Admin uchun asosiy menyu tugmalari
 def get_admin_keyboard():
     markup = InlineKeyboardMarkup()
     markup.row(
@@ -53,7 +50,6 @@ def get_admin_keyboard():
     )
     return markup
 
-# Foydalanuvchi uchun doimiy pastki menyu
 def get_user_reply_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("🎬 Animelar ro'yxati"), KeyboardButton("ℹ️ Bot haqida"))
@@ -199,3 +195,4 @@ def process_broadcast(message):
 
 print("Bot ishga tushdi...")
 bot.infinity_polling()
+                                 
