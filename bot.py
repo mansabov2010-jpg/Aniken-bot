@@ -3,8 +3,7 @@ import os
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
-TOKEN = 8845458932:AAHb3PfSBb9AclEhAuRJgj6h0wGewFSxyUM
-
+TOKEN = "8845458932:AAHb3PfSBb9AclEhAuRJgj6h0wGewFSxyUM"
 ADMIN_ID = 7986354170
 FORCE_SUB_CHANNEL = "@AnikenChannel"
 
@@ -198,7 +197,6 @@ def callback_handler(call):
         anime_name = data.replace("group_", "")
         if anime_name in db:
             total_parts = len(db[anime_name])
-            # Siz xohlagan tartibda qismlar tugmalari 5 tadan qator bo'lib chiqadi
             markup = InlineKeyboardMarkup(row_width=5)
             parts = sorted(db[anime_name].keys(), key=lambda x: int(x) if x.isdigit() else x)
             
@@ -242,4 +240,4 @@ def callback_handler(call):
 
 print("Bot ishga tushdi...")
 bot.infinity_polling()
-        
+    
