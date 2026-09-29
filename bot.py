@@ -3,7 +3,7 @@ import os
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
-TOKEN = "8845458932:AAGKGMwVI0pTqfmr5QECZf0-1gGaLMQGFqq"
+TOKEN = "8981883684:AAEjZyKwS4-7lIlKNOkM_5LqovV_-tyz3OI"
 ADMIN_ID = 7986354170
 
 bot = telebot.TeleBot(TOKEN)
@@ -245,6 +245,9 @@ def callback_handler(call):
                 parse_mode="Markdown", 
                 reply_markup=markup
             )
+
+    elif data.startswith("data.startswith"): # handled below
+        pass
 
     elif data.startswith("watch_"):
         parts_data = data.replace("watch_", "").split("_", 1)
