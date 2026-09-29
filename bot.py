@@ -1,15 +1,16 @@
 import json
 import os
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, BotCommand
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
-TOKEN = "8845458932:AAHDQoXJN_LVVaqDw1iuoI1B2h-l9J0v170"
+TOKEN = "8845458932:AAHDQoXJN_LVVaqDw5WlB6yQf8Xj4Y-L5Qc"
 ADMIN_ID = 7986354170
 
 bot = telebot.TeleBot(TOKEN)
 DB_FILE = "anime_db.json"
 CONFIG_FILE = "config.json"
 
+# Ma'lumotlar bazasini yuklash
 def load_db():
     if os.path.exists(DB_FILE):
         try:
@@ -21,351 +22,187 @@ def load_db():
 
 def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+                json.dump(data, f, ensure_ascii=False, indent=4)
 
-def load_config():
-    if os.path.exists(CONFIG_FILE):
+# Foydalanuvchilar bazasini yuklash (Statistika va xabar tarqatish uchun)
+def load_users():
+    if os.path.exists("users.json"):
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open("users.json", "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            return {}
-    return {}
+            return []
+    return []
 
-def save_config(data):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+def save_users(users):
+    with open("users.json", "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=4)
 
 db = load_db()
-config = load_config()
 
-user_state = {}
-user_data = {}
-user_last_bot_msg = {}
-
-def set_bot_commands():
-    try:
-        bot.set_my_commands([
-            BotCommand("start", "Botni ishga tushirish / Asosiy menyu")
-        ])
-    except Exception:
-        pass
-
-set_bot_commands()
-
-def is_subscribed(user_id):
-    channel = config.get("channel")
-    if not channel:
-        return True
-    try:
-        chat_member = bot.get_chat_member(channel, user_id)
-        if chat_member.status in ['member', 'administrator', 'creator']:
-            return True
-    except Exception:
-        pass
-    return False
-
-def get_sub_markup():
-    channel = config.get("channel")
+# Admin uchun asosiy menyu tugmalari
+def get_admin_keyboard():
     markup = InlineKeyboardMarkup()
-    if channel:
-        url = f"https://t.me/{channel.replace('@', '')}"
-        markup.add(InlineKeyboardButton("📢 Kanalga obuna bo'lish", url=url))
-        markup.add(InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_sub"))
+    markup.row(
+        InlineKeyboardButton("➕ Anime qo'shish", callback_data="add_anime"),
+        InlineKeyboardButton("📋 Animelar ro'yxati", callback_data="list_anime")
+    )
+    markup.row(
+        InlineKeyboardButton("📊 Statistika", callback_data="stats"),
+        InlineKeyboardButton("📢 Xabar tarqatish", callback_data="broadcast")
+    )
     return markup
 
-def delete_last_msg(chat_id):
-    if chat_id in user_last_bot_msg:
-        try:
-            bot.delete_message(chat_id, user_last_bot_msg[chat_id])
-        except Exception:
-            pass
-
-def send_persistent(chat_id, text, reply_markup=None):
-    delete_last_msg(chat_id)
-    msg = bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode="Markdown")
-    user_last_bot_msg[chat_id] = msg.message_id
-
-def get_main_menu(user_id):
+# Foydalanuvchi uchun doimiy pastki menyu (Reply keyboard)
+def get_user_reply_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    if user_id == ADMIN_ID:
-        markup.add(KeyboardButton("➕ Yangi anime bo'limi"), KeyboardButton("🔄 Mavjud animeni almashtirish"))
-        markup.add(KeyboardButton("🔍 Nomi orqali qidirish"), KeyboardButton("🔢 Kod orqali qidirish"))
-        markup.add(KeyboardButton("📁 Jildlar bo'yicha ko'rish"), KeyboardButton("📢 Majburiy kanalni sozlash"))
-    else:
-        markup.add(KeyboardButton("🔍 Nomi orqali qidirish"), KeyboardButton("🔢 Kod orqali qidirish"))
-        markup.add(KeyboardButton("📁 Jildlar bo'yicha ko'rish"))
+    markup.add(KeyboardButton("🎬 Animelar ro'yxati"), KeyboardButton("ℹ️ Bot haqida"))
     return markup
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = message.from_user.id
-    if not is_subscribed(user_id):
+    
+    # Foydalanuvchini bazaga qo'shib borish
+    users = load_users()
+    if user_id not in users:
+        users.append(user_id)
+        save_users(users)
+        
+    if user_id == ADMIN_ID:
+        bot.send_message(
+            message.chat.id, 
+            "Assalomu alaykum, Hurmatli Admin! Bot boshqaruv paneliga xush kelibsiz:", 
+            reply_markup=get_admin_keyboard()
+        )
+    else:
         bot.send_message(
             message.chat.id,
-            "⚠️ Botdan foydalanish uchun quyidagi kanalimizga obuna bo'lishingiz kerak:",
-            reply_markup=get_sub_markup()
+            "👋 Assalomu alaykum! Botimizga xush kelibsiz.\n\nKerakli anime va qismlarni topish uchun pastdagi tugmalardan foydalaning:",
+            reply_markup=get_user_reply_keyboard()
         )
-        return
+        # Barcha animelarni foydalanuvchiga inline tugma qilib chiqaramiz
+        show_user_anime_list(message.chat.id)
 
-    if user_id == ADMIN_ID:
-        send_persistent(message.chat.id, "🎛 **Admin boshqaruv paneli:**", reply_markup=get_main_menu(user_id))
-    else:
-        welcome_text = (
-            "✨ *AniKen dunyosiga xush kelibsiz!*\n\n"
-            "🎬 Bu yerda siz eng sara anime va animatsion filmlarni yuqori sifatda topishingiz mumkin.\n"
-            "Kerakli bo'limni tanlash uchun pastdagi tugmalardan foydalaning:"
-        )
-        send_persistent(message.chat.id, welcome_text, reply_markup=get_main_menu(user_id))
-
-@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
-def check_subscription(call):
-    if is_subscribed(call.from_user.id):
-        bot.answer_callback_query(call.id, "Rahmat, obuna tasdiqlandi! ✅")
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-        except Exception:
-            pass
-        send_welcome(call.message)
-    else:
-        bot.answer_callback_query(call.id, "Siz hali kanalga obuna bo'lmadingiz! ❌", show_alert=True)
-
-@bot.message_handler(func=lambda message: not is_subscribed(message.from_user.id))
-def block_unsubscribed(message):
-    bot.send_message(
-        message.chat.id,
-        "⚠️ Botdan foydalanish uchun avval kanalga obuna bo'ling!",
-        reply_markup=get_sub_markup()
-    )
-
-@bot.message_handler(func=lambda message: message.text == "📢 Majburiy kanalni sozlash" and message.from_user.id == ADMIN_ID)
-def set_channel_prompt(message):
-    user_state[message.from_user.id] = "waiting_for_channel"
-    send_persistent(message.chat.id, "📢 Kerakli kanal username'sini yuboring (masalan: `@kanal_nomi`):")
-
-@bot.message_handler(func=lambda message: message.text == "📁 Jildlar bo'yicha ko'rish")
-def show_folders(message):
-    db = load_db()
+def show_user_anime_list(chat_id):
     if not db:
-        send_persistent(message.chat.id, "📭 Hozircha bazada animelar mavjud emas.")
+        bot.send_message(chat_id, "Hozircha animelar mavjud emas. Tez kunda qo'shiladi!")
         return
-    
-    folders = set()
-    for anime in db.values():
-        folders.add(anime.get("folder", "Boshqa"))
-    
-    markup = InlineKeyboardMarkup()
-    for folder in sorted(folders):
-        markup.add(InlineKeyboardButton(f"📁 {folder}", callback_data=f"folder_{folder}"))
-    
-    send_persistent(message.chat.id, "📂 **Mavjud jildlar ro'yxati:**", reply_markup=markup)
+        
+    markup = InlineKeyboardMarkup(row_width=1)
+    for anime_name in db.keys():
+        markup.add(InlineKeyboardButton(f"🎬 {anime_name}", callback_data=f"user_anime_{anime_name}"))
+    bot.send_message(chat_id, "📺 Mavjud animelar ro'yxati:", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("folder_"))
-def show_folder_contents(call):
-    folder_name = call.data.replace("folder_", "", 1)
-    db = load_db()
-    
-    markup = InlineKeyboardMarkup()
-    items = []
-    for code, anime in db.items():
-        if anime.get("folder", "Boshqa") == folder_name:
-            items.append((int(code) if code.isdigit() else code, code, anime))
-    
-    # Tartib raqami bo'yicha saralash
-    try:
-        items.sort(key=lambda x: int(x[1]))
-    except Exception:
-        pass
+@bot.message_handler(func=lambda message: message.text == "🎬 Animelar ro'yxati")
+def user_list_handler(message):
+    show_user_anime_list(message.chat.id)
 
-    for _, code, anime in items:
-        # Endi tugmada faqat qism raqami yoki qisqacha ko'rsatiladi
-        btn_text = f"{anime.get('part', code)}-qism"
-        markup.add(InlineKeyboardButton(btn_text, callback_data=f"anime_{code}"))
-    
-    markup.add(InlineKeyboardButton("⬅️ Orqaga", callback_data="back_to_folders"))
-    
-    try:
-        bot.edit_message_text(f"📁 **{folder_name}** jildidagi animelar:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-    except Exception:
-        pass
+@bot.message_handler(func=lambda message: message.text == "ℹ️ Bot haqida")
+def about_bot(message):
+    bot.send_message(message.chat.id, "🤖 Bu bot orqali sevimli animelaringizni qismma-qism topib tomosha qilishingiz mumkin.")
 
-@bot.callback_query_handler(func=lambda call: call.data == "back_to_folders")
-def back_to_folders_handler(call):
-    db = load_db()
-    folders = set()
-    for anime in db.values():
-        folders.add(anime.get("folder", "Boshqa"))
+# Callback query'larni boshqarish (Admin va Foydalanuvchi tugmalari)
+@bot.callback_query_handler(func=lambda call: True)
+def callback_handler(call):
+    user_id = call.from_user.id
+    data = call.data
     
-    markup = InlineKeyboardMarkup()
-    for folder in sorted(folders):
-        markup.add(InlineKeyboardButton(f"📁 {folder}", callback_data=f"folder_{folder}"))
-    
-    try:
-        bot.edit_message_text("📂 **Mavjud jildlar ro'yxati:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-    except Exception:
-        pass
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("anime_"))
-def show_anime_detail(call):
-    code = call.data.replace("anime_", "", 1)
-    db = load_db()
-    anime = db.get(code)
-    if not anime:
-        bot.answer_callback_query(call.id, "Anime topilmadi!", show_alert=True)
-        return
-    
-    text = f"🎬 **Nomi:** {anime['name']}\n🔢 **Kodi:** {code}\n📁 **Jild:** {anime.get('folder', 'Boshqa')}"
-    if anime.get('video'):
-        try:
-            bot.send_video(call.message.chat.id, anime['video'], caption=text, parse_mode="Markdown")
+    if data == "add_anime" and user_id == ADMIN_ID:
+        msg = bot.send_message(call.message.chat.id, "Anime nomini kiriting:")
+        bot.register_next_step_handler(msg, process_anime_name)
+        
+    elif data == "list_anime" and user_id == ADMIN_ID:
+        if not db:
+            bot.answer_callback_query(call.id, "Hozircha animelar yo'q.")
             return
+        markup = InlineKeyboardMarkup(row_width=1)
+        for anime in db.keys():
+            markup.add(InlineKeyboardButton(f"🗑 O'chirish: {anime}", callback_data=f"del_anime_{anime}"))
+        markup.add(InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_home"))
+        bot.edit_message_text("O'chirmoqchi bo'lgan animeni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        
+    elif data == "stats" and user_id == ADMIN_ID:
+        users = load_users()
+        total_animes = len(db)
+        text = f"📊 **Bot statistikasi:**\n\n👥 Foydalanuvchilar soni: {len(users)} ta\n🎬 Animelar soni: {total_animes} ta"
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("⬅️ Orqaga", callback_data="admin_home"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+
+    elif data == "broadcast" and user_id == ADMIN_ID:
+        msg = bot.send_message(call.message.chat.id, "Barcha foydalanuvchilarga yubormoqchi bo'lgan xabaringizni kiriting:")
+        bot.register_next_step_handler(msg, process_broadcast)
+
+    elif data == "admin_home" and user_id == ADMIN_ID:
+        bot.edit_message_text("Admin boshqaruv paneli:", call.message.chat.id, call.message.message_id, reply_markup=get_admin_keyboard())
+
+    elif data.startswith("del_anime_") and user_id == ADMIN_ID:
+        anime_name = data.replace("del_anime_", "")
+        if anime_name in db:
+            del db[anime_name]
+            save_db(db)
+        bot.answer_callback_query(call.id, f"'{anime_name'}' o'chirildi!")
+        bot.edit_message_text("Admin boshqaruv paneli:", call.message.chat.id, call.message.message_id, reply_markup=get_admin_keyboard())
+
+    elif data.startswith("user_anime_"):
+        anime_name = data.replace("user_anime_", "")
+        if anime_name in db:
+            markup = InlineKeyboardMarkup(row_width=2)
+            # Qismlarni tartibli chiqarish (1-qism, 2-qism...)
+            parts = sorted(db[anime_name].keys(), key=lambda x: int(x) if x.isdigit() else x)
+            for part in parts:
+                markup.add(InlineKeyboardButton(f"{part}-qism", callback_data=f"watch_{anime_name}_{part}"))
+            markup.add(InlineKeyboardButton("⬅️ Orqaga", callback_data="user_back"))
+            bot.edit_message_text(f"📺 **{anime_name}** - Qismlarni tanlang:", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+
+    elif data.startswith("watch_"):
+        parts_data = data.replace("watch_", "").split("_", 1)
+        anime_name = parts_data[0]
+        part = parts_data[1]
+        if anime_name in db and part in db[anime_name]:
+            file_id = db[anime_name][part]
+            bot.send_video(call.message.chat.id, file_id, caption=f"🎬 {anime_name} - {part}-qism")
+
+    elif data == "user_back":
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        show_user_anime_list(call.message.chat.id)
+
+# Admin uchun: Anime qo'shish bosqichlari
+def process_anime_name(message):
+    anime_name = message.text.strip()
+    msg = bot.send_message(message.chat.id, f"'{anime_name}' uchun qism raqamini kiriting (masalan: 1):")
+    bot.register_next_step_handler(msg, process_part_number, anime_name)
+
+def process_part_number(message, anime_name):
+    part = message.text.strip()
+    msg = bot.send_message(message.chat.id, f"'{anime_name}' ning {part}-qismining **VIDEOSINI** yuboring:")
+    bot.register_next_step_handler(msg, process_video_file, anime_name, part)
+
+def process_video_file(message, anime_name, part):
+    if message.video:
+        file_id = message.video.file_id
+        if anime_name not in db:
+            db[anime_name] = {}
+        db[anime_name][part] = file_id
+        save_db(db)
+        bot.send_message(message.chat.id, f"✅ Muvaffaqiyatli saqlandi!\n\nAnime: {anime_name}\nQism: {part}", reply_markup=get_admin_keyboard())
+    else:
+        bot.send_message(message.chat.id, "⚠️ Iltimos, faqat video fayl yuboring! Qaytadan urinib ko'ring.")
+
+# Admin uchun: Xabar tarqatish (Broadcast)
+def process_broadcast(message):
+    text = message.text
+    users = load_users()
+    success = 0
+    for uid in users:
+        try:
+            bot.send_message(uid, text)
+            success += 1
         except Exception:
             pass
-    bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
-
-@bot.message_handler(func=lambda message: message.text == "➕ Yangi anime bo'limi" and message.from_user.id == ADMIN_ID)
-def add_anime_start(message):
-    user_state[message.from_user.id] = "add_name"
-    send_persistent(message.chat.id, "✍️ Anime nomini yuboring:")
-
-@bot.message_handler(func=lambda message: message.text == "🔄 Mavjud animeni almashtirish" and message.from_user.id == ADMIN_ID)
-def change_anime_start(message):
-    user_state[message.from_user.id] = "change_code"
-    send_persistent(message.chat.id, "🔢 Almashtirmoqchi bo'lgan anime kodini kiriting:")
-
-@bot.message_handler(func=lambda message: message.text == "🔢 Kod orqali qidirish")
-def search_by_code_prompt(message):
-    user_state[message.from_user.id] = "search_code"
-    send_persistent(message.chat.id, "🔢 Qidirilayotgan anime kodini yuboring:")
-
-@bot.message_handler(func=lambda message: message.text == "🔍 Nomi orqali qidirish")
-def search_by_name_prompt(message):
-    user_state[message.from_user.id] = "search_name"
-    send_persistent(message.chat.id, "🔍 Anime nomining bir qismini yuboring:")
-
-@bot.message_handler(func=lambda message: message.from_user.id in user_state)
-def handle_states(message):
-    user_id = message.from_user.id
-    state = user_state.get(user_id)
-    db = load_db()
-
-    if state == "waiting_for_channel":
-        config["channel"] = message.text.strip()
-        save_config(config)
-        user_state.pop(user_id, None)
-        send_persistent(message.chat.id, f"✅ Majburiy kanal muvaffaqiyatli o'rnatildi: {config['channel']}", reply_markup=get_main_menu(user_id))
-
-    elif state == "add_name":
-        user_data[user_id] = {"name": message.text, "keywords": message.text.lower().split()}
-        user_state[user_id] = "add_folder"
-        send_persistent(message.chat.id, "📁 Ushbu anime qaysi jildga tegishli bo'lsin? (Masalan: Death note):")
-
-    elif state == "add_folder":
-        user_data[user_id]["folder"] = message.text.strip()
-        user_state[user_id] = "add_part"
-        send_persistent(message.chat.id, "🔢 Bu nechanchi qism? (Masalan: 1, 2 yoki 3):")
-
-    elif state == "add_part":
-        user_data[user_id]["part"] = message.text.strip()
-        user_state[user_id] = "add_code"
-        send_persistent(message.chat.id, "🔢 Anime uchun unikal kod raqamini kiriting:")
-
-    elif state == "add_code":
-        code = message.text.strip()
-        user_data[user_id]["code"] = code
-        user_state[user_id] = "add_video"
-        send_persistent(message.chat.id, "📹 Endi anime videosini (fayl yoki video tarzida) yuboring:")
-
-    elif state == "add_video":
-        video_id = None
-        if message.video:
-            video_id = message.video.file_id
-        elif message.document:
-            video_id = message.document.file_id
-        
-        if not video_id:
-            send_persistent(message.chat.id, "❌ Iltimos, video yoki video fayl yuboring!")
-            return
-
-        data = user_data[user_id]
-        code = data["code"]
-        db[code] = {
-            "name": data["name"],
-            "keywords": data["keywords"],
-            "folder": data["folder"],
-            "part": data["part"],
-            "code": code,
-            "video": video_id
-        }
-        save_db(db)
-        user_state.pop(user_id, None)
-        user_data.pop(user_id, None)
-        send_persistent(message.chat.id, f"✅ Anime muvaffaqiyatli qo'shildi! (Kod: {code})", reply_markup=get_main_menu(user_id))
-
-    elif state == "change_code":
-        code = message.text.strip()
-        if code not in db:
-            send_persistent(message.chat.id, "❌ Bunday kodli anime topilmadi. Qaytadan kiriting:")
-            return
-        user_data[user_id] = {"change_code": code}
-        user_state[user_id] = "change_video"
-        send_persistent(message.chat.id, f"📹 '{db[code]['name']}' uchun yangi videoni yuboring:")
-
-    elif state == "change_video":
-        video_id = None
-        if message.video:
-            video_id = message.video.file_id
-        elif message.document:
-            video_id = message.document.file_id
-        
-        if not video_id:
-            send_persistent(message.chat.id, "❌ Iltimos, video yuboring!")
-            return
-
-        code = user_data[user_id]["change_code"]
-        db[code]["video"] = video_id
-        save_db(db)
-        user_state.pop(user_id, None)
-        user_data.pop(user_id, None)
-        send_persistent(message.chat.id, f"✅ {code}-kodli anime videosi muvaffaqiyatli almashtirildi!", reply_markup=get_main_menu(user_id))
-
-    elif state == "search_code":
-        code = message.text.strip()
-        user_state.pop(user_id, None)
-        anime = db.get(code)
-        if not anime:
-            send_persistent(message.chat.id, "❌ Bunday kodli anime topilmadi.", reply_markup=get_main_menu(user_id))
-            return
-        text = f"🎬 **Nomi:** {anime['name']}\n🔢 **Kodi:** {code}\n📁 **Jild:** {anime.get('folder', 'Boshqa')}"
-        if anime.get('video'):
-            try:
-                bot.send_video(message.chat.id, anime['video'], caption=text, parse_mode="Markdown")
-                return
-            except Exception:
-                pass
-        send_persistent(message.chat.id, text, reply_markup=get_main_menu(user_id))
-
-    elif state == "search_name":
-        query = message.text.strip().lower()
-        user_state.pop(user_id, None)
-        found = []
-        for code, anime in db.items():
-            if any(query in kw for kw in anime.get("keywords", [])) or query in anime["name"].lower():
-                found.append((code, anime))
-        
-        if not found:
-            send_persistent(message.chat.id, "❌ Bunday nomdagi anime topilmadi.", reply_markup=get_main_menu(user_id))
-            return
-        
-        text = "🔍 **Topilgan animelar:**\n\n"
-        for code, anime in found:
-            text += f"• {anime['name']} (Kod: {code})\n"
-        send_persistent(message.chat.id, text, reply_markup=get_main_menu(user_id))
-
-@bot.message_handler(func=lambda message: True)
-def handle_text(message):
-    send_persistent(message.chat.id, "Iltimos, menyudagi tugmalardan foydalaning:", reply_markup=get_main_menu(message.from_user.id))
+    bot.send_message(message.chat.id, f"📢 Xabar {success} ta foydalanuvchiga muvaffaqiyatli yuborildi!", reply_markup=get_admin_keyboard())
 
 print("Bot ishga tushdi...")
 bot.infinity_polling()
-                      
+    
