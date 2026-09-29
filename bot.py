@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
@@ -246,9 +247,6 @@ def callback_handler(call):
                 reply_markup=markup
             )
 
-    elif data.startswith("data.startswith"): # handled below
-        pass
-
     elif data.startswith("watch_"):
         parts_data = data.replace("watch_", "").split("_", 1)
         anime_name = parts_data[0]
@@ -285,5 +283,11 @@ def callback_handler(call):
             pass
 
 print("Bot ishga tushdi...")
-bot.infinity_polling()
-    
+# Eski ulanishlarni tozalab yuborish uchun remove_pending=True qo'shamiz
+while True:
+    try:
+        bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        print(f"Xatolik yuz berdi: {e}")
+        time.sleep(5)
+        
