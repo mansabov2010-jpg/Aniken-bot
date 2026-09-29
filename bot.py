@@ -8,6 +8,7 @@ ADMIN_ID = 7986354170
 
 bot = telebot.TeleBot(TOKEN)
 DB_FILE = "anime_db.json"
+CONFIG_FILE = "config.json"
 
 
 def load_db():
@@ -25,12 +26,71 @@ def save_db(data):
     json.dump(data, f, ensure_ascii=False, indent=4)
 
 
+def load_config():
+  if os.path.exists(CONFIG_FILE):
+    try:
+      with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+    except Exception:
+      return {}
+  return {"required_channel": ""}
+
+
+def save_config(config):
+  with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+    json.dump(config, f, ensure_ascii=False, indent=4)
+
+
 admin_state = {}
+
+
+# --- MAJBURIY OBUNANI TEKSHIRISH ---
+def check_subscription(user_id):
+  config = load_config()
+  channel = config.get("required_channel")
+  if not channel:
+    return True
+  try:
+    member = bot.get_chat_member(channel, user_id)
+    if member.status in ["member", "administrator", "creator"]:
+      return True
+  except Exception:
+    pass
+  return False
+
+
+# --- CHATNI TOZALASH (Faqat oxirgi xabar va videolar qoladi) ---
+def safe_delete_message(chat_id, message_id):
+  try:
+    bot.delete_message(chat_id, message_id)
+  except Exception:
+    pass
 
 
 @bot.message_handler(commands=["start"])
 def start_command(message):
   user_id = message.from_user.id
+
+  # Majburiy obuna tekshiruvi
+  if not check_subscription(user_id):
+    config = load_config()
+    channel = config.get("required_channel")
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton(
+            "📢 Kanalga a'zo bo'lish",
+            url=f"https://t.me/{channel.replace('@', '')}",
+        ),
+        InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_sub"),
+    )
+    bot.send_message(
+        message.chat.id,
+        "⚠️ Botdan foydalanish uchun avval quyidagi kanalimizga a'zo bo'lishingiz"
+        " kerak:",
+        reply_markup=markup,
+    )
+    return
+
   if user_id in admin_state:
     del admin_state[user_id]
 
@@ -59,6 +119,30 @@ def callback_handler(call):
   data = call.data
   db = load_db()
 
+  if data == "check_sub":
+    if check_subscription(user_id):
+      safe_delete_message(call.message.chat.id, call.message.message_id)
+      bot.answer_callback_query(call.id, "Rahmat! Obuna tasdiqlandi.")
+      # Obunadan keyin bosh menyuni ochamiz
+      fake_msg = call.message
+      start_command(fake_msg)
+    else:
+      bot.answer_callback_query(
+          call.id,
+          "Siz hali kanalga to'liq a'zo bo'lmadingiz!",
+          show_alert=True,
+      )
+    return
+
+  # Qolgan barcha menyular uchun ham majburiy obunani tekshiramiz
+  if not check_subscription(user_id):
+    bot.answer_callback_query(
+        call.id,
+        "Botdan foydalanish uchun avval kanalga a'zo bo'ling!",
+        show_alert=True,
+    )
+    return
+
   if data == "main_menu":
     bot.answer_callback_query(call.id)
     markup = InlineKeyboardMarkup(row_width=1)
@@ -71,10 +155,16 @@ def callback_handler(call):
               "🔄 Mavjud animeni almashtirish", callback_data="admin_replace"
           ),
           InlineKeyboardButton(
+              "📁 Jildlar bo'yicha ko'rish", callback_data="user_view_folders"
+          ),
+          InlineKeyboardButton(
               "🔍 Nomi orqali qidirish", callback_data="user_search_name"
           ),
           InlineKeyboardButton(
               "🔢 Kod orqali qidirish", callback_data="user_search_code"
+          ),
+          InlineKeyboardButton(
+              "📢 Majburiy kanalni sozlash", callback_data="admin_set_channel"
           ),
       )
       bot.send_message(
@@ -84,6 +174,9 @@ def callback_handler(call):
       )
     else:
       markup.add(
+          InlineKeyboardButton(
+              "📁 Jildlar bo'yicha ko'rish", callback_data="user_view_folders"
+          ),
           InlineKeyboardButton(
               "🔍 Nomi orqali qidirish", callback_data="user_search_name"
           ),
@@ -96,6 +189,14 @@ def callback_handler(call):
           "Salom! Kerakli qidiruv turini tanlang:",
           reply_markup=markup,
       )
+
+  elif data == "admin_set_channel" and user_id == ADMIN_ID:
+    bot.answer_callback_query(call.id)
+    admin_state[user_id] = {"step": "waiting_channel_username"}
+    bot.send_message(
+        call.message.chat.id,
+        "📢 Majburiy kanal username'ini yuboring (masalan: @kanal_nomi):",
+    )
 
   elif data == "admin_anime_menu" and user_id == ADMIN_ID:
     bot.answer_callback_query(call.id)
@@ -131,43 +232,19 @@ def callback_handler(call):
       )
       return
 
-    info_text = "📂 **Mavjud jildlar statistikasi:**\n\n"
     markup = InlineKeyboardMarkup(row_width=1)
-
-    for folder_name, animes in db.items():
-      anime_count = len(animes)
-      total_parts = sum(len(anime["parts"]) for anime in animes)
-
-      if animes:
-        last_anime = animes[-1]
-        l_name = last_anime["name"]
-        l_code = last_anime["code"]
-        l_parts_count = len(last_anime["parts"])
-        info_text += (
-            f"📁 **{folder_name}**\n"
-            f"• Animelar soni: {anime_count} ta\n"
-            f"• Jami qismlar: {total_parts} ta\n"
-            f"• Oxirgi anime: {l_name} (Kod: `{l_code}`, Qismlar: {l_parts_count}"
-            f" ta)\n\n"
-        )
-      else:
-        info_text += (
-            f"📁 **{folder_name}**\n• Bo'sh jild (Anime qo'shilmagan)\n\n"
-        )
-
+    for folder_name in db.keys():
+      anime_count = len(db[folder_name])
       markup.add(
           InlineKeyboardButton(
               f"📁 {folder_name} ({anime_count} ta anime)",
               callback_data=f"sel_folder_{folder_name}",
           )
       )
-
-    info_text += "Qaysi jildga anime qo'shmoqchisiz? Tanlang:"
     bot.send_message(
         call.message.chat.id,
-        info_text,
+        "Qaysi jildga anime qo'shmoqchisiz? Tanlang:",
         reply_markup=markup,
-        parse_mode="Markdown",
     )
 
   elif data.startswith("sel_folder_") and user_id == ADMIN_ID:
@@ -189,6 +266,80 @@ def callback_handler(call):
         "🔄 Almashtirmoqchi bo'lgan anime **kodini** kiriting:",
     )
 
+  # --- JILDLAR BO'YICHA NAVIGATSIYA (Foydalanuvchi uchun) ---
+  elif data == "user_view_folders":
+    bot.answer_callback_query(call.id)
+    if not db:
+      bot.send_message(call.message.chat.id, "❌ Hozircha animelar mavjud emas.")
+      return
+    markup = InlineKeyboardMarkup(row_width=1)
+    for folder_name in db.keys():
+      markup.add(
+          InlineKeyboardButton(
+              f"📁 {folder_name}", callback_data=f"view_f_{folder_name}"
+          )
+      )
+    bot.send_message(
+        call.message.chat.id,
+        "📂 Mavjud jildlardan birini tanlang:",
+        reply_markup=markup,
+    )
+
+  elif data.startswith("view_f_"):
+    bot.answer_callback_query(call.id)
+    folder_name = data.replace("view_f_", "")
+    animes = db.get(folder_name, [])
+    if not animes:
+      bot.send_message(
+          call.message.chat.id,
+          f"❌ '{folder_name}' jildida hozircha animelar yo'q.",
+      )
+      return
+    markup = InlineKeyboardMarkup(row_width=1)
+    for anime in animes:
+      markup.add(
+          InlineKeyboardButton(
+              f"🎬 {anime['name']} (Kod: {anime['code']})",
+              callback_data=f"view_anime_{folder_name}_{anime['code']}",
+          )
+      )
+    markup.add(
+        InlineKeyboardButton("⬅️ Orqaga", callback_data="user_view_folders")
+    )
+    bot.send_message(
+        call.message.chat.id,
+        f"📁 **{folder_name}** jildidagi animelar:",
+        reply_markup=markup,
+        parse_mode="Markdown",
+    )
+
+  elif data.startswith("view_anime_"):
+    bot.answer_callback_query(call.id)
+    parts_data = data.replace("view_anime_", "").split("_", 1)
+    folder_name = parts_data[0]
+    anime_code = parts_data[1]
+
+    found_anime = None
+    for anime in db.get(folder_name, []):
+      if anime["code"] == anime_code:
+        found_anime = anime
+        break
+
+    if found_anime:
+      bot.send_message(
+          call.message.chat.id,
+          f"🎬 Nomi: {found_anime['name']}\n🔢 Kodi: {found_anime['code']}\n\nQismlar"
+          " yuborilmoqda...",
+      )
+      for p_num, v_id in found_anime["parts"].items():
+        bot.send_video(
+            call.message.chat.id,
+            v_id,
+            caption=f"{found_anime['name']} — {p_num}-qism",
+        )
+    else:
+      bot.send_message(call.message.chat.id, "❌ Anime topilmadi.")
+
   elif data == "user_search_name":
     bot.answer_callback_query(call.id)
     bot.send_message(
@@ -203,6 +354,29 @@ def callback_handler(call):
 @bot.message_handler(content_types=["video", "text"])
 def all_messages_handler(message):
   user_id = message.from_user.id
+
+  # Har bir xabarda obunani tekshirish
+  if not check_subscription(user_id):
+    config = load_config()
+    channel = config.get("required_channel")
+    if channel:
+      markup = InlineKeyboardMarkup(row_width=1)
+      markup.add(
+          InlineKeyboardButton(
+              "📢 Kanalga a'zo bo'lish",
+              url=f"https://t.me/{channel.replace('@', '')}",
+          ),
+          InlineKeyboardButton(
+              "✅ Obunani tekshirish", callback_data="check_sub"
+          ),
+      )
+      bot.send_message(
+          message.chat.id,
+          "⚠️ Botdan foydalanish uchun kanalimizga a'zo bo'lishingiz shart!",
+          reply_markup=markup,
+      )
+      return
+
   text = message.text.strip() if message.text else ""
   db = load_db()
 
@@ -210,7 +384,21 @@ def all_messages_handler(message):
     state = admin_state[user_id]
     step = state["step"]
 
-    if step == "waiting_new_folder_name":
+    if step == "waiting_channel_username":
+      if not text:
+        bot.reply_to(message, "❌ Iltimos, kanal username'ini yuboring:")
+        return
+      config = load_config()
+      config["required_channel"] = text
+      save_config(config)
+      del admin_state[user_id]
+      bot.reply_to(
+          message,
+          f"✅ Majburiy kanal muvaffaqiyatli o'rnatildi: {text}",
+      )
+      return
+
+    elif step == "waiting_new_folder_name":
       if not text:
         bot.reply_to(message, "❌ Iltimos, jild nomini matn ko'rinishida yuboring:")
         return
