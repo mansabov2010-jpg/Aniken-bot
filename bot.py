@@ -195,4 +195,4 @@ def process_broadcast(message):
 
 print("Bot ishga tushdi...")
 bot.infinity_polling()
-    
+                
