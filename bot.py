@@ -415,4 +415,4 @@ if __name__ == '__main__':
     while True:
         try:
             bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
-        except Excep
+        except Excep:
