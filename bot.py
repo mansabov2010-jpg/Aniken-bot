@@ -117,7 +117,6 @@ def cmd_start(message: types.Message):
 
 @bot.message_handler(commands=['anime'])
 def cmd_anime_search(message: types.Message):
-    # Guruh va kanallar uchun /anime <nomiy yoki kod>
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
         bot.reply_to(message, "Iltimos, anime nomi yoki kodini kiriting. Masalan: /anime Death note")
@@ -421,4 +420,4 @@ def callback_handler(call: types.CallbackQuery):
 
     elif data == "admin_main_menu" and user_id == ADMIN_ID:
         user_states.pop(user_id, None)
-        bot.edit_message_text("Admin menyusi:", call.
+        bot.edit_message_text("Admin menyusi:", call.message.chat.id, call.message.message_id, reply_markup
