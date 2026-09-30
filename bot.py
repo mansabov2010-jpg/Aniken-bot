@@ -93,7 +93,10 @@ def cmd_start(message: types.Message):
             caption = f"🎬 <b>{data['name']}</b>\n\n📖 <b>Ma'lumot:</b> {data.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {data.get('code', 'Yo\'q')}"
             
             keyboard = types.InlineKeyboardMarkup(row_width=5)
-            buttons = [types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
+            buttons = [
+                types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
+                for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)
+            ]
             keyboard.add(*buttons)
             
             if data.get('photo'):
@@ -241,7 +244,6 @@ def main_handler(message: types.Message):
                 anime_database[name_key]['parts'][part_num] = {'file_id': file_id, 'part': part_num}
                 save_database(anime_database)
                 
-                # Har bir qism qo'shilgandan keyin Tamomlash / Yana qo'shish tanlovi chiqishi uchun
                 keyboard = types.InlineKeyboardMarkup(row_width=2)
                 keyboard.add(
                     types.InlineKeyboardButton("➕ Yana qism qo'shish", callback_data=f"add_more_part_{name_key}"),
@@ -295,7 +297,10 @@ def main_handler(message: types.Message):
         caption = f"🎬 <b>{data['name']}</b>\n\n📖 <b>Ma'lumot:</b> {data.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {code}"
         
         keyboard = types.InlineKeyboardMarkup(row_width=5)
-        buttons = [types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
+        buttons = [
+            types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
+            for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)
+        ]
         keyboard.add(*buttons)
         
         if data.get('photo'):
@@ -407,4 +412,6 @@ def callback_handler(call: types.CallbackQuery):
         if name_key in anime_database:
             d = anime_database[name_key]
             keyboard = types.InlineKeyboardMarkup(row_width=5)
-            buttons = [types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") for p in sorted(d['parts'].keys(), key=lambda x: int(x) if x.isdigit
+            buttons = [
+                types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
+                for p in sorted(d['parts'].keys(), key=lambda x: int
