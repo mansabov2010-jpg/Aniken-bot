@@ -7,7 +7,6 @@ import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
-# Render o'chirib yubormasligi uchun kichik soxta server
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -48,10 +47,7 @@ user_states = {}
 
 def start_keyboard(code_text=None):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    if code_text:
-        btn_text = "🚀 Start (" + str(code_text) + ")"
-    else:
-        btn_text = "🚀 Start"
+    btn_text = "🚀 Start (" + str(code_text) + ")" if code_text else "🚀 Start"
     keyboard.add(types.KeyboardButton(btn_text))
     return keyboard
 
@@ -119,59 +115,6 @@ def cmd_start(message: types.Message):
         bot.send_message(user_id, "Assalomu alaykum, Admin! Kerakli bo'limni tanlang:", reply_markup=admin_inline_menu())
     else:
         bot.send_message(user_id, "Xush kelibsiz! Qidirmoqchi bo'lgan anime nomini yoki kodini yuboring:", reply_markup=start_keyboard())
-
-@bot.message_handler(commands=['anime'])
-def cmd_anime_search(message: types.Message):
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        bot.reply_to(message, "Iltimos, anime nomi yoki kodini kiriting. Masalan: /anime Death note")
-        return
-    
-    query = args[1].lower()
-    found_anime = None
-    for name_key, data in anime_database.items():
-        if query in name_key or query in data['name'].lower() or query == data.get('code', '').lower():
-            found_anime = (name_key, data)
-            break
-            
-    if found_anime:
-        name_key, data = found_anime
-        bot_info = bot.get_me()
-        bot_username = bot_info.username
-        code = data.get('code', '')
-        
-        caption = "🎬 <b>" + str(data['name']) + "</b>\n📦 Qismlar soni: " + str(len(data['parts'])) + " ta\n📌 Kodi: " + str(code)
-        keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton("🎬 Animeni ko'rish", url="https://t.me/" + str(bot_username) + "?start=" + str(code)))
-        
-        if data.get('photo'):
-            bot.send_photo(message.chat.id, photo=data['photo'], caption=caption, reply_markup=keyboard)
-        else:
-            bot.send_message(message.chat.id, caption, reply_markup=keyboard)
-    else:
-        bot.reply_to(message, "❌ Bunday anime topilmadi.")
-
-@bot.message_handler(func=lambda msg: msg.text and msg.text.startswith("🚀 Start"))
-def msg_start_text(message: types.Message):
-    user_id = message.from_user.id
-    user_states.pop(user_id, None)
-    if not check_sub_channel(user_id):
-        return
-    if user_id == ADMIN_ID:
-        bot.send_message(user_id, "Admin menyusi:", reply_markup=admin_inline_menu())
-    else:
-        bot.send_message(user_id, "Xush kelibsiz! Qidirmoqchi bo'lgan anime nomini yoki kodini yuboring:", reply_markup=start_keyboard())
-
-@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
-def callback_check_sub(call: types.CallbackQuery):
-    if check_sub_channel(call.from_user.id):
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-        if call.from_user.id == ADMIN_ID:
-            bot.send_message(call.from_user.id, "Rahmat! Admin menyusi:", reply_markup=admin_inline_menu())
-        else:
-            bot.send_message(call.from_user.id, "Rahmat! Qidirmoqchi bo'lgan anime nomini yoki kodini yuboring:", reply_markup=start_keyboard())
-    else:
-        bot.answer_callback_query(call.id, "Siz hali kanalga a'zo bo'lmadingiz!", show_alert=True)
 
 @bot.message_handler(func=lambda msg: True, content_types=['text', 'video', 'document', 'photo'])
 def main_handler(message: types.Message):
@@ -259,13 +202,7 @@ def main_handler(message: types.Message):
             return
 
         if step == "waiting_for_existing_folder_video":
-            if message.video:
-                file_id = message.video.file_id
-            elif message.document:
-                file_id = message.document.file_id
-            else:
-                file_id = None
-            
+            file_id = message.video.file_id if message.video else (message.document.file_id if message.document else None)
             if not file_id:
                 bot.send_message(user_id, "❌ Iltimos, video fayl yuboring:")
                 return
@@ -287,13 +224,7 @@ def main_handler(message: types.Message):
                 return
 
         if step == "waiting_for_part_video":
-            if message.video:
-                file_id = message.video.file_id
-            elif message.document:
-                file_id = message.document.file_id
-            else:
-                file_id = None
-            
+            file_id = message.video.file_id if message.video else (message.document.file_id if message.document else None)
             if not file_id:
                 bot.send_message(user_id, "❌ Iltimos, video fayl yuboring:")
                 return
@@ -394,11 +325,6 @@ def callback_handler(call: types.CallbackQuery):
             bot.send_message(user_id, "📁 " + str(anime_database[name_key]['name']) + " uchun keyingi qismning video faylini yuboring:")
             bot.answer_callback_query(call.id)
 
-    elif data == "admin_replace_anime" and user_id == ADMIN_ID:
-        user_states[user_id] = {"step": "waiting_for_replace_name"}
-        bot.edit_message_text("Almashtirmoqchi bo'lgan anime nomini kiriting:", call.message.chat.id, call.message.message_id)
-        bot.answer_callback_query(call.id)
-
     elif data == "admin_delete_anime" and user_id == ADMIN_ID:
         user_states[user_id] = {"step": "waiting_for_delete_code"}
         bot.edit_message_text("O'chirmoqchi bo'lgan anime **kodini** kiriting:", call.message.chat.id, call.message.message_id)
@@ -428,4 +354,48 @@ def callback_handler(call: types.CallbackQuery):
 
     elif data == "admin_stats" and user_id == ADMIN_ID:
         user_states.pop(user_id, None)
-        total = len(anime_datab
+        total = len(anime_database)
+        parts_total = sum(len(d['parts']) for d in anime_database.values())
+        keyboard = types.InlineKeyboardMarkup()
+        keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_main_menu"))
+        bot.edit_message_text("📊 Statistika:\nJildlar soni: " + str(total) + "\nUmumiy qismlar soni: " + str(parts_total), call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+        bot.answer_callback_query(call.id)
+
+    elif data == "admin_main_menu" and user_id == ADMIN_ID:
+        user_states.pop(user_id, None)
+        bot.edit_message_text("Admin menyusi:", call.message.chat.id, call.message.message_id, reply_markup=admin_inline_menu())
+        bot.answer_callback_query(call.id)
+
+    elif data.startswith("open_folder_"):
+        name_key = data.replace("open_folder_", "")
+        if name_key in anime_database:
+            d = anime_database[name_key]
+            keyboard = types.InlineKeyboardMarkup(row_width=5)
+            buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(d['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
+            keyboard.add(*buttons)
+            back_cb = "admin_main_menu" if user_id == ADMIN_ID else "main_menu_back"
+            keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data=back_cb))
+            bot.edit_message_text("🎬 " + str(d['name']) + "\n📦 Jami qismlar: " + str(len(d['parts'])) + " ta\n\nKerakli qismni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+            bot.answer_callback_query(call.id)
+
+    elif data == "main_menu_back":
+        bot.edit_message_text("✨ Anime nomini yuboring:", call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(call.id)
+
+    elif data.startswith("fldr_"):
+        parts = data.split("_")
+        if len(parts) >= 3:
+            name_key, p = parts[1], parts[2]
+            if name_key in anime_database and p in anime_database[name_key]['parts']:
+                v = anime_database[name_key]['parts'][p]
+                bot.send_video(call.message.chat.id, v['file_id'], caption="🎬 " + str(anime_database[name_key]['name']) + " — " + str(p) + "-qism")
+                bot.answer_callback_query(call.id)
+
+if __name__ == '__main__':
+    bot.remove_webhook()
+    while True:
+        try:
+            bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
+        except Exception:
+            time.sleep(5)
+    
