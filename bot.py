@@ -6,7 +6,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot import types
 
-TOKEN = "8248154561:AAGACWf3CEHoIcR84lPt9WECKKRRHe5WI-4"
+TOKEN = "8248154561:AAEm-5cEgfcbkQBwN59indBrZFMyuRuYo4Q"
 ADMIN_ID = 7986354170
 REQUIRED_CHANNEL = "@kanal_username"
 DB_FILE = "anime_database.json"
@@ -371,4 +371,4 @@ if __name__ == '__main__':
     server_thread.start()
 
     bot.infinity_polling(skip_pending=True)
-    
+        
