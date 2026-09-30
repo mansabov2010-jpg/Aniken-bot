@@ -5,7 +5,7 @@ import os
 import time
 
 # --- SOZLAMALAR ---
-TOKEN = "8248154561:AAEm-5cEgfcbkQBwN59indBrZFMyuRuYo4Q"
+TOKEN = "8248154561:AAGzv1T_FnkVbugM_xxgBph1d3lCf3ijl-U"
 ADMIN_ID = 123456789  # Bu yerga o'z Telegram ID raqamingizni yozing
 
 bot = telebot.TeleBot(TOKEN)
@@ -118,7 +118,7 @@ def get_anime_folder_keyboard(anime_key):
     if buttons:
         markup.add(*buttons)
 
-    markup.add(types.InlineKeyboardButton("⬅️️ Ortga", callback_data="back_to_available"))
+    markup.add(types.InlineKeyboardButton("⬅ Ortga", callback_data="back_to_available"))
     return markup
 
 # --- AMALLAR HANDLERLARI ---
@@ -415,3 +415,4 @@ if __name__ == "__main__":
         pass
     print("Bot muvaffaqiyatli ishga tushdi...")
     bot.infinity_polling(skip_pending=True)
+    
