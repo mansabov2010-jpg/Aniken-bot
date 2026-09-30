@@ -93,10 +93,9 @@ def cmd_start(message: types.Message):
             caption = f"🎬 <b>{data['name']}</b>\n\n📖 <b>Ma'lumot:</b> {data.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {data.get('code', 'Yo\'q')}"
             
             keyboard = types.InlineKeyboardMarkup(row_width=5)
-            buttons = [
-                types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
-                for p in sorted(data['parts'].keys(), key=lambda x: int(x) if str(x).isdigit() else 0)
-            ]
+            buttons = []
+            for p in sorted(data['parts'].keys(), key=lambda x: int(x) if str(x).isdigit() else 0):
+                buttons.append(types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}"))
             keyboard.add(*buttons)
             
             if data.get('photo'):
@@ -297,10 +296,9 @@ def main_handler(message: types.Message):
         caption = f"🎬 <b>{data['name']}</b>\n\n📖 <b>Ma'lumot:</b> {data.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {code}"
         
         keyboard = types.InlineKeyboardMarkup(row_width=5)
-        buttons = [
-            types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
-            for p in sorted(data['parts'].keys(), key=lambda x: int(x) if str(x).isdigit() else 0)
-        ]
+        buttons = []
+        for p in sorted(data['parts'].keys(), key=lambda x: int(x) if str(x).isdigit() else 0):
+            buttons.append(types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}"))
         keyboard.add(*buttons)
         
         if data.get('photo'):
@@ -412,6 +410,6 @@ def callback_handler(call: types.CallbackQuery):
         if name_key in anime_database:
             d = anime_database[name_key]
             keyboard = types.InlineKeyboardMarkup(row_width=5)
-            buttons = [
-                types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
-                for p in sorted(d['parts'].keys(), key=lam
+            buttons = []
+            for p in sorted(d['parts'].keys(), key=lambda x: int(x) if str(x).isdigit() else 0):
+                buttons.append(types.InlineKeyboardBu
