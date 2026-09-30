@@ -427,11 +427,19 @@ def callback_handler(call):
 
 # --- BOTNI ISHGA TUSHIRISH ---
 if __name__ == "__main__":
+    # Webhook va eski so'rovlarni to'liq tozalash
     try:
         bot.remove_webhook()
-        time.sleep(1)
+        time.sleep(2)
     except Exception:
         pass
+
     print("Bot muvaffaqiyatli ishga tushdi...")
-    bot.infinity_polling(skip_pending=True)
-                
+
+    # Conflict xatosi chiqsa qayta ulanish logikasi
+    while True:
+        try:
+            bot.polling(none_stop=True, interval=0, timeout=20)
+        except Exception as e:
+            print(f"Xatolik yuz berdi: {e}")
+            time.sleep(3)  # Conflict bo'lsa 3 soniya kutib qayta ulanadi
