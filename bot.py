@@ -703,7 +703,9 @@ def callback_handler(call):
     cursor.execute("DELETE FROM animes WHERE id = ?", (anime_id,))
     conn.commit()
     conn.close()
-    bot.answer_callback_query(call.id, "✅ Anime o'chirildi!")
+    bot.answer_callback_query(call.id)
     send_clean_message(
         call.message.chat.id,
-        "🗑 Ani
+        "🗑 Anime muvaffaqiyatli o'chirildi.",
+        reply_markup=get_main_keyboard(user_id),
+    )
