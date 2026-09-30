@@ -45,10 +45,9 @@ def save_database(data):
 anime_database = load_database()
 user_states = {}
 
-def start_keyboard(code_text=None):
+def start_keyboard():
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn_text = "🚀 Start (Asosiy menyu)"
-    keyboard.add(types.KeyboardButton(btn_text))
+    keyboard.add(types.KeyboardButton("🚀 Start (Asosiy menyu)"))
     return keyboard
 
 def admin_inline_menu():
@@ -91,10 +90,10 @@ def cmd_start(message: types.Message):
         
         if found_anime:
             name_key, data = found_anime
-            caption = "🎬 <b>" + str(data['name']) + "</b>\n\n📖 <b>Ma'lumot:</b> " + str(data.get('info', 'Mavjud emas')) + "\n📌 <b>Kodi:</b> " + str(data.get('code', 'Yo\'q'))
+            caption = f"🎬 <b>{data['name']}</b>\n\n📖 <b>Ma'lumot:</b> {data.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {data.get('code', 'Yo\'q')}"
             
             keyboard = types.InlineKeyboardMarkup(row_width=5)
-            buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
+            buttons = [types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
             keyboard.add(*buttons)
             
             if data.get('photo'):
@@ -106,7 +105,7 @@ def cmd_start(message: types.Message):
     user_states.pop(user_id, None)
     if not check_sub_channel(user_id):
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton("Kanalga a'zo bo'lish 🔗", url="https://t.me/" + REQUIRED_CHANNEL.replace('@', '')))
+        keyboard.add(types.InlineKeyboardButton("Kanalga a'zo bo'lish 🔗", url=f"https://t.me/{REQUIRED_CHANNEL.replace('@', '')}"))
         keyboard.add(types.InlineKeyboardButton("Tekshirish ✅", callback_data="check_sub"))
         bot.send_message(user_id, "Botdan foydalanish uchun quyidagi kanalga a'zo bo'lishingiz kerak:", reply_markup=keyboard)
         return
@@ -150,7 +149,7 @@ def main_handler(message: types.Message):
         if step == "waiting_for_channel":
             REQUIRED_CHANNEL = text
             user_states.pop(user_id, None)
-            bot.send_message(user_id, "✅ Majburiy kanal o'zgartirildi: " + str(REQUIRED_CHANNEL), reply_markup=admin_inline_menu())
+            bot.send_message(user_id, f"✅ Majburiy kanal o'zgartirildi: {REQUIRED_CHANNEL}", reply_markup=admin_inline_menu())
             return
 
         if step == "waiting_for_schedule":
@@ -170,9 +169,9 @@ def main_handler(message: types.Message):
 
             user_states.pop(user_id, None)
             if deleted:
-                bot.send_message(user_id, "✅ Kod '" + str(text) + "' bo'lgan anime papkasi muvaffaqiyatli o'chirib yuborildi!", reply_markup=admin_inline_menu())
+                bot.send_message(user_id, f"✅ Kod '{text}' bo'lgan anime papkasi muvaffaqiyatli o'chirib yuborildi!", reply_markup=admin_inline_menu())
             else:
-                bot.send_message(user_id, "❌ '" + str(text) + "' kodli anime topilmadi. Qaytadan urinib ko'ring:", reply_markup=admin_inline_menu())
+                bot.send_message(user_id, f"❌ '{text}' kodli anime topilmadi. Qaytadan urinib ko'ring:", reply_markup=admin_inline_menu())
             return
 
         if step == "waiting_for_folder_name":
@@ -242,7 +241,7 @@ def main_handler(message: types.Message):
                 anime_database[name_key]['parts'][part_num] = {'file_id': file_id, 'part': part_num}
                 save_database(anime_database)
                 user_states.pop(user_id, None)
-                bot.send_message(user_id, "✅ " + str(anime_database[name_key]['name']) + " uchun " + str(part_num) + "-qism muvaffaqiyatli qo'shildi!", reply_markup=admin_inline_menu())
+                bot.send_message(user_id, f"✅ {anime_database[name_key]['name']} uchun {part_num}-qism muvaffaqiyatli qo'shildi!", reply_markup=admin_inline_menu())
                 return
 
         if step == "waiting_for_part_video":
@@ -266,10 +265,10 @@ def main_handler(message: types.Message):
                 
                 keyboard = types.InlineKeyboardMarkup(row_width=2)
                 keyboard.add(
-                    types.InlineKeyboardButton("➕ Yana qism qo'shish", callback_data="add_more_part_" + str(name_key)),
+                    types.InlineKeyboardButton("➕ Yana qism qo'shish", callback_data=f"add_more_part_{name_key}"),
                     types.InlineKeyboardButton("✅ Tamomlash", callback_data="admin_main_menu")
                 )
-                bot.send_message(user_id, "✅ " + str(part_num) + "-qism qo'shildi! Yana qism qo'shasizmi?", reply_markup=keyboard)
+                bot.send_message(user_id, f"✅ {part_num}-qism qo'shildi! Yana qism qo'shasizmi?", reply_markup=keyboard)
                 user_states.pop(user_id, None)
                 return
 
@@ -286,10 +285,10 @@ def main_handler(message: types.Message):
     if found_anime:
         name_key, data = found_anime
         code = data.get('code', '')
-        caption = "🎬 <b>" + str(data['name']) + "</b>\n\n📖 <b>Ma'lumot:</b> " + str(data.get('info', 'Mavjud emas')) + "\n📌 <b>Kodi:</b> " + str(code)
+        caption = f"🎬 <b>{data['name']}</b>\n\n📖 <b>Ma'lumot:</b> {data.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {code}"
         
         keyboard = types.InlineKeyboardMarkup(row_width=5)
-        buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
+        buttons = [types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
         keyboard.add(*buttons)
         
         if data.get('photo'):
@@ -325,7 +324,7 @@ def callback_handler(call: types.CallbackQuery):
             return
         keyboard = types.InlineKeyboardMarkup(row_width=2)
         for name_key, d in anime_database.items():
-            keyboard.add(types.InlineKeyboardButton(text=d['name'], callback_data="sel_fldr_" + str(name_key)))
+            keyboard.add(types.InlineKeyboardButton(text=d['name'], callback_data=f"sel_fldr_{name_key}"))
         keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_new_anime_menu"))
         bot.edit_message_text("📁 Mavjud jildlardan birini tanlang:", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
         bot.answer_callback_query(call.id)
@@ -335,14 +334,14 @@ def callback_handler(call: types.CallbackQuery):
         if name_key in anime_database:
             folder_name = anime_database[name_key]['name']
             user_states[user_id] = {"step": "waiting_for_existing_folder_video", "name_key": name_key}
-            bot.edit_message_text("📁 Tanlangan anime: " + str(folder_name) + "\n\nEndi yangi qism uchun video faylni yuboring:", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text(f"📁 Tanlangan anime: {folder_name}\n\nEndi yangi qism uchun video faylni yuboring:", call.message.chat.id, call.message.message_id)
             bot.answer_callback_query(call.id)
 
     elif data.startswith("add_more_part_") and user_id == ADMIN_ID:
         name_key = data.replace("add_more_part_", "")
         if name_key in anime_database:
             user_states[user_id] = {"step": "waiting_for_existing_folder_video", "name_key": name_key}
-            bot.send_message(user_id, "📁 " + str(anime_database[name_key]['name']) + " uchun keyingi qismning video faylini yuboring:")
+            bot.send_message(user_id, f"📁 {anime_database[name_key]['name']} uchun keyingi qismning video faylini yuboring:")
             bot.answer_callback_query(call.id)
 
     elif data == "admin_delete_anime" and user_id == ADMIN_ID:
@@ -352,7 +351,7 @@ def callback_handler(call: types.CallbackQuery):
 
     elif data == "admin_channel" and user_id == ADMIN_ID:
         user_states[user_id] = {"step": "waiting_for_channel"}
-        bot.edit_message_text("Hozirgi majburiy kanal: " + str(REQUIRED_CHANNEL) + "\n\nYangi kanal username'ini kiriting:", call.message.chat.id, call.message.message_id)
+        bot.edit_message_text(f"Hozirgi majburiy kanal: {REQUIRED_CHANNEL}\n\nYangi kanal username'ini kiriting:", call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
     elif data == "admin_schedule" and user_id == ADMIN_ID:
@@ -367,7 +366,7 @@ def callback_handler(call: types.CallbackQuery):
         else:
             keyboard = types.InlineKeyboardMarkup(row_width=1)
             for name_key, data_item in anime_database.items():
-                keyboard.add(types.InlineKeyboardButton(text="📁 " + str(data_item['name']), callback_data="open_folder_" + str(name_key)))
+                keyboard.add(types.InlineKeyboardButton(text=f"📁 {data_item['name']}", callback_data=f"open_folder_{name_key}"))
             keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_main_menu"))
             bot.edit_message_text("📁 Bazadagi barcha jildlar va animelar:", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
             bot.answer_callback_query(call.id)
@@ -378,7 +377,7 @@ def callback_handler(call: types.CallbackQuery):
         parts_total = sum(len(d['parts']) for d in anime_database.values())
         keyboard = types.InlineKeyboardMarkup()
         keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_main_menu"))
-        bot.edit_message_text("📊 Statistika:\nJildlar soni: " + str(total) + "\nUmumiy qismlar soni: " + str(parts_total), call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+        bot.edit_message_text(f"📊 Statistika:\nJildlar soni: {total}\nUmumiy qismlar soni: {parts_total}", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
         bot.answer_callback_query(call.id)
 
     elif data == "admin_main_menu" and user_id == ADMIN_ID:
@@ -391,11 +390,11 @@ def callback_handler(call: types.CallbackQuery):
         if name_key in anime_database:
             d = anime_database[name_key]
             keyboard = types.InlineKeyboardMarkup(row_width=5)
-            buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(d['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
+            buttons = [types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") for p in sorted(d['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
             keyboard.add(*buttons)
             back_cb = "admin_main_menu" if user_id == ADMIN_ID else "main_menu_back"
             keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data=back_cb))
-            bot.edit_message_text("🎬 " + str(d['name']) + "\n📦 Jami qismlar: " + str(len(d['parts'])) + " ta\n\nKerakli qismni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+            bot.edit_message_text(f"🎬 {d['name']}\n📦 Jami qismlar: {len(d['parts'])} ta\n\nKerakli qismni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
             bot.answer_callback_query(call.id)
 
     elif data == "main_menu_back":
@@ -408,4 +407,12 @@ def callback_handler(call: types.CallbackQuery):
             name_key, p = parts[1], parts[2]
             if name_key in anime_database and p in anime_database[name_key]['parts']:
                 v = anime_database[name_key]['parts'][p]
-                bot.send_video(call.message.chat.id, v['file_id'], caption="🎬 " + str(
+                bot.send_video(call.message.chat.id, v['file_id'], caption=f"🎬 {anime_database[name_key]['name']} — {p}-qism")
+                bot.answer_callback_query(call.id)
+
+if __name__ == '__main__':
+    bot.remove_webhook()
+    while True:
+        try:
+            bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
+        except Excep
