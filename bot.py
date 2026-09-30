@@ -4,24 +4,6 @@ import os
 import telebot
 from telebot import types
 import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import threading
-
-# Soxta HTTP server (Render o'chirib yubormasligi uchun)
-class SimpleHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is alive!")
-
-def run_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
-    server.serve_forever()
-
-# Serverni alohida oqimda (thread) ishga tushiramiz
-server_thread = threading.Thread(target=run_server, daemon=True)
-server_thread.start()
 
 TOKEN = "8248154561:AAEm-5cEgfcbkQBwN59indBrZFMyuRuYo4Q"
 ADMIN_ID = 7986354170
@@ -428,4 +410,13 @@ def callback_handler(call: types.CallbackQuery):
             bot.answer_callback_query(call.id)
 
     elif data == "admin_stats" and user_id == ADMIN_ID:
-        user_state
+        user_states.pop(user_id, None)
+        total = len(anime_database)
+        parts_total = sum(len(d['parts']) for d in anime_database.values())
+        keyboard = types.InlineKeyboardMarkup()
+        keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_main_menu"))
+        bot.edit_message_text("📊 Statistika:\nJildlar soni: " + str(total) + "\nUmumiy qismlar soni: " + str(parts_total), call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+        bot.answer_callback_query(call.id)
+
+    elif data == "admin_main_menu" and user_id == ADMIN_ID:
+        user_st
