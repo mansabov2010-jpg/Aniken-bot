@@ -2,10 +2,11 @@ import telebot
 from telebot import types
 import json
 import os
+import time
 
 # --- SOZLAMALAR ---
-TOKEN = "8248154561:AAEm-5cEgfcbkQBwN59indBrZFMyuRuYo4Q"  # Bot tokeningizni yozing
-ADMIN_ID = 123456789          # Telegram ID raqamingizni yozing
+TOKEN = "8248154561:AAEm-5cEgfcbkQBwN59indBrZFMyuRuYo4Q"
+ADMIN_ID = 123456789  # Bu yerga o'z Telegram ID raqamingizni yozing
 
 bot = telebot.TeleBot(TOKEN)
 DB_FILE = "anime_database.json"
@@ -31,7 +32,6 @@ user_last_messages = {}  # Foydalanuvchilarning eski xabarlarini saqlash uchun
 
 # --- XABARLARNI O'CHIRISH FUNKSIYASI ---
 def send_clean_message(chat_id, text, reply_markup=None, parse_mode=None):
-    # Eski menyu/xabarni o'chirish
     if chat_id in user_last_messages:
         for msg_id in user_last_messages[chat_id]:
             try:
@@ -42,7 +42,6 @@ def send_clean_message(chat_id, text, reply_markup=None, parse_mode=None):
     else:
         user_last_messages[chat_id] = []
 
-    # Yangi xabarni yuborish va ID sini saqlab qo'yish
     msg = bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode=parse_mode)
     user_last_messages[chat_id].append(msg.message_id)
     return msg
@@ -119,7 +118,7 @@ def get_anime_folder_keyboard(anime_key):
     if buttons:
         markup.add(*buttons)
 
-    markup.add(types.InlineKeyboardButton("⬅️ Ortga", callback_data="back_to_available"))
+    markup.add(types.InlineKeyboardButton("⬅️️ Ortga", callback_data="back_to_available"))
     return markup
 
 # --- AMALLAR HANDLERLARI ---
@@ -344,7 +343,7 @@ def show_search_results(chat_id, results):
     
     send_clean_message(chat_id, "🔎 Topilgan animelar:", reply_markup=markup)
 
-# --- CALLBACK QUERY HANDLER (TUGMALAR BOSILGANDA) ---
+# --- CALLBACK QUERY HANDLER ---
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -389,7 +388,6 @@ def callback_handler(call):
             save_db(anime_db)
 
             caption = f"🎬 <b>{anime['name']}</b> - {part_num}-qism"
-            # Video o'chirilmaydi, foydalanuvchida qoladi
             bot.send_video(call.message.chat.id, video_id, caption=caption, parse_mode="HTML")
             bot.answer_callback_query(call.id, text=f"{part_num}-qism yuborildi!")
 
@@ -410,5 +408,10 @@ def callback_handler(call):
 
 # --- BOTNI ISHGA TUSHIRISH ---
 if __name__ == "__main__":
+    try:
+        bot.remove_webhook()
+        time.sleep(1)
+    except Exception:
+        pass
     print("Bot muvaffaqiyatli ishga tushdi...")
-    bot.infinity_polling()
+    bot.infinity_polling(skip_pending=True)
