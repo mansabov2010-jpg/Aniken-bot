@@ -4,7 +4,7 @@ import json
 import os
 
 # --- SOZLAMALAR ---
-TOKEN = "YOUR_BOT_TOKEN_HERE"  # Bot tokeningizni yozing
+TOKEN = "8248154561:AAEm-5cEgfcbkQBwN59indBrZFMyuRuYo4Q"  # Bot tokeningizni yozing
 ADMIN_ID = 123456789          # Telegram ID raqamingizni yozing
 
 bot = telebot.TeleBot(TOKEN)
