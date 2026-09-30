@@ -549,12 +549,7 @@ if __name__ == "__main__":
      
 while True:
     try:
-            bot.polling(
-                none_stop=True,
-                interval=0,
-                timeout=20,
-                skip_pending_updates=True
-            )
+            bot.polling(none_stop=True)
     except Exception as e:
             print(f"Xatolik yuz berdi: {e}")
             time.sleep(3)
