@@ -5,8 +5,9 @@ import os
 import time
 
 # --- SOZLAMALAR ---
-TOKEN = "8248154561:AAGzv1T_FnkVbugM_x-xgBph1d3lCf3ijl-U"
-ADMIN_ID = 7986354170  # Sizning Telegram ID raqamingiz
+# Token va ADMIN_ID ni muhit o'zgaruvchilaridan oladi, topilmasa standart qiymatni ishlatadi
+TOKEN = os.getenv("BOT_TOKEN", "8248154561:AAFTHK0CPVJGB2zY5r5zT9-hbz70DPwcYW0")
+ADMIN_ID = int(os.getenv("ADMIN_ID", 7986354170))
 
 bot = telebot.TeleBot(TOKEN)
 DB_FILE = "anime_database.json"
@@ -196,7 +197,7 @@ def main_messages(message):
             save_db(db_data)
             send_clean_message(message.chat.id, f"✅ {ch} kanali ro'yxatga qo'shildi!", reply_markup=get_main_keyboard(user_id))
         else:
-            send_clean_message(message.chat.id, "⚠️ Bu kanal allaqachon qo'shilgan.", reply_markup=get_main_keyboard(user_id))
+            send_clean_message(message.chat.id, "⚠️️ Bu kanal allaqachon qo'shilgan.", reply_markup=get_main_keyboard(user_id))
         user_states.pop(user_id, None)
         return
 
@@ -233,6 +234,23 @@ def main_messages(message):
         temp_data[user_id]["info"] = info_text
         user_states[user_id] = "ADD_PHOTO"
         send_clean_message(message.chat.id, "🖼 Muqova rasmini yuboring (o'tkazib yuborish uchun /skip):")
+        return
+
+    if state == "ADD_PHOTO" and user_id == ADMIN_ID and message.text == "/skip":
+        key = f"anime_{len(db_data['animes']) + 1}"
+        temp_data[user_id]["key"] = key
+        
+        db_data["animes"][key] = {
+            "name": temp_data[user_id]["name"],
+            "code": temp_data[user_id]["code"],
+            "info": temp_data[user_id]["info"],
+            "photo": None,
+            "views": 0,
+            "parts": {}
+        }
+        save_db(db_data)
+        user_states[user_id] = "ADD_VIDEO"
+        send_clean_message(message.chat.id, "✅ Jild yaratildi! Endi 1-qism uchun **video faylini** yuboring:")
         return
 
     if state == "ADD_PART_NUM" and user_id == ADMIN_ID:
@@ -416,4 +434,4 @@ if __name__ == "__main__":
         pass
     print("Bot muvaffaqiyatli ishga tushdi...")
     bot.infinity_polling(skip_pending=True)
-                       
+                
