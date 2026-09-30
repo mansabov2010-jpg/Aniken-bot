@@ -67,13 +67,12 @@ temp_data = {}
 user_last_messages = {}
 
 
-# --- XABARLARNI TOZALASH (Faqat botning oxirgi 2 ta xabari qoladi, qolganlari tozalanadi) ---
+# --- XABARLARNI TOZALASH (Faqat botning oxirgi 2 ta xabari qoladi) ---
 def add_bot_message_to_history(chat_id, msg_id):
   if chat_id not in user_last_messages:
     user_last_messages[chat_id] = []
   user_last_messages[chat_id].append(msg_id)
 
-  # Faqat oxirgi 2 ta xabar qoladi, eski bot xabarlari o'chiriladi
   while len(user_last_messages[chat_id]) > 2:
     old_msg_id = user_last_messages[chat_id].pop(0)
     try:
@@ -140,15 +139,16 @@ def get_sub_keyboard(unsubscribed_channels):
   return markup
 
 
-# --- KEYBOARDS (Faqat pastdagi asosiy menyu tugmalari) ---
+# --- KEYBOARDS ---
 def get_main_keyboard(user_id):
   markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
   markup.row("🔍 Animelarni izlash", "📂 Mavjud animelar")
   markup.row("🔥 Tavsiya etiladigan animelar")
 
   if user_id == ADMIN_ID:
-    markup.row("➕ Yangi anime qo'shish", "📢 Kanallarni boshqarish")
-    markup.row("📊 Statistika", "⚙️ Animelarni boshqarish")
+    markup.row("➕ Yangi papka yaratish", "📂 Mavjud jildga qism qo'shish")
+    markup.row("📢 Kanallarni boshqarish", "📊 Statistika")
+    markup.row("⚙️ Animelarni boshqarish")
   return markup
 
 
@@ -169,7 +169,7 @@ def get_search_inline_keyboard():
   return markup
 
 
-def get_available_animes_keyboard(for_admin=False):
+def get_available_animes_keyboard(action_type="show"):
   markup = types.InlineKeyboardMarkup(row_width=1)
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
@@ -188,20 +188,16 @@ def get_available_animes_keyboard(for_admin=False):
           "SELECT COUNT(*) FROM parts WHERE anime_id = ?", (anime_id,)
       )
       parts_count = cursor.fetchone()[0]
-      if for_admin:
-        btn_text = f"🎬 {name} ({parts_count}-qism)"
-        markup.add(
-            types.InlineKeyboardButton(
-                btn_text, callback_data=f"admin_anime_opt_{anime_id}"
-            )
-        )
+      btn_text = f"🎬 {name} ({parts_count}-qism)"
+
+      if action_type == "add_part":
+        cb = f"select_anime_for_part_{anime_id}"
+      elif action_type == "admin_opt":
+        cb = f"admin_anime_opt_{anime_id}"
       else:
-        btn_text = f"🎬 {name} ({parts_count}-qism)"
-        markup.add(
-            types.InlineKeyboardButton(
-                btn_text, callback_data=f"show_anime_{anime_id}"
-            )
-        )
+        cb = f"show_anime_{anime_id}"
+
+      markup.add(types.InlineKeyboardButton(btn_text, callback_data=cb))
 
   conn.close()
   return markup
@@ -383,7 +379,7 @@ def main_messages(message):
     show_search_results(message.chat.id, results)
     return
 
-  # Anime qo'shish bosqichlari (Admin)
+  # Yangi Papka Yaratish Bosqichlari (Admin)
   if state == "ADD_NAME" and user_id == ADMIN_ID:
     temp_data[user_id]["name"] = message.text.strip()
     user_states[user_id] = "ADD_CODE"
@@ -439,8 +435,8 @@ def main_messages(message):
     user_states[user_id] = "ADD_AUTO_VIDEO"
     send_clean_message(
         message.chat.id,
-        "✅ Jild yaratildi! Endi **1-qism videosini** yuboring (raqami avtomatik"
-        " belgilanadi):",
+        "✅ Yangi papka yaratildi! Endi **1-qism videosini** yuboring (raqami"
+        " avtomatik belgilanadi):",
         reply_markup=get_cancel_keyboard(),
     )
     return
@@ -456,7 +452,7 @@ def main_messages(message):
     send_clean_message(
         message.chat.id,
         "📂 Mavjud anime jildlari:",
-        reply_markup=get_available_animes_keyboard(),
+        reply_markup=get_available_animes_keyboard(action_type="show"),
     )
   elif message.text == "🔥 Tavsiya etiladigan animelar":
     send_clean_message(
@@ -464,19 +460,25 @@ def main_messages(message):
         "🔥 Eng ko'p ko'rilgan animelar:",
         reply_markup=get_recommended_animes_keyboard(),
     )
-  elif message.text == "➕ Yangi anime qo'shish" and user_id == ADMIN_ID:
+  elif message.text == "➕ Yangi papka yaratish" and user_id == ADMIN_ID:
     user_states[user_id] = "ADD_NAME"
     temp_data[user_id] = {}
     send_clean_message(
         message.chat.id,
-        "📝 Yangi anime nomini kiriting:",
+        "📝 Yangi anime (papka) nomini kiriting:",
         reply_markup=get_cancel_keyboard(),
+    )
+  elif message.text == "📂 Mavjud jildga qism qo'shish" and user_id == ADMIN_ID:
+    send_clean_message(
+        message.chat.id,
+        "📂 Qaysi anime jildiga yangi qism qo'shmoqchisiz? Tanlang:",
+        reply_markup=get_available_animes_keyboard(action_type="add_part"),
     )
   elif message.text == "⚙️ Animelarni boshqarish" and user_id == ADMIN_ID:
     send_clean_message(
         message.chat.id,
-        "⚙️️ Boshqarish uchun animeni tanlang (O'chirish yoki yangi qism qo'shish):",
-        reply_markup=get_available_animes_keyboard(for_admin=True),
+        "⚙ Boshqarish uchun animeni tanlang:",
+        reply_markup=get_available_animes_keyboard(action_type="admin_opt"),
     )
   elif message.text == "📢 Kanallarni boshqarish" and user_id == ADMIN_ID:
     conn = sqlite3.connect(DB_FILE)
@@ -561,17 +563,17 @@ def handle_media(message):
     user_states[user_id] = "ADD_AUTO_VIDEO"
     send_clean_message(
         message.chat.id,
-        "✅ Jild yaratildi! Endi **1-qism videosini** yuboring (raqami avtomatik"
-        " belgilanadi):",
+        "✅ Yangi papka yaratildi! Endi **1-qism videosini** yuboring (raqami"
+        " avtomatik belgilanadi):",
         reply_markup=get_cancel_keyboard(),
     )
     return
 
-  # Avtomatik qism raqamlash va videoni qabul qilish
+  # Avtomatik qism qo'shish (Videoni qabul qilish)
   if state == "ADD_AUTO_VIDEO" and user_id == ADMIN_ID:
     if message.content_type != "video":
       send_clean_message(
-          message.chat.id, "⚠️️ Iltimos, faqat video fayl yuboring:"
+          message.chat.id, "⚠ Iltimos, faqat video fayl yuboring:"
       )
       return
 
@@ -581,14 +583,12 @@ def handle_media(message):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
-    # Avtomatik keyingi qism raqamini aniqlash
     cursor.execute(
         "SELECT MAX(part_num) FROM parts WHERE anime_id = ?", (anime_id,)
     )
     res = cursor.fetchone()[0]
     next_part = 1 if res is None else res + 1
 
-    # Bazaga saqlash
     cursor.execute(
         "INSERT INTO parts (anime_id, part_num, video_id) VALUES (?, ?, ?)",
         (anime_id, next_part, video_id),
@@ -680,6 +680,32 @@ def callback_handler(call):
     )
     bot.answer_callback_query(call.id)
 
+  # Mavjud jildga qism qo'shish uchun jild tanlanganda
+  elif data.startswith("select_anime_for_part_") and user_id == ADMIN_ID:
+    anime_id = int(data.replace("select_anime_for_part_", ""))
+    user_states[user_id] = "ADD_AUTO_VIDEO"
+    temp_data[user_id] = {"anime_id": anime_id}
+    bot.answer_callback_query(call.id)
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT MAX(part_num) FROM parts WHERE anime_id = ?", (anime_id,)
+    )
+    res = cursor.fetchone()[0]
+    next_num = 1 if res is None else res + 1
+    cursor.execute("SELECT name FROM animes WHERE id = ?", (anime_id,))
+    an_name = cursor.fetchone()[0]
+    conn.close()
+
+    send_clean_message(
+        call.message.chat.id,
+        f"🎬 <b>{an_name}</b> uchun **{next_num}-qism** videosini yuboring"
+        " (raqami avtomatik belgilanadi):",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="HTML",
+    )
+
   elif data.startswith("admin_anime_opt_") and user_id == ADMIN_ID:
     anime_id = int(data.replace("admin_anime_opt_", ""))
     bot.answer_callback_query(call.id)
@@ -694,11 +720,10 @@ def callback_handler(call):
             "🗑 Animeniki butunlay o'chirish",
             callback_data=f"delete_anime_{anime_id}",
         ),
-    types.InlineKeyboardButton("⬅ Ortga", callback_data="back_to_available"),
+        types.InlineKeyboardButton("⬅ Ortga", callback_data="back_to_available"),
     )
     send_clean_message(call.message.chat.id, "Tanlang:", reply_markup=markup)
 
-  # "Yana qism qo'shish" tugmasi bosilganda darhol video so'raydi, raqam so'ramaydi
   elif data.startswith("add_next_auto_") and user_id == ADMIN_ID:
     anime_id = int(data.replace("add_next_auto_", ""))
     user_states[user_id] = "ADD_AUTO_VIDEO"
@@ -812,14 +837,15 @@ def callback_handler(call):
           call.id, "❌ Video topilmadi!", show_alert=True
       )
 
-  elif data == "back_to_available":
+  elif data.startswith("back_to_available"):
     bot.answer_callback_query(call.id)
     send_clean_message(
         call.message.chat.id,
         "📂 Mavjud anime jildlari:",
-        reply_markup=get_available_animes_keyboard(),
+        reply_markup=get_available_animes_keyboard(action_type="show"),
     )
-    
+
+
 # --- BOTNI ISHGA TUSHIRISH ---
 if __name__ == "__main__":
   keep_alive()
