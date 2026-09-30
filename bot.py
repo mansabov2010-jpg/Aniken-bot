@@ -470,61 +470,21 @@ def callback_handler(call):
         send_clean_message(call.message.chat.id, "🔢 Anime kodini yozing:", reply_markup=get_cancel_keyboard())
         bot.answer_callback_query(call.id)
 
-    elif message.text == "⚙️ Animelarni boshqarish" and user_id == ADMIN_ID:
-        send_clean_message(message.chat.id, "🗑 O'chirmoqchi bo'lgan animengizni tanlang:", reply_markup=get_available_animes_keyboard(for_admin=True))
-    elif message.text == "📢 Kanallarni boshqarish" and user_id == ADMIN_ID:
+    elif data.startswith("delete_anime_") and user_id == ADMIN_ID:
+        anime_id = int(data.replace("delete_anime_", ""))
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("SELECT username FROM channels")
-        channels = [row[0] for row in cursor.fetchall()]
+        cursor.execute("DELETE FROM parts WHERE anime_id = ?", (anime_id,))
+        cursor.execute("DELETE FROM animes WHERE id = ?", (anime_id,))
+        conn.commit()
         conn.close()
+        bot.answer_callback_query(call.id, "✅ Anime o'chirildi!")
+        send_clean_message(call.message.chat.id, "🗑 Anime muvaffaqiyatli o'chirildi.", reply_markup=get_main_keyboard(user_id))
 
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(types.InlineKeyboardButton("➕ Kanal qo'shish", callback_data="add_channel"))
-        for ch in channels:
-            markup.add(types.InlineKeyboardButton(f"❌ O'chirish: {ch}", callback_data=f"del_ch_{ch}"))
-        
-        ch_text = "\n".join(channels) if channels else "Hozircha kanallar yo'q"
-        send_clean_message(message.chat.id, f"📢 **Ulangan kanallar:**\n\n{ch_text}", reply_markup=markup, parse_mode="Markdown")
-    elif message.text == "📊 Statistika" and user_id == ADMIN_ID:
+    elif data.startswith("show_anime_"):
+        anime_id = int(data.replace("show_anime_", ""))
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM users")
-        total_users = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM animes")
-        total_animes = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM parts")
-        total_parts = cursor.fetchone()[0]
-        cursor.execute("SELECT SUM(views) FROM animes")
-        total_views = cursor.fetchone()[0] or 0
-        conn.close()
-
-        text = (
-            f"📊 <b>Bot Statistikasi:</b>\n\n"
-            f"👥 Jami foydalanuvchilar: <b>{total_users} ta</b>\n"
-            f"🎬 Jami anime jildlari: <b>{total_animes} ta</b>\n"
-            f"🎞 Jami qismlar: <b>{total_parts} ta</b>\n"
-            f"👁 Jami ko'rishlar: <b>{total_views} marta</b>"
-        )
-        send_clean_message(message.chat.id, text, parse_mode="HTML")
-
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-def run_web():
-    app.run(host="0.0.0.0", port=10000)
-
-if __name__ == "__main__":
-    # Veb-serverni alohida oqimda (thread) ishga tushiramiz
-    t = threading.Thread(target=run_web)
-    t.start()
-    
-    # Botni ishga tushiramiz
-    while True:
-        try:
-            bot.polling(none_stop=True, interval=0, timeout=20, skip_pending_updates=True)
-        except Exception as e:
-            print(f"Xatolik yuz berdi: {e}")
-            time.sleep(3)
-        
+        cursor.execute("UPDATE animes SET views = views + 1 WHERE id = ?", (anime_id,))
+        conn.commit()
+        cursor.execute("SELECT name, info, photo FR
