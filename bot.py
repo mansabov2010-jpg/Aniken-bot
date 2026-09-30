@@ -709,3 +709,5 @@ def callback_handler(call):
         "🗑 Anime muvaffaqiyatli o'chirildi.",
         reply_markup=get_main_keyboard(user_id),
     )
+    bot.infinity_polling(skip_pending=True)
+
