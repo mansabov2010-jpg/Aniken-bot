@@ -413,8 +413,9 @@ def callback_handler(call: types.CallbackQuery):
 if __name__ == '__main__':
     bot.remove_webhook()
     while True:
-        try:
-            bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
-            except Exception:
+    try:
+        bot.infinity_polling(skip_pending=True)
+    except Exception:
         pass
+        
     
