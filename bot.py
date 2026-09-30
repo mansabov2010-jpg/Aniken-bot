@@ -405,11 +405,26 @@ def callback_handler(call: types.CallbackQuery):
         bot.edit_message_text("Asosiy menyu:", call.message.chat.id, call.message.message_id, reply_markup=admin_inline_menu())
         bot.answer_callback_query(call.id)
 
-    elif data.startswith("open_folder_"):
+        elif data.startswith("open_folder_"):
         name_key = data.replace("open_folder_", "")
         if name_key in anime_database:
             d = anime_database[name_key]
             keyboard = types.InlineKeyboardMarkup(row_width=5)
             buttons = []
             for p in sorted(d['parts'].keys(), key=lambda x: int(x) if str(x).isdigit() else 0):
-                buttons.append(types.InlineKeyboardBu
+                buttons.append(types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}"))
+            keyboard.add(*buttons)
+            keyboard.row(types.InlineKeyboardButton(text="⬅️ Ortga", callback_data="admin_list" if user_id == ADMIN_ID else f"open_folder_{name_key}"))
+            
+            caption = f"🎬 <b>{d['name']}</b>\n\n📖 <b>Ma'lumot:</b> {d.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {d.get('code', 'Yo\'q')}"
+            if d.get('photo'):
+                try:
+                    bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=caption, reply_markup=keyboard)
+                except Exception:
+                    bot.edit_message_text(text=caption, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=keyboard)
+            else:
+                bot.edit_message_text(text=caption, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=keyboard)
+        bot.answer_callback_query(call.id)
+
+if __name__ == "__main__":
+    bot.infinity_polling()
