@@ -481,7 +481,7 @@ def callback_handler(call):
         bot.answer_callback_query(call.id, "✅ Anime o'chirildi!")
         send_clean_message(call.message.chat.id, "🗑 Anime muvaffaqiyatli o'chirildi.", reply_markup=get_main_keyboard(user_id))
 
-        elif data.startswith("show_anime_"):
+    elif data.startswith("show_anime_"):
         anime_id = int(data.replace("show_anime_", ""))
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
