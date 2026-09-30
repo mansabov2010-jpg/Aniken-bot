@@ -53,7 +53,7 @@ def start_keyboard():
 def admin_inline_menu():
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        types.InlineKeyboardButton("➕ Yeni anime bo'limi", callback_data="admin_new_anime_menu"),
+        types.InlineKeyboardButton("➕ Yangi anime bo'limi", callback_data="admin_new_anime_menu"),
         types.InlineKeyboardButton("🔄 Mavjud animeni almashtirish", callback_data="admin_replace_anime"),
         types.InlineKeyboardButton("🗑 Mavjud animeni o'chirish", callback_data="admin_delete_anime"),
         types.InlineKeyboardButton("📢 Majburiy kanal", callback_data="admin_channel"),
@@ -413,9 +413,8 @@ def callback_handler(call: types.CallbackQuery):
 if __name__ == '__main__':
     bot.remove_webhook()
     while True:
-    try:
-        bot.infinity_polling(skip_pending=True)
-    except Exception:
-        pass
-        
+        try:
+            bot.infinity_polling(skip_pending=True)
+        except Exception:
+            pass
     
