@@ -73,7 +73,6 @@ def add_bot_message_to_history(chat_id, msg_id, protect=False):
 
   user_last_messages[chat_id].append({"msg_id": msg_id, "protect": protect})
 
-  # Himoyalanmagan oddiy xabarlardan faqat oxirgi 2 tasi saqlanadi, qolgani o'chiriladi
   unprotected = [m for m in user_last_messages[chat_id] if not m["protect"]]
   while len(unprotected) > 2:
     old_item = unprotected.pop(0)
@@ -144,7 +143,7 @@ def get_sub_keyboard(unsubscribed_channels):
   return markup
 
 
-# --- ASOSIY SHARSIMON (INLINE) MENYU ---
+# --- INLINE ASOSIY MENYU (FAQAT SHARCHA ICHIDA) ---
 def get_main_inline_menu(user_id):
   markup = types.InlineKeyboardMarkup(row_width=1)
   markup.add(
@@ -227,7 +226,7 @@ def get_available_animes_keyboard(action_type="show"):
       markup.add(types.InlineKeyboardButton(btn_text, callback_data=cb))
 
   markup.add(
-      types.InlineKeyboardButton("⬅️ Asosiy menyu", callback_data="back_to_main")
+      types.InlineKeyboardButton("⬅ Asosiy menyu", callback_data="back_to_main")
   )
   conn.close()
   return markup
@@ -310,7 +309,7 @@ def show_search_results(chat_id, results):
   for anime_id, name in results:
     markup.add(
         types.InlineKeyboardButton(
-            f"🎬 {name}", callback_data=f"show_anime_{anime_id}"
+            "🎬 " + name, callback_data=f"show_anime_{anime_id}"
         )
     )
   markup.add(
@@ -319,10 +318,78 @@ def show_search_results(chat_id, results):
   send_clean_message(chat_id, "🔎 Topilgan animelar:", reply_markup=markup)
 
 
-# --- HANDLERLAR ---
+# --- 🌐 INLINE QUERY (GURUHDA QIDIRISH) ---
+@bot.inline_handler(func=lambda query: True)
+def inline_query_handler(query):
+  query_text = query.query.strip().lower()
+  conn = sqlite3.connect(DB_FILE)
+  cursor = conn.cursor()
+
+  if query_text:
+    cursor.execute(
+        "SELECT id, name, info, photo, code FROM animes WHERE LOWER(name) LIKE"
+        " ? LIMIT 10",
+        (f"%{query_text}%",),
+    )
+  else:
+    cursor.execute(
+        "SELECT id, name, info, photo, code FROM animes ORDER BY id DESC LIMIT 10"
+    )
+
+  animes = cursor.fetchall()
+  conn.close()
+
+  results = []
+  bot_username = bot.get_me().username
+
+  for anime_id, name, info, photo, code in animes:
+    desc = info if info else "Ma'lumot mavjud emas"
+    text = (
+        f"🎬 <b>{name}</b>\n\n📖 {desc}\n\n🔑 <b>Kod:</b> <code>{code}</code>"
+    )
+    bot_link = f"https://t.me/{bot_username}?start=anime_{anime_id}"
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton("👀 Animeni ko'rish", url=bot_link)
+    )
+
+    if photo:
+      results.append(
+          types.InlineQueryResultPhoto(
+              id=str(anime_id),
+              photo_url=photo,
+              thumb_url=photo,
+              title=name,
+              description=desc[:100],
+              caption=text,
+              parse_mode="HTML",
+              reply_markup=markup,
+          )
+      )
+    else:
+      results.append(
+          types.InlineQueryResultArticle(
+              id=str(anime_id),
+              title=name,
+              description=desc[:100],
+              input_message_content=types.InputTextMessageContent(
+                  message_text=text, parse_mode="HTML"
+              ),
+              reply_markup=markup,
+          )
+      )
+
+  bot.answer_inline_query(query.id, results, cache_time=1)
+
+
+# --- /start VA DEEP-LINK ---
 @bot.message_handler(commands=["start"])
 def start_cmd(message):
   user_id = message.from_user.id
+
+  # Pastki menyuni (Reply Keyboard) tozalash uchun bo'sh obyekt beramiz
+  remove_markup = types.ReplyKeyboardRemove()
 
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
@@ -335,13 +402,68 @@ def start_cmd(message):
 
   unsub = check_sub(user_id)
   if unsub is not True and unsub:
-    text = "⚠️️ Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:"
-    send_clean_message(
+    text = "⚠ Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:"
+    bot.send_message(
         message.chat.id, text, reply_markup=get_sub_keyboard(unsub)
     )
     return
 
+  args = message.text.split()
+  if len(args) > 1 and args[1].startswith("anime_"):
+    try:
+      anime_id = int(args[1].replace("anime_", ""))
+      conn = sqlite3.connect(DB_FILE)
+      cursor = conn.cursor()
+      cursor.execute(
+          "SELECT name, info, photo, views, code FROM animes WHERE id = ?",
+          (anime_id,),
+      )
+      anime = cursor.fetchone()
+
+      if anime:
+        cursor.execute(
+            "UPDATE animes SET views = views + 1 WHERE id = ?", (anime_id,)
+        )
+        conn.commit()
+      conn.close()
+
+      if anime:
+        name, info, photo, views, code = anime
+        text = (
+            f"🎬 <b>{name}</b>\n\n📖 {info}\n\n🔑 Kodi: <code>{code}</code>\n\n👁"
+            f" Ko'rildi: {views+1} marta"
+        )
+        markup = get_anime_folder_keyboard(anime_id)
+
+        # Reply menyuni yashirish uchun avval xabar yuboramiz
+        bot.send_message(
+            message.chat.id, "⬇️ Menyuni yopdim", reply_markup=remove_markup
+        )
+        if photo:
+          send_clean_photo(
+              message.chat.id,
+              photo,
+              text,
+              reply_markup=markup,
+              parse_mode="HTML",
+              protect=True,
+          )
+        else:
+          send_clean_message(
+              message.chat.id,
+              text,
+              reply_markup=markup,
+              parse_mode="HTML",
+              protect=True,
+          )
+        return
+    except Exception:
+      pass
+
   text = "👋 Xush kelibsiz! Kerakli bo'limni tanlang:"
+  bot.send_message(
+      message.chat.id, "⬇️ Menyuni yopdim", reply_markup=remove_markup
+  )
   send_clean_message(
       message.chat.id, text, reply_markup=get_main_inline_menu(user_id)
   )
@@ -361,7 +483,6 @@ def main_messages(message):
 
   state = user_states.get(user_id)
 
-  # Admin: Kanal qo'shish
   if state == "ADD_CHANNEL_WAIT" and user_id == ADMIN_ID:
     ch = message.text.strip()
     if not ch.startswith("@"):
@@ -386,7 +507,48 @@ def main_messages(message):
     user_states.pop(user_id, None)
     return
 
-  # Qidiruvlar
+  text_val = message.text.strip().lower()
+  conn = sqlite3.connect(DB_FILE)
+  cursor = conn.cursor()
+  cursor.execute(
+      "SELECT id, name, info, photo, views, code FROM animes WHERE LOWER(code)"
+      " = ?",
+      (text_val,),
+  )
+  anime = cursor.fetchone()
+  if anime:
+    anime_id, name, info, photo, views, code = anime
+    cursor.execute(
+        "UPDATE animes SET views = views + 1 WHERE id = ?", (anime_id,)
+    )
+    conn.commit()
+    conn.close()
+
+    text = (
+        f"🎬 <b>{name}</b>\n\n📖 {info}\n\n🔑 Kodi: <code>{code}</code>\n\n👁"
+        f" Ko'rildi: {views+1} marta"
+    )
+    markup = get_anime_folder_keyboard(anime_id)
+    if photo:
+      send_clean_photo(
+          message.chat.id,
+          photo,
+          text,
+          reply_markup=markup,
+          parse_mode="HTML",
+          protect=True,
+      )
+    else:
+      send_clean_message(
+          message.chat.id,
+          text,
+          reply_markup=markup,
+          parse_mode="HTML",
+          protect=True,
+      )
+    return
+  conn.close()
+
   if state == "SEARCH_NAME_WAIT":
     query = f"%{message.text.strip().lower()}%"
     user_states.pop(user_id, None)
@@ -413,7 +575,6 @@ def main_messages(message):
     show_search_results(message.chat.id, results)
     return
 
-  # Yangi Anime Qo'shish Bosqichlari (Admin)
   if state == "ADD_NAME" and user_id == ADMIN_ID:
     temp_data[user_id]["name"] = message.text.strip()
     user_states[user_id] = "ADD_CODE"
@@ -470,7 +631,7 @@ def main_messages(message):
     return
 
 
-# --- MEDIALAR HANDLER ---
+# --- MEDIA HANDLER ---
 @bot.message_handler(content_types=["photo", "video"])
 def handle_media(message):
   user_id = message.from_user.id
@@ -653,7 +814,7 @@ def callback_handler(call):
       )
     markup.add(
         types.InlineKeyboardButton(
-            "⬅️ Asosiy menyu", callback_data="back_to_main"
+            "⬅️️ Asosiy menyu", callback_data="back_to_main"
         )
     )
 
@@ -766,7 +927,7 @@ def callback_handler(call):
             "🗑 Animeniki butunlay o'chirish",
             callback_data=f"delete_anime_{anime_id}",
         ),
-        types.InlineKeyboardButton("⬅️️ Ortga", callback_data="admin_manage"),
+        types.InlineKeyboardButton("⬅ Ortga", callback_data="admin_manage"),
     )
     send_clean_message(call.message.chat.id, "Tanlang:", reply_markup=markup)
 
@@ -823,7 +984,8 @@ def callback_handler(call):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT name, info, photo, views FROM animes WHERE id = ?", (anime_id,)
+        "SELECT name, info, photo, views, code FROM animes WHERE id = ?",
+        (anime_id,),
     )
     anime = cursor.fetchone()
 
@@ -837,13 +999,15 @@ def callback_handler(call):
       bot.answer_callback_query(call.id, "❌ Anime topilmadi!", show_alert=True)
       return
 
-    name, info, photo, views = anime
-    text = f"🎬 <b>{name}</b>\n\n📖 {info}\n\n👁 Ko'rildi: {views+1} marta"
+    name, info, photo, views, code = anime
+    text = (
+        f"🎬 <b>{name}</b>\n\n📖 {info}\n\n🔑 Kodi: <code>{code}</code>\n\n👁"
+        f" Ko'rildi: {views+1} marta"
+    )
 
     markup = get_anime_folder_keyboard(anime_id)
     bot.answer_callback_query(call.id)
 
-    # Anime jildi ochilganda u o'chib ketmasligi uchun 'protect=True' qilib yuboriladi
     if photo:
       send_clean_photo(
           call.message.chat.id,
