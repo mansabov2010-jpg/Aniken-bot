@@ -7,7 +7,7 @@ import telebot
 from telebot import types
 
 # --- SOZLAMALAR ---
-TOKEN = "8987164421:AAE1_KOVrbjTkQgYQpyFs-wxfAkkTQFMpgM"
+TOKEN = "8987164421:AAE6XMCpHqNRIzio-xfp2IueJoKtQK_ZIbc"
 ADMIN_ID = 7986354170
 
 bot = telebot.TeleBot(TOKEN)
