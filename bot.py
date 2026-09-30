@@ -31,7 +31,18 @@ def keep_alive():
   t.start()
 
 
-# --- MA'LUMOTLAR BAZASI (Mavjud bazaga zarar yetkazmaydi) ---
+# --- BOTNING PASTKI MENYU BUYRUQLARI (MENU KNOPKASI) ---
+def set_bot_commands():
+  commands = [
+      types.BotCommand("start", "Botni ishga tushirish va asosiy menyu"),
+  ]
+  try:
+    bot.set_my_commands(commands)
+  except Exception:
+    pass
+
+
+# --- MA'LUMOTLAR BAZASI ---
 def init_db():
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
@@ -60,6 +71,7 @@ def init_db():
 
 
 init_db()
+set_bot_commands()
 
 user_states = {}
 temp_data = {}
@@ -190,7 +202,7 @@ def get_search_inline_keyboard():
   )
   markup.add(
       types.InlineKeyboardButton(
-          "⬅️ Asosiy menyu", callback_data="back_to_main"
+          "⬅ Asosiy menyu", callback_data="back_to_main"
       )
   )
   return markup
@@ -319,7 +331,7 @@ def show_search_results(chat_id, results):
   send_clean_message(chat_id, "🔎 Topilgan animelar:", reply_markup=markup)
 
 
-# --- INLINE QUERY (Guruhda @bot_username yozib qidirish va "Anime tomosha qilish" tugmasi) ---
+# --- INLINE QUERY ---
 @bot.inline_handler(func=lambda query: True)
 def inline_query_handler(query):
   text = query.query.strip().lower()
@@ -341,7 +353,6 @@ def inline_query_handler(query):
   bot_username = bot_info.username
 
   for anime_id, name, info, photo, code in animes:
-    # Deep-link orqali botga o'tkazuvchi havolali tugma
     deeplink_url = f"https://t.me/{bot_username}?start=anime_{anime_id}"
 
     keyboard = types.InlineKeyboardMarkup()
@@ -388,8 +399,6 @@ def start_cmd(message):
   if chat_id < 0:
     return
 
-  remove_markup = types.ReplyKeyboardRemove()
-
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
   cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
@@ -432,7 +441,6 @@ def start_cmd(message):
         )
         markup = get_anime_folder_keyboard(anime_id)
 
-        bot.send_message(chat_id, "⬇️ Menyuni yopdim", reply_markup=remove_markup)
         if photo:
           send_clean_photo(
               chat_id,
@@ -455,13 +463,72 @@ def start_cmd(message):
       pass
 
   text = "👋 Xush kelibsiz! Kerakli bo'limni tanlang:"
-  bot.send_message(chat_id, "⬇ Menyuni yopdim", reply_markup=remove_markup)
   send_clean_message(
       chat_id, text, reply_markup=get_main_inline_menu(user_id)
   )
 
 
-# --- MATN VA BOSHQA XABARLAR ---
+# --- GURUHDA /anime [NOMI] YOKI MATN ORQALI QIDIRISH ---
+@bot.message_handler(func=lambda message: message.chat.id < 0)
+def group_messages(message):
+  text = message.text.strip().lower()
+
+  if text.startswith("/anime"):
+    query = text.replace("/anime", "").strip()
+  else:
+    query = text
+
+  if not query:
+    return
+
+  conn = sqlite3.connect(DB_FILE)
+  cursor = conn.cursor()
+  cursor.execute(
+      "SELECT id, name, info, photo, code FROM animes WHERE LOWER(name) LIKE"
+      " ? OR LOWER(code) = ?",
+      (f"%{query}%", query),
+  )
+  animes = cursor.fetchall()
+  conn.close()
+
+  if not animes:
+    return
+
+  bot_info = bot.get_me()
+  bot_username = bot_info.username
+
+  for anime_id, name, info, photo, code in animes:
+    deeplink_url = f"https://t.me/{bot_username}?start=anime_{anime_id}"
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton("📺 Anime tomosha qilish", url=deeplink_url)
+    )
+
+    desc = info[:150] if info else "Ma'lumot yo'q"
+    caption = (
+        f"🎬 <b>{name}</b>\n\n📖 {desc}\n\n🔑 Kodi: <code>{code}</code>\n\n⬇️ Animeni"
+        " to'liq ko'rish uchun pastdagi tugmani bosing:"
+    )
+
+    if photo:
+      bot.send_photo(
+          message.chat.id,
+          photo,
+          caption=caption,
+          reply_markup=markup,
+          parse_mode="HTML",
+      )
+    else:
+      bot.send_message(
+          message.chat.id,
+          caption,
+          reply_markup=markup,
+          parse_mode="HTML",
+      )
+    break
+
+
+# --- SHAXSIY CHATDAGI MATNLAR VA BUYRUQLAR ---
 @bot.message_handler(func=lambda message: True)
 def main_messages(message):
   user_id = message.from_user.id
