@@ -160,7 +160,6 @@ def main_handler(message: types.Message):
             bot.send_message(user_id, "Asosiy menyu:", reply_markup=admin_menu())
             return
 
-        # FSM qadamlarini bajarish
         if step == "waiting_for_channel":
             REQUIRED_CHANNEL = text
             user_states.pop(user_id, None)
@@ -181,7 +180,6 @@ def main_handler(message: types.Message):
                     if p_data['code'].lower() == code_to_delete:
                         anime_title = anime_data['name']
                         del parts[part_num]
-                        # Agar jildda boshqa qism qolmasa, jildning o'zini ham o'chirib yuboramiz
                         if not parts:
                             del anime_database[name_key]
                         save_database(anime_database)
@@ -370,5 +368,7 @@ if __name__ == '__main__':
     server_thread.daemon = True
     server_thread.start()
 
+    # Eski keshni majburiy tozalab, yangi ulanish ochish uchun:
+    bot.remove_webhook()
     bot.infinity_polling(skip_pending=True)
         
