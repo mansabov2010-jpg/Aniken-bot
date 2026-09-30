@@ -555,6 +555,6 @@ while True:
                 timeout=20,
                 skip_pending_updates=True
             )
-        except Exception as e:
+    except Exception as e:
             print(f"Xatolik yuz berdi: {e}")
             time.sleep(3)
