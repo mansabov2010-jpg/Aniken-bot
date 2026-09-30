@@ -7,8 +7,8 @@ import telebot
 from telebot import types
 
 # --- SOZLAMALAR ---
-TOKEN = os.getenv("BOT_TOKEN", "8248154561:AAE8w1QTDz3ouDEW-kwlSwIfC8r83imJenE")
-ADMIN_ID = int(os.getenv("ADMIN_ID", 7986354170))
+TOKEN = "8987164421:AAE1_KOVrbjTkQgYQpyFs-wxfAkkTQFMpgM"
+ADMIN_ID = 7986354170
 
 bot = telebot.TeleBot(TOKEN)
 DB_FILE = "bot_data.db"
@@ -297,7 +297,7 @@ def start_cmd(message):
 
   unsub = check_sub(user_id)
   if unsub is not True and unsub:
-    text = "⚠️ Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:"
+    text = "⚠️️ Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:"
     send_clean_message(
         message.chat.id, text, reply_markup=get_sub_keyboard(unsub)
     )
@@ -704,4 +704,6 @@ def callback_handler(call):
     conn.commit()
     conn.close()
     bot.answer_callback_query(call.id, "✅ Anime o'chirildi!")
-    send_clean_mes
+    send_clean_message(
+        call.message.chat.id,
+        "🗑 Ani
