@@ -405,7 +405,7 @@ def callback_handler(call: types.CallbackQuery):
         bot.edit_message_text("Asosiy menyu:", call.message.chat.id, call.message.message_id, reply_markup=admin_inline_menu())
         bot.answer_callback_query(call.id)
 
-        elif data.startswith("open_folder_"):
+    elif data.startswith("open_folder_"):
         name_key = data.replace("open_folder_", "")
         if name_key in anime_database:
             d = anime_database[name_key]
