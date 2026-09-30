@@ -56,7 +56,7 @@ def start_keyboard(code_text=None):
 def admin_inline_menu():
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        types.InlineKeyboardButton("➕ Yeni anime bo'limi", callback_data="admin_new_anime_menu"),
+        types.InlineKeyboardButton("➕ Yangi anime bo'limi", callback_data="admin_new_anime_menu"),
         types.InlineKeyboardButton("🔄 Animeni almashtirish", callback_data="admin_replace_anime"),
         types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="admin_delete_anime"),
         types.InlineKeyboardButton("📢 Majburiy kanal", callback_data="admin_channel"),
@@ -96,7 +96,7 @@ def cmd_start(message: types.Message):
             caption = "🎬 <b>" + str(data['name']) + "</b>\n\n📖 <b>Ma'lumot:</b> " + str(data.get('info', 'Mavjud emas')) + "\n📌 <b>Kodi:</b> " + str(data.get('code', 'Yo\'q'))
             
             keyboard = types.InlineKeyboardMarkup(row_width=5)
-            buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(data['parts'].keys())]
+            buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
             keyboard.add(*buttons)
             
             if data.get('photo'):
@@ -334,7 +334,7 @@ def main_handler(message: types.Message):
         caption = "🎬 <b>" + str(data['name']) + "</b>\n\n📖 <b>Ma'lumot:</b> " + str(data.get('info', 'Mavjud emas')) + "\n📌 <b>Kodi:</b> " + str(code)
         
         keyboard = types.InlineKeyboardMarkup(row_width=5)
-        buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(data['parts'].keys())]
+        buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)]
         keyboard.add(*buttons)
         
         if data.get('photo'):
@@ -428,5 +428,4 @@ def callback_handler(call: types.CallbackQuery):
         user_states.pop(user_id, None)
         total = len(anime_database)
         parts_total = sum(len(d['parts']) for d in anime_database.values())
-        keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardBut
+   
