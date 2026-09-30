@@ -468,26 +468,40 @@ def callback_handler(call):
         send_clean_message(call.message.chat.id, "🔢 Anime kodini yozing:", reply_markup=get_cancel_keyboard())
         bot.answer_callback_query(call.id)
 
-    elif data.startswith("show_anime_"):
-        anime_id = int(data.replace("show_anime_", ""))
+    elif message.text == "⚙️ Animelarni boshqarish" and user_id == ADMIN_ID:
+        send_clean_message(message.chat.id, "🗑 O'chirmoqchi bo'lgan animengizni tanlang:", reply_markup=get_available_animes_keyboard(for_admin=True))
+    elif message.text == "📢 Kanallarni boshqarish" and user_id == ADMIN_ID:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("SELECT name, code, info, photo FROM animes WHERE id = ?", (anime_id,))
-        anime = cursor.fetchone()
-        cursor.execute("SELECT COUNT(*) FROM parts WHERE anime_id = ?", (anime_id,))
-        parts_count = cursor.fetchone()[0]
+        cursor.execute("SELECT username FROM channels")
+        channels = [row[0] for row in cursor.fetchall()]
         conn.close()
 
-        if anime:
-            name, code, info, photo = anime
-            caption = (
-                f"🎬 <b>{name}</b>\n\n"
-                f"📖 <b>Ma'lumot:</b> {info}\n"
-                f"📌 <b>Kodi:</b> {code}\n"
-                f"🎞 <b>Mavjud qismlar:</b> {parts_count} ta"
-            )
-            markup = get_anime_folder_keyboard(anime_id)
-            if photo:
-                send_clean_photo(call.message.chat.id, photo, caption=caption, parse_mode="HTML", reply_markup=markup)
-            else:
-      
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(types.InlineKeyboardButton("➕ Kanal qo'shish", callback_data="add_channel"))
+        for ch in channels:
+            markup.add(types.InlineKeyboardButton(f"❌ O'chirish: {ch}", callback_data=f"del_ch_{ch}"))
+        
+        ch_text = "\n".join(channels) if channels else "Hozircha kanallar yo'q"
+        send_clean_message(message.chat.id, f"📢 **Ulangan kanallar:**\n\n{ch_text}", reply_markup=markup, parse_mode="Markdown")
+    elif message.text == "📊 Statistika" and user_id == ADMIN_ID:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM animes")
+        total_animes = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM parts")
+        total_parts = cursor.fetchone()[0]
+        cursor.execute("SELECT SUM(views) FROM animes")
+        total_views = cursor.fetchone()[0] or 0
+        conn.close()
+
+        text = (
+            f"📊 <b>Bot Statistikasi:</b>\n\n"
+            f"👥 Jami foydalanuvchilar: <b>{total_users} ta</b>\n"
+            f"🎬 Jami anime jildlari: <b>{total_animes} ta</b>\n"
+            f"🎞 Jami qismlar: <b>{total_parts} ta</b>\n"
+            f"👁 Jami ko'rishlar: <b>{total_views} marta</b>"
+        )
+        send_clean_message(message.chat.id, text, parse_mode="HTML")
