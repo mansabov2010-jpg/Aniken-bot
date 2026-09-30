@@ -1,8 +1,6 @@
 import logging
 import json
 import os
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot import types
 import time
@@ -14,19 +12,6 @@ DB_FILE = "anime_database.json"
 
 logging.basicConfig(level=logging.INFO)
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
-
-class SimpleHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is running 24/7!")
-    def log_message(self, format, *args):
-        pass
-
-def run_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), SimpleHandler)
-    server.serve_forever()
 
 def load_database():
     if os.path.exists(DB_FILE):
@@ -428,4 +413,10 @@ def callback_handler(call: types.CallbackQuery):
         user_states.pop(user_id, None)
         total = len(anime_database)
         parts_total = sum(len(d['parts']) for d in anime_database.values())
-   
+        keyboard = types.InlineKeyboardMarkup()
+        keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_main_menu"))
+        bot.edit_message_text("📊 Statistika:\nJildlar soni: " + str(total) + "\nUmumiy qismlar soni: " + str(parts_total), call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+        bot.answer_callback_query(call.id)
+
+    elif data == "admin_main_menu" and user_id == ADMIN_ID:
+        user_st
