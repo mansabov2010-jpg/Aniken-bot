@@ -95,7 +95,7 @@ def cmd_start(message: types.Message):
             keyboard = types.InlineKeyboardMarkup(row_width=5)
             buttons = [
                 types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
-                for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)
+                for p in sorted(data['parts'].keys(), key=lambda x: int(x) if str(x).isdigit() else 0)
             ]
             keyboard.add(*buttons)
             
@@ -299,7 +299,7 @@ def main_handler(message: types.Message):
         keyboard = types.InlineKeyboardMarkup(row_width=5)
         buttons = [
             types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
-            for p in sorted(data['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)
+            for p in sorted(data['parts'].keys(), key=lambda x: int(x) if str(x).isdigit() else 0)
         ]
         keyboard.add(*buttons)
         
@@ -414,4 +414,4 @@ def callback_handler(call: types.CallbackQuery):
             keyboard = types.InlineKeyboardMarkup(row_width=5)
             buttons = [
                 types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
-                for p in sorted(d['parts'].keys(), key=lambda x: int
+                for p in sorted(d['parts'].keys(), key=lam
