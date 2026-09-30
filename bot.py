@@ -5,7 +5,7 @@ import os
 import time
 
 # --- SOZLAMALAR ---
-TOKEN = os.getenv("BOT_TOKEN", "YANGI_TOKENINGIZNI_SHU_YERGA_YOZING")
+TOKEN = os.getenv("BOT_TOKEN", "8248154561:AAE8w1QTDz3ouDEW-kwlSwIfC8r83imJenE")
 ADMIN_ID = int(os.getenv("ADMIN_ID", 7986354170))
 
 bot = telebot.TeleBot(TOKEN)
