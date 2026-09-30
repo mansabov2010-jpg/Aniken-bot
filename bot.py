@@ -713,9 +713,19 @@ def callback_handler(call):
         "🗑 Anime muvaffaqiyatli o'chirildi.",
         reply_markup=get_main_keyboard(user_id),
     )
-  if __name__ == "__main__":
-    keep_alive()
+    import threading
+import os
+
+# Botni alohida fonda ishga tushiruvchi funksiya
+def start_bot():
     bot.infinity_polling(skip_pending=True)
 
-
-
+if __name__ == "__main__":
+    # 1. Telegram bot uchun alohida oqim ochamiz
+    bot_thread = threading.Thread(target=start_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+    
+    # 2. Flask veb-serverini Render talab qiladigan portda ishga tushiramiz
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
