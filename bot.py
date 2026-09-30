@@ -5,6 +5,7 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot import types
+import time
 
 TOKEN = "8248154561:AAEm-5cEgfcbkQBwN59indBrZFMyuRuYo4Q"
 ADMIN_ID = 7986354170
@@ -14,7 +15,6 @@ DB_FILE = "anime_database.json"
 logging.basicConfig(level=logging.INFO)
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
 
-# Render uxlab qolmasligi uchun oddiy veb-server
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -178,7 +178,6 @@ def main_handler(message: types.Message):
                 parts = anime_data['parts']
                 for part_num, p_data in list(parts.items()):
                     if p_data['code'].lower() == code_to_delete:
-                        anime_title = anime_data['name']
                         del parts[part_num]
                         if not parts:
                             del anime_database[name_key]
@@ -368,7 +367,12 @@ if __name__ == '__main__':
     server_thread.daemon = True
     server_thread.start()
 
-    # Eski keshni majburiy tozalab, yangi ulanish ochish uchun:
     bot.remove_webhook()
-    bot.infinity_polling(skip_pending=True)
+    
+    while True:
+        try:
+            bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
+        except Exception as e:
+            print(f"Xatolik: {e}")
+            time.sleep(5)
         
