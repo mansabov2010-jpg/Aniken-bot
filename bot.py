@@ -104,8 +104,7 @@ def cmd_start(message: types.Message):
             else:
                 bot.send_message(user_id, caption, reply_markup=keyboard)
             return
-
-    user_states.pop(user_id, None)
+            user_states.pop(user_id, None)
     if not check_sub_channel(user_id):
         keyboard = types.InlineKeyboardMarkup()
         keyboard.add(types.InlineKeyboardButton("Kanalga a'zo bo'lish 🔗", url=f"https://t.me/{REQUIRED_CHANNEL.replace('@', '')}"))
@@ -183,8 +182,7 @@ def main_handler(message: types.Message):
             user_states[user_id] = state
             bot.send_message(user_id, "📌 Anime uchun kod kiriting (masalan: 1):")
             return
-
-        if step == "waiting_for_folder_code":
+            if step == "waiting_for_folder_code":
             state["code"] = text
             state["step"] = "waiting_for_folder_photo"
             user_states[user_id] = state
@@ -342,8 +340,7 @@ def callback_handler(call: types.CallbackQuery):
         keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_new_anime_menu"))
         bot.edit_message_text("📁 Mavjud jildlardan birini tanlang:", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
         bot.answer_callback_query(call.id)
-
-    elif data.startswith("sel_fldr_") and user_id == ADMIN_ID:
+        elif data.startswith("sel_fldr_") and user_id == ADMIN_ID:
         name_key = data.replace("sel_fldr_", "")
         if name_key in anime_database:
             folder_name = anime_database[name_key]['name']
@@ -401,8 +398,7 @@ def callback_handler(call: types.CallbackQuery):
         keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_main_menu"))
         bot.edit_message_text(f"📊 Statistika:\nJildlar soni: {total}\nUmumiy qismlar soni: {parts_total}", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
         bot.answer_callback_query(call.id)
-
-    elif data == "admin_main_menu" and user_id == ADMIN_ID:
+        elif data == "admin_main_menu" and user_id == ADMIN_ID:
         user_states.pop(user_id, None)
         bot.edit_message_text("Asosiy menyu:", call.message.chat.id, call.message.message_id, reply_markup=admin_inline_menu())
         bot.answer_callback_query(call.id)
@@ -414,4 +410,27 @@ def callback_handler(call: types.CallbackQuery):
             keyboard = types.InlineKeyboardMarkup(row_width=5)
             buttons = [
                 types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") 
-                for p in sorted(d['parts'].keys(), key=lambda x: int
+                for p in sorted(d['parts'].keys(), key=lambda x: int(x) if x.isdigit() else x)
+            ]
+            keyboard.add(*buttons)
+            keyboard.row(types.InlineKeyboardButton(text="⬅️ Ortga", callback_data="admin_list" if user_id == ADMIN_ID else f"open_folder_{name_key}"))
+            
+            caption = f"🎬 <b>{d['name']}</b>\n\n📖 <b>Ma'lumot:</b> {d.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {d.get('code', 'Yo\'q')}"
+            if d.get('photo'):
+                try:
+                    bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=caption, reply_markup=keyboard)
+                except Exception:
+                    bot.edit_message_text(text=caption, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=keyboard)
+            else:
+                bot.edit_message_text(text=caption, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=keyboard)
+        bot.answer_callback_query(call.id)
+
+    elif data.startswith("fldr_"):
+        parts = data.split("_")
+        if len(parts) >= 3:
+            name_key = parts[1]
+            part_num = parts[2]
+            if name_key in anime_database and part_num in anime_database[name_key]['parts']:
+                file_id = anime_database[name_key]['parts'][part_num]['file_id']
+                bot.send_video(user_id, file_id, caption=f"🎬 {anime_database[name_key]['name']}\n📌 {part_num}-qism")
+        bot.answer_callback_query(call.id)
