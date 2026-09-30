@@ -179,14 +179,14 @@ def main_handler(message: types.Message):
             state["name"] = text
             state["step"] = "waiting_for_folder_code"
             user_states[user_id] = state
-            bot.send_message(user_id, "📌 Anime uchun **kod** kiriting (masalan: 1):")
+            bot.send_message(user_id, "📌 Anime uchun kod kiriting (masalan: 1):")
             return
 
         if step == "waiting_for_folder_code":
             state["code"] = text
             state["step"] = "waiting_for_folder_photo"
             user_states[user_id] = state
-            bot.send_message(user_id, "🖼 Anime uchun **rasm** yuboring:")
+            bot.send_message(user_id, "🖼 Anime uchun rasm yuboring:")
             return
 
         if step == "waiting_for_folder_photo":
@@ -197,7 +197,7 @@ def main_handler(message: types.Message):
             state["photo"] = photo_id
             state["step"] = "waiting_for_folder_info"
             user_states[user_id] = state
-            bot.send_message(user_id, "📖 Anime haqida **ma'lumot** kiriting:")
+            bot.send_message(user_id, "📖 Anime haqida ma'lumot kiriting:")
             return
 
         if step == "waiting_for_folder_info":
@@ -220,7 +220,7 @@ def main_handler(message: types.Message):
             state["name_key"] = name_key
             state["step"] = "waiting_for_part_video"
             user_states[user_id] = state
-            bot.send_message(user_id, "✅ Jild ochildi! Endi 1-qism uchun **video faylni** yuboring:")
+            bot.send_message(user_id, "✅ Jild ochildi! Endi 1-qism uchun video faylni yuboring:")
             return
 
         if step == "waiting_for_existing_folder_video":
@@ -347,7 +347,7 @@ def callback_handler(call: types.CallbackQuery):
 
     elif data == "admin_delete_anime" and user_id == ADMIN_ID:
         user_states[user_id] = {"step": "waiting_for_delete_code"}
-        bot.edit_message_text("O'chirmoqchi bo'lgan anime **kodini** kiriting:", call.message.chat.id, call.message.message_id)
+        bot.edit_message_text("O'chirmoqchi bo'lgan anime kodini kiriting:", call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
     elif data == "admin_channel" and user_id == ADMIN_ID:
@@ -369,7 +369,7 @@ def callback_handler(call: types.CallbackQuery):
             for name_key, data_item in anime_database.items():
                 keyboard.add(types.InlineKeyboardButton(text="📁 " + str(data_item['name']), callback_data="open_folder_" + str(name_key)))
             keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_main_menu"))
-            bot.edit_message_text("📁 **Bazadagi barcha jildlar va animelar:**", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
+            bot.edit_message_text("📁 Bazadagi barcha jildlar va animelar:", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
             bot.answer_callback_query(call.id)
 
     elif data == "admin_stats" and user_id == ADMIN_ID:
@@ -408,4 +408,4 @@ def callback_handler(call: types.CallbackQuery):
             name_key, p = parts[1], parts[2]
             if name_key in anime_database and p in anime_database[name_key]['parts']:
                 v = anime_database[name_key]['parts'][p]
-                bot.send_video(call.message.chat.id, v['file_id
+                bot.send_video(call.message.chat.id, v['file_id'], caption="🎬 " + str(
