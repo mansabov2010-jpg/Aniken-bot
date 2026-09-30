@@ -695,7 +695,7 @@ def callback_handler(call):
     )
     bot.answer_callback_query(call.id)
 
-elif data.startswith("delete_anime_") and user_id == ADMIN_ID:
+  elif data.startswith("delete_anime_") and user_id == ADMIN_ID:
     anime_id = int(data.replace("delete_anime_", ""))
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
