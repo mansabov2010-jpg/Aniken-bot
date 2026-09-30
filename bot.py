@@ -108,13 +108,8 @@ def main_handler(message: types.Message):
 
     if user_id == ADMIN_ID:
         if text == "➕ Yeni anime bo'limi":
-            user_states[user_id] = {"step": "choosing_action"}
-            keyboard = types.InlineKeyboardMarkup(row_width=1)
-            keyboard.add(
-                types.InlineKeyboardButton("✨ Yangi jild ochish", callback_data="anime_new_folder"),
-                types.InlineKeyboardButton("📁 Mavjud jildga anime qo'shish", callback_data="anime_existing_folder")
-            )
-            bot.send_message(user_id, "Anime qo'shish bo'limi. Kerakli harakatni tanlang:", reply_markup=keyboard)
+            user_states[user_id] = {"step": "waiting_for_folder_name"}
+            bot.send_message(user_id, "✨ Yangi anime nomini (papka nomini) kiriting:", reply_markup=admin_menu())
             return
 
         elif text == "🔄 Mavjud animeni almashtirish":
@@ -231,7 +226,7 @@ def main_handler(message: types.Message):
 
         if step == "waiting_for_folder_name":
             user_states[user_id] = {"step": "waiting_for_video", "name": text}
-            bot.send_message(user_id, f"📂 Jild: <b>{text}</b>\n\nEndi animening **video faylini** yuboring:")
+            bot.send_message(user_id, f"📂 Anime nomi: <b>{text}</b>\n\nEndi animening **video faylini** yuboring:")
             return
 
         if step == "waiting_for_video":
@@ -242,7 +237,7 @@ def main_handler(message: types.Message):
             state["file_id"] = file_id
             state["step"] = "waiting_for_part"
             user_states[user_id] = state
-            bot.send_message(user_id, "Video qabul qilindi. Endi anime qism raqamini kiriting:")
+            bot.send_message(user_id, "Video qabul qilindi. Endi anime qism raqamini kiriting (masalan: 1):")
             return
 
         if step == "waiting_for_part":
@@ -279,7 +274,7 @@ def main_handler(message: types.Message):
             save_database(anime_database)
             user_states.pop(user_id, None)
             
-            bot.send_message(user_id, f"✅ Muvaffaqiyatli saqlandi!\n\n📁 Papka: {anime_name}\n🔢 Qism: {part}\n📌 Kod: {code}", reply_markup=admin_menu())
+            bot.send_message(user_id, f"✅ Muvaffaqiyatli saqlandi!\n\n📁 Anime: {anime_name}\n🔢 Qism: {part}\n📌 Kod: {code}", reply_markup=admin_menu())
             return
 
     if not check_sub_channel(user_id):
@@ -321,7 +316,7 @@ def callback_handler(call: types.CallbackQuery):
 
     if data == "anime_new_folder" and user_id == ADMIN_ID:
         user_states[user_id] = {"step": "waiting_for_folder_name"}
-        bot.edit_message_text("✨ Yangi anime uchun papka nomini kiriting:", call.message.chat.id, call.message.message_id)
+        bot.edit_message_text("✨ Yangi anime nomini kiriting:", call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
     elif data == "anime_existing_folder" and user_id == ADMIN_ID:
         if not anime_database:
@@ -337,7 +332,7 @@ def callback_handler(call: types.CallbackQuery):
         if name_key in anime_database:
             folder_name = anime_database[name_key]['name']
             user_states[user_id] = {"step": "waiting_for_video", "name": folder_name}
-            bot.edit_message_text(f"📁 Tanlangan jild: {folder_name}\n\nEndi animening video faylini yuboring:", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text(f"📁 Tanlangan anime: {folder_name}\n\nEndi animening video faylini yuboring:", call.message.chat.id, call.message.message_id)
             bot.answer_callback_query(call.id)
     elif data.startswith("open_folder_"):
         name_key = data.replace("open_folder_", "")
