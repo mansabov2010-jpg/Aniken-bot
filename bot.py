@@ -46,7 +46,10 @@ user_states = {}
 
 def start_keyboard(code_text=None):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn_text = f"🚀 Start ({code_text})" if code_text else "🚀 Start"
+    if code_text:
+        btn_text = "🚀 Start (" + str(code_text) + ")"
+    else:
+        btn_text = "🚀 Start"
     keyboard.add(types.KeyboardButton(btn_text))
     return keyboard
 
@@ -90,10 +93,10 @@ def cmd_start(message: types.Message):
         
         if found_anime:
             name_key, data = found_anime
-            caption = f"🎬 <b>{data['name']}</b>\n\n📖 <b>Ma'lumot:</b> {data.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {data.get('code', 'Yo\'q')}"
+            caption = "🎬 <b>" + str(data['name']) + "</b>\n\n📖 <b>Ma'lumot:</b> " + str(data.get('info', 'Mavjud emas')) + "\n📌 <b>Kodi:</b> " + str(data.get('code', 'Yo\'q'))
             
             keyboard = types.InlineKeyboardMarkup(row_width=5)
-            buttons = [types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") for p in sorted(data['parts'].keys())]
+            buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(data['parts'].keys())]
             keyboard.add(*buttons)
             
             if data.get('photo'):
@@ -105,7 +108,7 @@ def cmd_start(message: types.Message):
     user_states.pop(user_id, None)
     if not check_sub_channel(user_id):
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton("Kanalga a'zo bo'lish 🔗", url=f"https://t.me/{REQUIRED_CHANNEL.replace('@', '')}"))
+        keyboard.add(types.InlineKeyboardButton("Kanalga a'zo bo'lish 🔗", url="https://t.me/" + REQUIRED_CHANNEL.replace('@', '')))
         keyboard.add(types.InlineKeyboardButton("Tekshirish ✅", callback_data="check_sub"))
         bot.send_message(user_id, "Botdan foydalanish uchun quyidagi kanalga a'zo bo'lishingiz kerak:", reply_markup=keyboard)
         return
@@ -135,9 +138,9 @@ def cmd_anime_search(message: types.Message):
         bot_username = bot_info.username
         code = data.get('code', '')
         
-        caption = f"🎬 <b>{data['name']}</b>\n📦 Qismlar soni: {len(data['parts'])} ta\n📌 Kodi: {code}"
+        caption = "🎬 <b>" + str(data['name']) + "</b>\n📦 Qismlar soni: " + str(len(data['parts'])) + " ta\n📌 Kodi: " + str(code)
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton("🎬 Animeni ko'rish", url=f"https://t.me/{bot_username}?start={code}"))
+        keyboard.add(types.InlineKeyboardButton("🎬 Animeni ko'rish", url="https://t.me/" + str(bot_username) + "?start=" + str(code)))
         
         if data.get('photo'):
             bot.send_photo(message.chat.id, photo=data['photo'], caption=caption, reply_markup=keyboard)
@@ -180,7 +183,7 @@ def main_handler(message: types.Message):
         if step == "waiting_for_channel":
             REQUIRED_CHANNEL = text
             user_states.pop(user_id, None)
-            bot.send_message(user_id, f"✅ Majburiy kanal o'zgartirildi: {REQUIRED_CHANNEL}", reply_markup=admin_inline_menu())
+            bot.send_message(user_id, "✅ Majburiy kanal o'zgartirildi: " + str(REQUIRED_CHANNEL), reply_markup=admin_inline_menu())
             return
 
         if step == "waiting_for_schedule":
@@ -200,9 +203,9 @@ def main_handler(message: types.Message):
 
             user_states.pop(user_id, None)
             if deleted:
-                bot.send_message(user_id, f"✅ Kod '{text}' bo'lgan anime papkasi muvaffaqiyatli o'chirib yuborildi!", reply_markup=admin_inline_menu())
+                bot.send_message(user_id, "✅ Kod '" + str(text) + "' bo'lgan anime papkasi muvaffaqiyatli o'chirib yuborildi!", reply_markup=admin_inline_menu())
             else:
-                bot.send_message(user_id, f"❌ '{text}' kodli anime topilmadi. Qaytadan urinib ko'ring:", reply_markup=admin_inline_menu())
+                bot.send_message(user_id, "❌ '" + str(text) + "' kodli anime topilmadi. Qaytadan urinib ko'ring:", reply_markup=admin_inline_menu())
             return
 
         if step == "waiting_for_folder_name":
@@ -250,11 +253,17 @@ def main_handler(message: types.Message):
             state["name_key"] = name_key
             state["step"] = "waiting_for_part_video"
             user_states[user_id] = state
-            bot.send_message(user_id, f"✅ Jild ochildi! Endi 1-qism uchun **video faylni** yuboring:")
+            bot.send_message(user_id, "✅ Jild ochildi! Endi 1-qism uchun **video faylni** yuboring:")
             return
 
         if step == "waiting_for_existing_folder_video":
-            file_id = message.video.file_id if message.video else (message.document.file_id if message.document else None)
+            if message.video:
+                file_id = message.video.file_id
+            elif message.document:
+                file_id = message.document.file_id
+            else:
+                file_id = None
+            
             if not file_id:
                 bot.send_message(user_id, "❌ Iltimos, video fayl yuboring:")
                 return
@@ -272,11 +281,17 @@ def main_handler(message: types.Message):
                 anime_database[name_key]['parts'][part_num] = {'file_id': file_id, 'part': part_num}
                 save_database(anime_database)
                 user_states.pop(user_id, None)
-                bot.send_message(user_id, f"✅ {anime_database[name_key]['name']} uchun {part_num}-qism muvaffaqiyatli qo'shildi!", reply_markup=admin_inline_menu())
+                bot.send_message(user_id, "✅ " + str(anime_database[name_key]['name']) + " uchun " + str(part_num) + "-qism muvaffaqiyatli qo'shildi!", reply_markup=admin_inline_menu())
                 return
 
         if step == "waiting_for_part_video":
-            file_id = message.video.file_id if message.video else (message.document.file_id if message.document else None)
+            if message.video:
+                file_id = message.video.file_id
+            elif message.document:
+                file_id = message.document.file_id
+            else:
+                file_id = None
+            
             if not file_id:
                 bot.send_message(user_id, "❌ Iltimos, video fayl yuboring:")
                 return
@@ -296,10 +311,10 @@ def main_handler(message: types.Message):
                 
                 keyboard = types.InlineKeyboardMarkup(row_width=2)
                 keyboard.add(
-                    types.InlineKeyboardButton("➕ Yana qism qo'shish", callback_data=f"add_more_part_{name_key}"),
+                    types.InlineKeyboardButton("➕ Yana qism qo'shish", callback_data="add_more_part_" + str(name_key)),
                     types.InlineKeyboardButton("✅ Tamomlash", callback_data="admin_main_menu")
                 )
-                bot.send_message(user_id, f"✅ {part_num}-qism qo'shildi! Yana qism qo'shasizmi?", reply_markup=keyboard)
+                bot.send_message(user_id, "✅ " + str(part_num) + "-qism qo'shildi! Yana qism qo'shasizmi?", reply_markup=keyboard)
                 user_states.pop(user_id, None)
                 return
 
@@ -316,10 +331,10 @@ def main_handler(message: types.Message):
     if found_anime:
         name_key, data = found_anime
         code = data.get('code', '')
-        caption = f"🎬 <b>{data['name']}</b>\n\n📖 <b>Ma'lumot:</b> {data.get('info', 'Mavjud emas')}\n📌 <b>Kodi:</b> {code}"
+        caption = "🎬 <b>" + str(data['name']) + "</b>\n\n📖 <b>Ma'lumot:</b> " + str(data.get('info', 'Mavjud emas')) + "\n📌 <b>Kodi:</b> " + str(code)
         
         keyboard = types.InlineKeyboardMarkup(row_width=5)
-        buttons = [types.InlineKeyboardButton(text=str(p), callback_data=f"fldr_{name_key}_{p}") for p in sorted(data['parts'].keys())]
+        buttons = [types.InlineKeyboardButton(text=str(p), callback_data="fldr_" + str(name_key) + "_" + str(p)) for p in sorted(data['parts'].keys())]
         keyboard.add(*buttons)
         
         if data.get('photo'):
@@ -357,7 +372,7 @@ def callback_handler(call: types.CallbackQuery):
             return
         keyboard = types.InlineKeyboardMarkup(row_width=2)
         for name_key, d in anime_database.items():
-            keyboard.add(types.InlineKeyboardButton(text=d['name'], callback_data=f"sel_fldr_{name_key}"))
+            keyboard.add(types.InlineKeyboardButton(text=d['name'], callback_data="sel_fldr_" + str(name_key)))
         keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_new_anime_menu"))
         bot.edit_message_text("📁 Mavjud jildlardan birini tanlang:", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
         bot.answer_callback_query(call.id)
@@ -367,14 +382,14 @@ def callback_handler(call: types.CallbackQuery):
         if name_key in anime_database:
             folder_name = anime_database[name_key]['name']
             user_states[user_id] = {"step": "waiting_for_existing_folder_video", "name_key": name_key}
-            bot.edit_message_text(f"📁 Tanlangan anime: {folder_name}\n\nEndi yangi qism uchun video faylni yuboring:", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text("📁 Tanlangan anime: " + str(folder_name) + "\n\nEndi yangi qism uchun video faylni yuboring:", call.message.chat.id, call.message.message_id)
             bot.answer_callback_query(call.id)
 
     elif data.startswith("add_more_part_") and user_id == ADMIN_ID:
         name_key = data.replace("add_more_part_", "")
         if name_key in anime_database:
             user_states[user_id] = {"step": "waiting_for_existing_folder_video", "name_key": name_key}
-            bot.send_message(user_id, f"📁 {anime_database[name_key]['name']} uchun keyingi qismning video faylini yuboring:")
+            bot.send_message(user_id, "📁 " + str(anime_database[name_key]['name']) + " uchun keyingi qismning video faylini yuboring:")
             bot.answer_callback_query(call.id)
 
     elif data == "admin_replace_anime" and user_id == ADMIN_ID:
@@ -389,7 +404,7 @@ def callback_handler(call: types.CallbackQuery):
 
     elif data == "admin_channel" and user_id == ADMIN_ID:
         user_states[user_id] = {"step": "waiting_for_channel"}
-        bot.edit_message_text(f"Hozirgi majburiy kanal: {REQUIRED_CHANNEL}\n\nYangi kanal username'ini kiriting:", call.message.chat.id, call.message.message_id)
+        bot.edit_message_text("Hozirgi majburiy kanal: " + str(REQUIRED_CHANNEL) + "\n\nYangi kanal username'ini kiriting:", call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
     elif data == "admin_schedule" and user_id == ADMIN_ID:
@@ -404,7 +419,7 @@ def callback_handler(call: types.CallbackQuery):
         else:
             keyboard = types.InlineKeyboardMarkup(row_width=1)
             for name_key, data_item in anime_database.items():
-                keyboard.add(types.InlineKeyboardButton(text=f"📁 {data_item['name']}", callback_data=f"open_folder_{name_key}"))
+                keyboard.add(types.InlineKeyboardButton(text="📁 " + str(data_item['name']), callback_data="open_folder_" + str(name_key)))
             keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_main_menu"))
             bot.edit_message_text("📁 **Bazadagi barcha jildlar va animelar:**", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
             bot.answer_callback_query(call.id)
@@ -414,10 +429,4 @@ def callback_handler(call: types.CallbackQuery):
         total = len(anime_database)
         parts_total = sum(len(d['parts']) for d in anime_database.values())
         keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton(text="🔙 Ortga", callback_data="admin_main_menu"))
-        bot.edit_message_text(f"📊 Statistika:\nJildlar soni: {total}\nUmumiy qismlar soni: {parts_total}", call.message.chat.id, call.message.message_id, reply_markup=keyboard)
-        bot.answer_callback_query(call.id)
-
-    elif data == "admin_main_menu" and user_id == ADMIN_ID:
-        user_states.pop(user_id, None)
-        bot.edit_message_text("Admin menyusi:", call.message.chat.id, call.message.message_id, reply_markup
+        keyboard.add(types.InlineKeyboardBut
