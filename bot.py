@@ -23,7 +23,11 @@ def home():
 
 
 def run_web():
-  app.run(host="0.0.0.0", port=10000)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
+def keep_alive():
+    t = Thread(target=run_web)
+    t.start()
 
 
 # --- MA'LUMOTLAR BAZASI (SQLite) ---
@@ -709,5 +713,9 @@ def callback_handler(call):
         "🗑 Anime muvaffaqiyatli o'chirildi.",
         reply_markup=get_main_keyboard(user_id),
     )
+  if __name__ == "__main__":
+    keep_alive()
     bot.infinity_polling(skip_pending=True)
+
+
 
