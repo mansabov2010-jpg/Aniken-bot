@@ -47,16 +47,16 @@ user_states = {}
 
 def start_keyboard(code_text=None):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn_text = "🚀 Start (" + str(code_text) + ")" if code_text else "🚀 Start"
+    btn_text = "🚀 Start (Asosiy menyu)"
     keyboard.add(types.KeyboardButton(btn_text))
     return keyboard
 
 def admin_inline_menu():
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        types.InlineKeyboardButton("➕ Yangi anime bo'limi", callback_data="admin_new_anime_menu"),
-        types.InlineKeyboardButton("🔄 Animeni almashtirish", callback_data="admin_replace_anime"),
-        types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="admin_delete_anime"),
+        types.InlineKeyboardButton("➕ Yeni anime bo'limi", callback_data="admin_new_anime_menu"),
+        types.InlineKeyboardButton("🔄 Mavjud animeni almashtirish", callback_data="admin_replace_anime"),
+        types.InlineKeyboardButton("🗑 Mavjud animeni o'chirish", callback_data="admin_delete_anime"),
         types.InlineKeyboardButton("📢 Majburiy kanal", callback_data="admin_channel"),
         types.InlineKeyboardButton("📅 Jadvalni yangilash", callback_data="admin_schedule"),
         types.InlineKeyboardButton("📁 Animelar ro'yxati", callback_data="admin_list"),
@@ -112,9 +112,31 @@ def cmd_start(message: types.Message):
         return
 
     if user_id == ADMIN_ID:
-        bot.send_message(user_id, "Assalomu alaykum, Admin! Kerakli bo'limni tanlang:", reply_markup=admin_inline_menu())
+        bot.send_message(user_id, "Asosiy menyu:", reply_markup=admin_inline_menu())
     else:
         bot.send_message(user_id, "Xush kelibsiz! Qidirmoqchi bo'lgan anime nomini yoki kodini yuboring:", reply_markup=start_keyboard())
+
+@bot.message_handler(func=lambda msg: msg.text and msg.text.startswith("🚀 Start"))
+def msg_start_text(message: types.Message):
+    user_id = message.from_user.id
+    user_states.pop(user_id, None)
+    if not check_sub_channel(user_id):
+        return
+    if user_id == ADMIN_ID:
+        bot.send_message(user_id, "Asosiy menyu:", reply_markup=admin_inline_menu())
+    else:
+        bot.send_message(user_id, "Xush kelibsiz! Qidirmoqchi bo'lgan anime nomini yoki kodini yuboring:", reply_markup=start_keyboard())
+
+@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
+def callback_check_sub(call: types.CallbackQuery):
+    if check_sub_channel(call.from_user.id):
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        if call.from_user.id == ADMIN_ID:
+            bot.send_message(call.from_user.id, "Asosiy menyu:", reply_markup=admin_inline_menu())
+        else:
+            bot.send_message(call.from_user.id, "Rahmat! Qidirmoqchi bo'lgan anime nomini yoki kodini yuboring:", reply_markup=start_keyboard())
+    else:
+        bot.answer_callback_query(call.id, "Siz hali kanalga a'zo bo'lmadingiz!", show_alert=True)
 
 @bot.message_handler(func=lambda msg: True, content_types=['text', 'video', 'document', 'photo'])
 def main_handler(message: types.Message):
@@ -274,8 +296,6 @@ def main_handler(message: types.Message):
             bot.send_photo(user_id, photo=data['photo'], caption=caption, reply_markup=keyboard)
         else:
             bot.send_message(user_id, caption, reply_markup=keyboard)
-        
-        bot.send_message(user_id, "⬇️ Shu anime uchun pastdagi Start tugmasidan foydalanishingiz mumkin:", reply_markup=start_keyboard(code))
     else:
         bot.send_message(user_id, "❌ Bunday nomdagi yoki kodli anime topilmadi. Qaytadan urinib ko'ring:")
 
@@ -363,7 +383,7 @@ def callback_handler(call: types.CallbackQuery):
 
     elif data == "admin_main_menu" and user_id == ADMIN_ID:
         user_states.pop(user_id, None)
-        bot.edit_message_text("Admin menyusi:", call.message.chat.id, call.message.message_id, reply_markup=admin_inline_menu())
+        bot.edit_message_text("Asosiy menyu:", call.message.chat.id, call.message.message_id, reply_markup=admin_inline_menu())
         bot.answer_callback_query(call.id)
 
     elif data.startswith("open_folder_"):
@@ -388,14 +408,4 @@ def callback_handler(call: types.CallbackQuery):
             name_key, p = parts[1], parts[2]
             if name_key in anime_database and p in anime_database[name_key]['parts']:
                 v = anime_database[name_key]['parts'][p]
-                bot.send_video(call.message.chat.id, v['file_id'], caption="🎬 " + str(anime_database[name_key]['name']) + " — " + str(p) + "-qism")
-                bot.answer_callback_query(call.id)
-
-if __name__ == '__main__':
-    bot.remove_webhook()
-    while True:
-        try:
-            bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
-        except Exception:
-            time.sleep(5)
-    
+                bot.send_video(call.message.chat.id, v['file_id
