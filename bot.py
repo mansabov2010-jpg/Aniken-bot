@@ -13,21 +13,23 @@ ADMIN_ID = 7986354170
 bot = telebot.TeleBot(TOKEN)
 DB_FILE = "bot_data.db"
 
-# --- FLASK VEB-SERVER (Render uchun) ---
+# --- FLASK VEB-SERVER (Render va uzluksiz ishlashi uchun) ---
 app = Flask(__name__)
 
 
 @app.route("/")
 def home():
-  return "Bot is running!"
+  return "Bot is running and alive!"
 
 
 def run_web():
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+  app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 def keep_alive():
-    t = Thread(target=run_web)
-    t.start()
+  t = threading.Thread(target=run_web)
+  t.daemon = True
+  t.start()
 
 
 # --- MA'LUMOTLAR BAZASI (SQLite) ---
@@ -74,7 +76,7 @@ temp_data = {}
 user_last_messages = {}
 
 
-# --- XABARLARNI TOZALASH ---
+# --- XABARLARNI TOZALASH (Faqat bot xabarlari tozalanadi, foydalanuvchisiniki qoladi) ---
 def send_clean_message(chat_id, text, reply_markup=None, parse_mode=None):
   if chat_id in user_last_messages:
     for msg_id in user_last_messages[chat_id]:
@@ -93,7 +95,9 @@ def send_clean_message(chat_id, text, reply_markup=None, parse_mode=None):
   return msg
 
 
-def send_clean_photo(chat_id, photo, caption, reply_markup=None, parse_mode=None):
+def send_clean_photo(
+    chat_id, photo, caption, reply_markup=None, parse_mode=None
+):
   if chat_id in user_last_messages:
     for msg_id in user_last_messages[chat_id]:
       try:
@@ -172,7 +176,9 @@ def get_cancel_keyboard():
 def get_search_inline_keyboard():
   markup = types.InlineKeyboardMarkup(row_width=2)
   markup.add(
-      types.InlineKeyboardButton("📝 Nomi orqali", callback_data="search_by_name"),
+      types.InlineKeyboardButton(
+          "📝 Nomi orqali", callback_data="search_by_name"
+      ),
       types.InlineKeyboardButton("🔢 Kodi orqali", callback_data="search_by_code"),
   )
   return markup
@@ -197,12 +203,20 @@ def get_available_animes_keyboard(for_admin=False):
           "SELECT COUNT(*) FROM parts WHERE anime_id = ?", (anime_id,)
       )
       parts_count = cursor.fetchone()[0]
-      prefix = "🗑 " if for_admin else "🎬 "
-      cb_data = (
-          f"delete_anime_{anime_id}" if for_admin else f"show_anime_{anime_id}"
-      )
-      btn_text = f"{prefix}{name} ({parts_count}-qism)"
-      markup.add(types.InlineKeyboardButton(btn_text, callback_data=cb_data))
+      if for_admin:
+        btn_text = f"🎬 {name} ({parts_count}-qism)"
+        markup.add(
+            types.InlineKeyboardButton(
+                btn_text, callback_data=f"admin_anime_opt_{anime_id}"
+            )
+        )
+      else:
+        btn_text = f"🎬 {name} ({parts_count}-qism)"
+        markup.add(
+            types.InlineKeyboardButton(
+                btn_text, callback_data=f"show_anime_{anime_id}"
+            )
+        )
 
   conn.close()
   return markup
@@ -259,16 +273,14 @@ def get_anime_folder_keyboard(anime_id):
     markup.add(*buttons)
 
   markup.add(
-      types.InlineKeyboardButton(
-          "⬅ Ortga", callback_data="back_to_available"
-      )
+      types.InlineKeyboardButton("⬅️ Ortga", callback_data="back_to_available")
   )
   return markup
 
 
 def show_search_results(chat_id, results):
   if not results:
-    send_clean_message(chat_id, "❌ Hech qanday anime topilmadi.")
+    send_clean_message(chat_id, "❌ Afsuski, bunday anime topilmadi.")
     return
   markup = types.InlineKeyboardMarkup(row_width=1)
   for anime_id, name in results:
@@ -294,14 +306,9 @@ def start_cmd(message):
   user_states.pop(user_id, None)
   temp_data.pop(user_id, None)
 
-  try:
-    bot.delete_message(message.chat.id, message.message_id)
-  except:
-    pass
-
   unsub = check_sub(user_id)
   if unsub is not True and unsub:
-    text = "⚠️️ Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:"
+    text = "⚠️ Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:"
     send_clean_message(
         message.chat.id, text, reply_markup=get_sub_keyboard(unsub)
     )
@@ -328,10 +335,6 @@ def cancel_process(message):
 @bot.message_handler(func=lambda msg: True)
 def main_messages(message):
   user_id = message.from_user.id
-  try:
-    bot.delete_message(message.chat.id, message.message_id)
-  except:
-    pass
 
   unsub = check_sub(user_id)
   if unsub is not True and unsub:
@@ -451,49 +454,8 @@ def main_messages(message):
     user_states[user_id] = "ADD_VIDEO"
     send_clean_message(
         message.chat.id,
-        (
-            "✅ Jild yaratildi! Endi 1-qism uchun **video faylini**"
-            " yuboring:"
-        ),
+        "✅ Jild yaratildi! Endi 1-qism uchun **video faylini** yuboring:",
         reply_markup=get_cancel_keyboard(),
-    )
-    return
-
-  if state == "ADD_PART_NUM" and user_id == ADMIN_ID:
-    part_num = message.text.strip()
-    if not part_num.isdigit():
-      send_clean_message(
-          message.chat.id,
-          "⚠️ Faqat musbat raqam kiriting:",
-          reply_markup=get_cancel_keyboard(),
-      )
-      return
-
-    anime_id = temp_data[user_id]["anime_id"]
-    video_id = temp_data[user_id]["last_video_id"]
-
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO parts (anime_id, part_num, video_id) VALUES (?, ?, ?)",
-        (anime_id, int(part_num), video_id),
-    )
-    conn.commit()
-    conn.close()
-
-    user_states.pop(user_id, None)
-
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton(
-            "➕ Yana qism qo'shish", callback_data=f"add_more_{anime_id}"
-        ),
-        types.InlineKeyboardButton("✅ Tamomlash", callback_data="finish_add"),
-    )
-    send_clean_message(
-        message.chat.id,
-        f"✅ {part_num}-qism saqlandi! Yana qism qo'shasizmi?",
-        reply_markup=markup,
     )
     return
 
@@ -527,7 +489,7 @@ def main_messages(message):
   elif message.text == "⚙️ Animelarni boshqarish" and user_id == ADMIN_ID:
     send_clean_message(
         message.chat.id,
-        "🗑 O'chirmoqchi bo'lgan animengizni tanlang:",
+        "⚙️ Boshqarish uchun animeni tanlang (O'chirish yoki yangi qism qo'shish):",
         reply_markup=get_available_animes_keyboard(for_admin=True),
     )
   elif message.text == "📢 Kanallarni boshqarish" and user_id == ADMIN_ID:
@@ -539,7 +501,9 @@ def main_messages(message):
 
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("➕ Kanal qo'shish", callback_data="add_channel")
+        types.InlineKeyboardButton(
+            "➕ Kanal qo'shish", callback_data="add_channel"
+        )
     )
     for ch in channels:
       markup.add(
@@ -582,11 +546,6 @@ def main_messages(message):
 @bot.message_handler(content_types=["photo", "video"])
 def handle_media(message):
   user_id = message.from_user.id
-  try:
-    bot.delete_message(message.chat.id, message.message_id)
-  except:
-    pass
-
   state = user_states.get(user_id)
 
   if state == "ADD_PHOTO" and user_id == ADMIN_ID:
@@ -628,12 +587,35 @@ def handle_media(message):
       )
       return
 
-    temp_data[user_id]["last_video_id"] = message.video.file_id
-    user_states[user_id] = "ADD_PART_NUM"
+    anime_id = temp_data[user_id]["anime_id"]
+    video_id = message.video.file_id
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT MAX(part_num) FROM parts WHERE anime_id = ?", (anime_id,)
+    )
+    res = cursor.fetchone()[0]
+    next_part = 1 if res is None else res + 1
+
+    cursor.execute(
+        "INSERT INTO parts (anime_id, part_num, video_id) VALUES (?, ?, ?)",
+        (anime_id, next_part, video_id),
+    )
+    conn.commit()
+
+    cursor.execute("SELECT name FROM animes WHERE id = ?", (anime_id,))
+    anime_name = cursor.fetchone()[0]
+    conn.close()
+
+    user_states.pop(user_id, None)
+    temp_data.pop(user_id, None)
+
     send_clean_message(
         message.chat.id,
-        "🔢 Ushbu video nechanchi qism? Raqamini kiriting:",
-        reply_markup=get_cancel_keyboard(),
+        f"✅ <b>{anime_name}</b> animasiga <b>{next_part}-qism</b> avtomatik ravishda qo'shib saqlandi! 🎬",
+        reply_markup=get_main_keyboard(user_id),
+        parse_mode="HTML",
     )
     return
 
@@ -699,6 +681,36 @@ def callback_handler(call):
     )
     bot.answer_callback_query(call.id)
 
+  elif data.startswith("admin_anime_opt_") and user_id == ADMIN_ID:
+    anime_id = int(data.replace("admin_anime_opt_", ""))
+    bot.answer_callback_query(call.id)
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton(
+            "➕ Keyingi qismni qo'shish (Video yuborish)",
+            callback_data=f"add_next_part_{anime_id}",
+        ),
+        types.InlineKeyboardButton(
+            "🗑 Animeniki butunlay o'chirish",
+            callback_data=f"delete_anime_{anime_id}",
+        ),
+        types.InlineKeyboardButton("⬅️️ Ortga", callback_data="back_to_available"),
+    )
+    send_clean_message(call.message.chat.id, "Tanlang:", reply_markup=markup)
+
+  elif data.startswith("add_next_part_") and user_id == ADMIN_ID:
+    anime_id = int(data.replace("add_next_part_", ""))
+    user_states[user_id] = "ADD_VIDEO"
+    temp_data[user_id] = {"anime_id": anime_id}
+    bot.answer_callback_query(call.id)
+    send_clean_message(
+        call.message.chat.id,
+        "🎬 Shu anime uchun yangi qism **videosini** yuboring (raqami avtomatik"
+        " belgilanadi):",
+        reply_markup=get_cancel_keyboard(),
+    )
+
   elif data.startswith("delete_anime_") and user_id == ADMIN_ID:
     anime_id = int(data.replace("delete_anime_", ""))
     conn = sqlite3.connect(DB_FILE)
@@ -707,25 +719,86 @@ def callback_handler(call):
     cursor.execute("DELETE FROM animes WHERE id = ?", (anime_id,))
     conn.commit()
     conn.close()
-    bot.answer_callback_query(call.id)
+    bot.answer_callback_query(call.id, "Anime o'chirildi!")
     send_clean_message(
         call.message.chat.id,
         "🗑 Anime muvaffaqiyatli o'chirildi.",
         reply_markup=get_main_keyboard(user_id),
     )
-    import threading
-import os
 
-# Botni alohida fonda ishga tushiruvchi funksiya
-def start_bot():
-    bot.infinity_polling(skip_pending=True)
+  elif data.startswith("show_anime_"):
+    anime_id = int(data.replace("show_anime_", ""))
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT name, info, photo, views FROM animes WHERE id = ?", (anime_id,)
+    )
+    anime = cursor.fetchone()
 
+    cursor.execute(
+        "UPDATE animes SET views = views + 1 WHERE id = ?", (anime_id,)
+    )
+    conn.commit()
+    conn.close()
+
+    if not anime:
+      bot.answer_callback_query(call.id, "❌ Anime topilmadi!", show_alert=True)
+      return
+
+    name, info, photo, views = anime
+    text = f"🎬 <b>{name}</b>\n\n📖 {info}\n\n👁 Ko'rildi: {views+1} marta"
+
+    markup = get_anime_folder_keyboard(anime_id)
+    bot.answer_callback_query(call.id)
+
+    if photo:
+      send_clean_photo(
+          call.message.chat.id,
+          photo,
+          text,
+          reply_markup=markup,
+          parse_mode="HTML",
+      )
+    else:
+      send_clean_message(
+          call.message.chat.id, text, reply_markup=markup, parse_mode="HTML"
+      )
+
+  elif data.startswith("get_part_"):
+    parts_data = data.replace("get_part_", "").split("_")
+    anime_id = int(parts_data[0])
+    part_num = int(parts_data[1])
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT video_id FROM parts WHERE anime_id = ? AND part_num = ?",
+        (anime_id, part_num),
+    )
+    part = cursor.fetchone()
+    conn.close()
+
+    bot.answer_callback_query(call.id)
+    if part:
+      video_id = part[0]
+      bot.send_video(
+          call.message.chat.id, video_id, caption=f"🎬 {part_num}-qism"
+      )
+    else:
+      bot.answer_callback_query(
+          call.id, "❌ Video topilmadi!", show_alert=True
+      )
+
+  elif data == "back_to_available":
+    bot.answer_callback_query(call.id)
+    send_clean_message(
+        call.message.chat.id,
+        "📂 Mavjud anime jildlari:",
+        reply_markup=get_available_animes_keyboard(),
+    )
+
+
+# --- BOTNI ISHGA TUSHIRISH ---
 if __name__ == "__main__":
-    # 1. Telegram bot uchun alohida oqim ochamiz
-    bot_thread = threading.Thread(target=start_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-    
-    # 2. Flask veb-serverini Render talab qiladigan portda ishga tushiramiz
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+  keep_alive()
+  bot.infinity_polling(skip_pending=True)
