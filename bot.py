@@ -481,10 +481,75 @@ def callback_handler(call):
         bot.answer_callback_query(call.id, "✅ Anime o'chirildi!")
         send_clean_message(call.message.chat.id, "🗑 Anime muvaffaqiyatli o'chirildi.", reply_markup=get_main_keyboard(user_id))
 
-    elif data.startswith("show_anime_"):
+        elif data.startswith("show_anime_"):
         anime_id = int(data.replace("show_anime_", ""))
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("UPDATE animes SET views = views + 1 WHERE id = ?", (anime_id,))
         conn.commit()
-        cursor.execute("SELECT name, info, photo FR
+        cursor.execute("SELECT name, info, photo FROM animes WHERE id = ?", (anime_id,))
+        anime = cursor.fetchone()
+        conn.close()
+
+        if anime:
+            name, info, photo = anime
+            text = f"🎬 <b>{name}</b>\n\n📖 {info}\n\n👇 Qismni tanlang:"
+            if photo:
+                send_clean_photo(call.message.chat.id, photo, caption=text, reply_markup=get_anime_folder_keyboard(anime_id), parse_mode="HTML")
+            else:
+                send_clean_message(call.message.chat.id, text, reply_markup=get_anime_folder_keyboard(anime_id), parse_mode="HTML")
+        bot.answer_callback_query(call.id)
+
+    elif data.startswith("get_part_"):
+        parts_data = data.split("_")
+        anime_id = parts_data[2]
+        part_num = parts_data[3]
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT video_id FROM parts WHERE anime_id = ? AND part_num = ?", (anime_id, part_num))
+        part = cursor.fetchone()
+        conn.close()
+
+        if part:
+            video_id = part[0]
+            bot.send_video(call.message.chat.id, video_id, caption=f"🎬 {part_num}-qism")
+        bot.answer_callback_query(call.id)
+
+    elif data.startswith("add_more_") and user_id == ADMIN_ID:
+        anime_id = int(data.replace("add_more_", ""))
+        temp_data[user_id] = {"anime_id": anime_id}
+        user_states[user_id] = "ADD_VIDEO"
+        send_clean_message(call.message.chat.id, "🎞 Keyingi qism uchun **video faylini** yuboring:", reply_markup=get_cancel_keyboard())
+        bot.answer_callback_query(call.id)
+
+    elif data == "finish_add" and user_id == ADMIN_ID:
+        user_states.pop(user_id, None)
+        temp_data.pop(user_id, None)
+        send_clean_message(call.message.chat.id, "✅ Barcha qismlar muvaffaqiyatli saqlandi!", reply_markup=get_main_keyboard(user_id))
+        bot.answer_callback_query(call.id)
+
+    elif data == "back_to_available":
+        send_clean_message(call.message.chat.id, "📂 Mavjud anime jildlari:", reply_markup=get_available_animes_keyboard())
+        bot.answer_callback_query(call.id)
+
+# --- FLASK VA BOTNI BIRGA ISHGA TUSHIRISH ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_web():
+    app.run(host="0.0.0.0", port=10000)
+
+if __name__ == "__main__":
+    t = threading.Thread(target=run_web)
+    t.start()
+    
+    while True:
+        try:
+            bot.polling(none_stop=True, interval=0, timeout=20, skip_pending_updates=True)
+        except Exception as e:
+            print(f"Xatolik yuz berdi: {e}")
+            time.sleep(3)
