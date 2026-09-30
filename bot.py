@@ -3,6 +3,8 @@ from telebot import types
 import sqlite3
 import os
 import time
+from flask import Flask
+import threading
 
 # --- SOZLAMALAR ---
 TOKEN = os.getenv("BOT_TOKEN", "8248154561:AAE8w1QTDz3ouDEW-kwlSwIfC8r83imJenE")
@@ -505,3 +507,24 @@ def callback_handler(call):
             f"👁 Jami ko'rishlar: <b>{total_views} marta</b>"
         )
         send_clean_message(message.chat.id, text, parse_mode="HTML")
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_web():
+    app.run(host="0.0.0.0", port=10000)
+
+if __name__ == "__main__":
+    # Veb-serverni alohida oqimda (thread) ishga tushiramiz
+    t = threading.Thread(target=run_web)
+    t.start()
+    
+    # Botni ishga tushiramiz
+    while True:
+        try:
+            bot.polling(none_stop=True, interval=0, timeout=20, skip_pending_updates=True)
+        except Exception as e:
+            print(f"Xatolik yuz berdi: {e}")
+            time.sleep(3)
+        
