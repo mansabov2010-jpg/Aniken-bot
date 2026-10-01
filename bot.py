@@ -1531,12 +1531,13 @@ def callback_handler(call):
 if __name__ == "__main__":
     print("Bot muvaffaqiyatli ishga tushdi!")
     
-    # Flask serverini alohida oqimda ishga tushiramiz
+    # Flask serverini alohida oqimda (thread) ishga tushiramiz
     def run_flask():
         app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
         
-    server_thread = threading.Thread(target=run_flask)
-    server_thread.start()
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
     
     # Botni ishga tushiramiz
     while True:
