@@ -868,7 +868,7 @@ def callback_handler(call):
         send_clean_message(chat_id, f"🎬 <b>{an_name}</b> uchun <b>{next_num}-qism</b> videosini yuboring:")
 
     elif data.startswith("admin_anime_opt_") and user_id == ADMIN_ID:
-              anime_id = int(data.replace("admin_anime_opt_", ""))
+            anime_id = int(data.replace("admin_anime_opt_", ""))
         bot.answer_callback_query(call.id)
         
         markup = types.InlineKeyboardMarkup(row_width=1)
