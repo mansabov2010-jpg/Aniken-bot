@@ -15,7 +15,7 @@ except ImportError:
 
 # --- SOZLAMALAR ---
 TOKEN = os.environ.get(
-    "BOT_TOKEN", "8987164421:AAHUuwzB_GBn70KPk0cxQdIiXNV5weN_6jw"
+    "BOT_TOKEN", "8987164421:AAHKa2ESH6qaSYuFMQOuc6cIxvD-00u4pKU"
 )
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "7986354170"))
 DATABASE_URL = os.environ.get("DATABASE_URL", None)
