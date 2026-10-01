@@ -307,7 +307,7 @@ def get_search_inline_keyboard():
         ),
     )
     return markup
-    def get_available_animes_keyboard(page=1, action_type="show"):
+def get_available_animes_keyboard(page=1, action_type="show"):
     markup = types.InlineKeyboardMarkup(row_width=1)
     animes = (
         execute_query(
