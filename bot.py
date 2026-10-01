@@ -713,7 +713,7 @@ def main_messages(message):
       res = cursor.fetchone()
       conn.close()
 
-            if res:
+    if res:
         temp_data[user_id] = {"anime_id": res[0], "anime_name": res[1]}
         user_states[user_id] = "ADMIN_EDIT_PART_NUM"
         send_clean_message(
