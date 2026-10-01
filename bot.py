@@ -1529,8 +1529,16 @@ def callback_handler(call):
 
 # --- BOTNI ISHGA TUSHIRISH ---
 if __name__ == "__main__":
-    keep_alive()
     print("Bot muvaffaqiyatli ishga tushdi!")
+    
+    # Flask serverini alohida oqimda ishga tushiramiz
+    def run_flask():
+        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+        
+    server_thread = threading.Thread(target=run_flask)
+    server_thread.start()
+    
+    # Botni ishga tushiramiz
     while True:
         try:
             bot.polling(none_stop=True, interval=0)
