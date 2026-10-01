@@ -978,8 +978,8 @@ def callback_handler(call):
 def run_telegram_bot():
     try:
         bot.remove_webhook()
-        bot.infinity_polling()
-    except Exception as e:
+        bot.infinity_polling(skip_pending=True)
+
         print(f"Botda xatolik: {e}")
 
 if __name__ == '__main__':
