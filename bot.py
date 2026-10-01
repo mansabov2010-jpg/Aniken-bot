@@ -868,7 +868,7 @@ def callback_handler(call):
         send_clean_message(chat_id, f"🎬 <b>{an_name}</b> uchun <b>{next_num}-qism</b> videosini yuboring:")
 
     elif data.startswith("admin_anime_opt_") and user_id == ADMIN_ID:
-            anime_id = int(data.replace("admin_anime_opt_", ""))
+        anime_id = int(data.replace("admin_anime_opt_", ""))
         bot.answer_callback_query(call.id)
         
         markup = types.InlineKeyboardMarkup(row_width=1)
@@ -878,6 +878,32 @@ def callback_handler(call):
             types.InlineKeyboardButton("⬅️ Ortga", callback_data="admin_manage")
         )
         send_clean_message(chat_id, "⚙️ Tanlang:", reply_markup=markup)
+
+    elif data.startswith("admin_anime_opt_") and user_id == ADMIN_ID:
+        anime_id = int(data.replace("admin_anime_opt_", ""))
+        bot.answer_callback_query(call.id)
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            types.InlineKeyboardButton("➕ Keyingi qismni qo'shish", callback_data=f"add_next_auto_{anime_id}"),
+            types.InlineKeyboardButton("🗑 Animeni butunlay o'chirish", callback_data=f"delete_anime_{anime_id}"),
+            types.InlineKeyboardButton("⬅️ Ortga", callback_data="admin_manage")
+        )
+        send_clean_message(chat_id, "⚙️ Tanlang:", reply_markup=markup)
+
+    elif data.startswith("add_next_auto_") and user_id == ADMIN_ID:
+        anime_id = int(data.replace("add_next_auto_", ""))
+        user_states[user_id] = "ADD_AUTO_VIDEO"
+        temp_data[user_id] = {"anime_id": anime_id}
+        bot.answer_callback_query(call.id)
+
+        res = execute_query("SELECT MAX(part_num) FROM parts WHERE anime_id = ?", (anime_id,), fetchone=True)[0]
+        next_num = 1 if res is None else res + 1
+        an_name = execute_query("SELECT name FROM animes WHERE id = ?", (anime_id,), fetchone=True)[0]
+
+        send_clean_message(chat_id, f"🎬 <b>{an_name}</b> uchun <b>{next_num}-qism</b> videosini yuboring:")
+
+        send_clean_message(chat_id, f"🎬 <b>{an_name}</b> uchun <b>{next_num}-qism</b> videosini yuboring:")
 
     elif data.startswith("add_next_auto_") and user_id == ADMIN_ID:
         anime_id = int(data.replace("add_next_auto_", ""))
