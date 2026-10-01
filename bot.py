@@ -31,13 +31,19 @@ def keep_alive():
   t.start()
 
 
-# --- BOTNING PASTKI MENYU BUYRUQLARI (MENU KNOPKASI) ---
+# --- BOTNING MENYU BUYRUQLARI (SHAXSIY VA GURUHLAR UCHUN) ---
 def set_bot_commands():
   commands = [
       types.BotCommand("start", "Botni ishga tushirish va asosiy menyu"),
+      types.BotCommand("anime", "Anime qidirish"),
   ]
   try:
-    bot.set_my_commands(commands)
+    # Shaxsiy chatlar uchun
+    bot.set_my_commands(
+        commands, scope=types.BotCommandScopeAllPrivateChats()
+    )
+    # Guruh chatlari uchun
+    bot.set_my_commands(commands, scope=types.BotCommandScopeAllGroupChats())
   except Exception:
     pass
 
@@ -304,9 +310,7 @@ def get_anime_folder_keyboard(anime_id):
     markup.add(*buttons)
 
   markup.add(
-      types.InlineKeyboardButton(
-          "⬅ Orqaga", callback_data="menu_available"
-      ),
+      types.InlineKeyboardButton("⬅ Orqaga", callback_data="menu_available"),
       types.InlineKeyboardButton(
           "🏠 Asosiy menyu", callback_data="back_to_main"
       ),
@@ -396,7 +400,13 @@ def start_cmd(message):
   user_id = message.from_user.id
   chat_id = message.chat.id
 
+  # Agar guruhda yozilsa, bot ishlashi haqida xabar berish
   if chat_id < 0:
+    bot.reply_to(
+        message,
+        "🤖 Bot faol holatda! Animelarni qidirish uchun /anime [Nomi] deb"
+        " yozing yoki shaxsiy chatga o'ting.",
+    )
     return
 
   conn = sqlite3.connect(DB_FILE)
@@ -468,17 +478,23 @@ def start_cmd(message):
   )
 
 
-# --- GURUHDA /anime [NOMI] YOKI MATN ORQALI QIDIRISH ---
+# --- GURUHDA /anime YOKI MATN ORQALI QIDIRISH ---
 @bot.message_handler(func=lambda message: message.chat.id < 0)
 def group_messages(message):
+  if not message.text:
+    return
+
   text = message.text.strip().lower()
 
   if text.startswith("/anime"):
     query = text.replace("/anime", "").strip()
   else:
-    query = text
+    return  # Guruhda faqat /anime buyrug'i bilan qidiradi
 
   if not query:
+    bot.reply_to(
+        message, "⚠ Anime nomini yozing. Masalan: /anime Naruto"
+    )
     return
 
   conn = sqlite3.connect(DB_FILE)
@@ -492,6 +508,7 @@ def group_messages(message):
   conn.close()
 
   if not animes:
+    bot.reply_to(message, "❌ Afsuski, bunday anime topilmadi.")
     return
 
   bot_info = bot.get_me()
@@ -832,11 +849,17 @@ def callback_handler(call):
     channels = [row[0] for row in cursor.fetchall()]
     conn.close()
 
+    bot_info = bot.get_me()
+    add_group_url = f"https://t.me/{bot_info.username}?startgroup=true"
+
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton(
             "➕ Kanal qo'shish", callback_data="add_channel"
-        )
+        ),
+        types.InlineKeyboardButton(
+            "🤖 Botni guruhga qo'shish", url=add_group_url
+        ),
     )
     for ch in channels:
       markup.add(
@@ -853,7 +876,8 @@ def callback_handler(call):
     ch_text = "\n".join(channels) if channels else "Hozircha kanallar yo'q"
     send_clean_message(
         chat_id,
-        f"📢 **Ulangan kanallar:**\n\n{ch_text}",
+        f"📢 **Kanallarni boshqarish bo'limi:**\n\nUlangan"
+        f" kanallar:\n{ch_text}",
         reply_markup=markup,
         parse_mode="Markdown",
     )
