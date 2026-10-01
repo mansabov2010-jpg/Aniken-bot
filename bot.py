@@ -1,13 +1,23 @@
 import os
 import sqlite3
 import threading
+from urllib.parse import urlparse
 from flask import Flask
 import telebot
 from telebot import types
 
+# PostgreSQL kutubxonasini yuklash
+try:
+  import psycopg2
+except ImportError:
+  psycopg2 = None
+
 # --- SOZLAMALAR ---
-TOKEN = os.environ.get("BOT_TOKEN", "8987164421:AAE6XMCpHqNRIzio-xfp2IueJoKtQK_ZIbc")
+TOKEN = os.environ.get(
+    "BOT_TOKEN", "8987164421:AAE6XMCpHqNRIzio-xfp2IueJoKtQK_ZIbc"
+)
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "7986354170"))
+DATABASE_URL = os.environ.get("DATABASE_URL", None)
 DB_FILE = "bot_data.db"
 
 bot = telebot.TeleBot(TOKEN)
@@ -46,33 +56,111 @@ def set_bot_commands():
     pass
 
 
-# --- MA'LUMOTLAR BAZASI ---
+# --- MA'LUMOTLAR BAZASI MANTIG'I (PostgreSQL & SQLite) ---
+def get_db_connection():
+  if DATABASE_URL and psycopg2:
+    parsed_url = urlparse(DATABASE_URL)
+    username = parsed_url.username
+    password = parsed_url.password
+    database = parsed_url.path[1:]
+    hostname = parsed_url.hostname
+    port = parsed_url.port
+    return psycopg2.connect(
+        database=database,
+        user=username,
+        password=password,
+        host=hostname,
+        port=port,
+        sslmode="require",
+    )
+  else:
+    return sqlite3.connect(DB_FILE)
+
+
 def init_db():
-  conn = sqlite3.connect(DB_FILE)
+  conn = get_db_connection()
   cursor = conn.cursor()
-  cursor.execute(
-      "CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)"
-  )
-  cursor.execute(
-      "CREATE TABLE IF NOT EXISTS channels (username TEXT PRIMARY KEY)"
-  )
-  cursor.execute("""CREATE TABLE IF NOT EXISTS animes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        secret_name TEXT,
-        code TEXT,
-        info TEXT,
-        photo TEXT,
-        views INTEGER DEFAULT 0
-    )""")
-  cursor.execute("""CREATE TABLE IF NOT EXISTS parts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        anime_id INTEGER,
-        part_num INTEGER,
-        video_id TEXT
-    )""")
+  is_postgres = DATABASE_URL and psycopg2
+
+  if is_postgres:
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS users (user_id BIGINT PRIMARY KEY)"
+    )
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS channels (username TEXT PRIMARY KEY)"
+    )
+    cursor.execute("""CREATE TABLE IF NOT EXISTS animes (
+            id SERIAL PRIMARY KEY,
+            name TEXT,
+            secret_name TEXT,
+            code TEXT,
+            info TEXT,
+            photo TEXT,
+            episodes_count TEXT DEFAULT 'Noma''lum',
+            status TEXT DEFAULT 'Davom etmoqda',
+            quality TEXT DEFAULT '720p',
+            genre TEXT DEFAULT 'Noma''lum',
+            channel_name TEXT DEFAULT 'Noma''lum',
+            views INTEGER DEFAULT 0
+        )""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS parts (
+            id SERIAL PRIMARY KEY,
+            anime_id INTEGER,
+            part_num INTEGER,
+            video_id TEXT
+        )""")
+  else:
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)"
+    )
+    cursor.execute(
+        "CREATE TABLE IF NOT EXISTS channels (username TEXT PRIMARY KEY)"
+    )
+    cursor.execute("""CREATE TABLE IF NOT EXISTS animes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            secret_name TEXT,
+            code TEXT,
+            info TEXT,
+            photo TEXT,
+            episodes_count TEXT DEFAULT 'Noma''lum',
+            status TEXT DEFAULT 'Davom etmoqda',
+            quality TEXT DEFAULT '720p',
+            genre TEXT DEFAULT 'Noma''lum',
+            channel_name TEXT DEFAULT 'Noma''lum',
+            views INTEGER DEFAULT 0
+        )""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS parts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            anime_id INTEGER,
+            part_num INTEGER,
+            video_id TEXT
+        )""")
   conn.commit()
   conn.close()
+
+
+def execute_query(query, params=(), fetchone=False, fetchall=False, commit=False):
+  conn = get_db_connection()
+  cursor = conn.cursor()
+
+  # PostgreSQL vs SQLite parametr moslamasi (%s vs ?)
+  if DATABASE_URL and psycopg2:
+    query = query.replace("?", "%s")
+  else:
+    query = query.replace("%s", "?")
+
+  cursor.execute(query, params)
+  result = None
+  if fetchone:
+    result = cursor.fetchone()
+  elif fetchall:
+    result = cursor.fetchall()
+
+  if commit:
+    conn.commit()
+  conn.close()
+  return result
 
 
 init_db()
@@ -129,12 +217,12 @@ def send_clean_photo(
 def check_sub(user_id):
   if user_id == ADMIN_ID:
     return True
-  conn = sqlite3.connect(DB_FILE)
-  cursor = conn.cursor()
-  cursor.execute("SELECT username FROM channels")
-  channels = [row[0] for row in cursor.fetchall()]
-  conn.close()
-
+  channels = [
+      row[0]
+      for row in execute_query(
+          "SELECT username FROM channels", fetchall=True
+      ) or []
+  ]
   unsubscribed = []
   for ch in channels:
     try:
@@ -169,7 +257,7 @@ def get_main_inline_menu(user_id):
           "🔍 Animelarni izlash", callback_data="menu_search"
       ),
       types.InlineKeyboardButton(
-          "📂 Mavjud animelar", callback_data="menu_available"
+          "📂 Mavjud animelar", callback_data="menu_available_page_1"
       ),
       types.InlineKeyboardButton(
           "🔥 Tavsiya etiladigan animelar", callback_data="menu_recommended"
@@ -207,7 +295,7 @@ def get_search_inline_keyboard():
           "📝 Nomi orqali", callback_data="search_by_name"
       ),
       types.InlineKeyboardButton(
-          "🕵‍♂️ Yashirin nom orqali", callback_data="search_by_secret"
+          "🕵️‍♂️ Yashirin nom orqali", callback_data="search_by_secret"
       ),
       types.InlineKeyboardButton("🔢 Kodi orqali", callback_data="search_by_code"),
   )
@@ -219,12 +307,15 @@ def get_search_inline_keyboard():
   return markup
 
 
-def get_available_animes_keyboard(action_type="show"):
+# --- 15 TALIK SAHIFALANADIGAN ANIME JILDLARI RO'YXATI ---
+def get_available_animes_keyboard(page=1, action_type="show"):
   markup = types.InlineKeyboardMarkup(row_width=1)
-  conn = sqlite3.connect(DB_FILE)
-  cursor = conn.cursor()
-  cursor.execute("SELECT id, name FROM animes")
-  animes = cursor.fetchall()
+  animes = (
+      execute_query(
+          "SELECT id, name FROM animes ORDER BY id DESC", fetchall=True
+      )
+      or []
+  )
 
   if not animes:
     markup.add(
@@ -232,41 +323,80 @@ def get_available_animes_keyboard(action_type="show"):
             "❌ Hozircha animelar yo'q", callback_data="none"
         )
     )
-  else:
-    for anime_id, name in animes:
-      cursor.execute(
-          "SELECT COUNT(*) FROM parts WHERE anime_id = ?", (anime_id,)
+    markup.add(
+        types.InlineKeyboardButton(
+            "⬅ Asosiy menyu", callback_data="back_to_main"
+        )
+    )
+    return markup
+
+  items_per_page = 15
+  total_pages = (len(animes) + items_per_page - 1) // items_per_page or 1
+  page = max(1, min(page, total_pages))
+
+  start_idx = (page - 1) * items_per_page
+  end_idx = start_idx + items_per_page
+  current_animes = animes[start_idx:end_idx]
+
+  for anime_id, name in current_animes:
+    parts_count = (
+        execute_query(
+            "SELECT COUNT(*) FROM parts WHERE anime_id = ?",
+            (anime_id,),
+            fetchone=True,
+        )[0]
+        or 0
+    )
+    btn_text = f"🎬 {name} ({parts_count}-qism)"
+
+    if action_type == "add_part":
+      cb = f"select_anime_for_part_{anime_id}"
+    elif action_type == "admin_opt":
+      cb = f"admin_anime_opt_{anime_id}"
+    elif action_type == "edit_folder":
+      cb = f"select_edit_folder_{anime_id}"
+    else:
+      cb = f"show_anime_{anime_id}"
+
+    markup.add(types.InlineKeyboardButton(btn_text, callback_data=cb))
+
+  nav_buttons = []
+  if page > 1:
+    nav_buttons.append(
+        types.InlineKeyboardButton(
+            "⬅️", callback_data=f"menu_available_page_{page-1}"
+        )
+    )
+  nav_buttons.append(
+      types.InlineKeyboardButton(
+          f"📄 {page}/{total_pages}", callback_data="none"
       )
-      parts_count = cursor.fetchone()[0]
-      btn_text = f"🎬 {name} ({parts_count}-qism)"
-
-      if action_type == "add_part":
-        cb = f"select_anime_for_part_{anime_id}"
-      elif action_type == "admin_opt":
-        cb = f"admin_anime_opt_{anime_id}"
-      elif action_type == "edit_folder":
-        cb = f"select_edit_folder_{anime_id}"
-      else:
-        cb = f"show_anime_{anime_id}"
-
-      markup.add(types.InlineKeyboardButton(btn_text, callback_data=cb))
-
-  markup.add(
-      types.InlineKeyboardButton("⬅ Asosiy menyu", callback_data="back_to_main")
   )
-  conn.close()
+  if page < total_pages:
+    nav_buttons.append(
+        types.InlineKeyboardButton(
+            "➡️", callback_data=f"menu_available_page_{page+1}"
+        )
+    )
+
+  markup.row(*nav_buttons)
+  markup.add(
+      types.InlineKeyboardButton(
+          "🏠 Asosiy menyu", callback_data="back_to_main"
+      )
+  )
   return markup
 
 
 def get_recommended_animes_keyboard():
   markup = types.InlineKeyboardMarkup(row_width=1)
-  conn = sqlite3.connect(DB_FILE)
-  cursor = conn.cursor()
-  cursor.execute(
-      "SELECT id, name, views FROM animes ORDER BY views DESC LIMIT 10"
+  animes = (
+      execute_query(
+          "SELECT id, name, views FROM animes ORDER BY views DESC LIMIT 10",
+          fetchall=True,
+      )
+      or []
   )
-  animes = cursor.fetchall()
-  conn.close()
 
   if not animes:
     markup.add(
@@ -276,7 +406,7 @@ def get_recommended_animes_keyboard():
     )
     markup.add(
         types.InlineKeyboardButton(
-            "⬅️ Asosiy menyu", callback_data="back_to_main"
+            "⬅️️ Asosiy menyu", callback_data="back_to_main"
         )
     )
     return markup
@@ -297,14 +427,15 @@ def get_recommended_animes_keyboard():
 # --- QISMLARNI SAHIFALASH (PAGINATION) ---
 def get_anime_folder_keyboard(anime_id, page=1):
   markup = types.InlineKeyboardMarkup(row_width=5)
-  conn = sqlite3.connect(DB_FILE)
-  cursor = conn.cursor()
-  cursor.execute(
-      "SELECT part_num FROM parts WHERE anime_id = ? ORDER BY part_num ASC",
-      (anime_id,),
+  parts_res = (
+      execute_query(
+          "SELECT part_num FROM parts WHERE anime_id = ? ORDER BY part_num ASC",
+          (anime_id,),
+          fetchall=True,
+      )
+      or []
   )
-  parts = [row[0] for row in cursor.fetchall()]
-  conn.close()
+  parts = [row[0] for row in parts_res]
 
   items_per_page = 15
   total_pages = (len(parts) + items_per_page - 1) // items_per_page or 1
@@ -334,7 +465,9 @@ def get_anime_folder_keyboard(anime_id, page=1):
     )
 
   nav_buttons.append(
-      types.InlineKeyboardButton("❌", callback_data="menu_available")
+      types.InlineKeyboardButton(
+          "❌", callback_data="menu_available_page_1"
+      )
   )
 
   if page < total_pages:
@@ -351,6 +484,33 @@ def get_anime_folder_keyboard(anime_id, page=1):
       )
   )
   return markup
+
+
+def format_anime_text(anime_data):
+  (
+      name,
+      secret_name,
+      info,
+      views,
+      code,
+      episodes_count,
+      status,
+      quality,
+      genre,
+      channel_name,
+  ) = anime_data
+  return (
+      f"🎬 <b>{name}</b>\n"
+      f"🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n"
+      f"🔑 Kodi: <code>{code}</code>\n"
+      f"🎞 Qismlar soni: <b>{episodes_count}</b>\n"
+      f"📌 Status: <b>{status}</b>\n"
+      f"💿 Sifat: <b>{quality}</b>\n"
+      f"🎭 Janr: <b>{genre}</b>\n"
+      f"📢 Kanal: <b>{channel_name}</b>\n\n"
+      f"📖 <b>Haqida:</b> {info}\n\n"
+      f"👁 Ko'rildi: {views + 1} marta"
+  )
 
 
 def show_search_results(chat_id, results):
@@ -374,20 +534,26 @@ def show_search_results(chat_id, results):
 @bot.inline_handler(func=lambda query: True)
 def inline_query_handler(query):
   text = query.query.strip().lower()
-  conn = sqlite3.connect(DB_FILE)
-  cursor = conn.cursor()
   if text:
-    cursor.execute(
-        "SELECT id, name, secret_name, info, photo, code FROM animes WHERE"
-        " LOWER(name) LIKE ? OR LOWER(secret_name) LIKE ? OR LOWER(code) = ?",
-        (f"%{text}%", f"%{text}%", text),
+    animes = (
+        execute_query(
+            "SELECT id, name, secret_name, info, photo, code FROM animes WHERE"
+            " LOWER(name) LIKE ? OR LOWER(secret_name) LIKE ? OR LOWER(code) ="
+            " ?",
+            (f"%{text}%", f"%{text}%", text),
+            fetchall=True,
+        )
+        or []
     )
   else:
-    cursor.execute(
-        "SELECT id, name, secret_name, info, photo, code FROM animes LIMIT 10"
+    animes = (
+        execute_query(
+            "SELECT id, name, secret_name, info, photo, code FROM animes LIMIT"
+            " 10",
+            fetchall=True,
+        )
+        or []
     )
-  animes = cursor.fetchall()
-  conn.close()
 
   results = []
   bot_info = bot.get_me()
@@ -418,7 +584,7 @@ def inline_query_handler(query):
             thumb_url=thumb_url,
             input_message_content=types.InputTextMessageContent(
                 message_text=(
-                    f"🎬 <b>{name}</b>\n🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
+                    f"🎬 <b>{name}</b>\n🕵️‍♂️️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
                     f" {info}\n\n🔑 Kodi: <code>{code}</code>\n\n⬇ Animeni"
                     " ko'rish uchun pastdagi tugmani bosing:"
                 ),
@@ -445,11 +611,12 @@ def start_cmd(message):
     )
     return
 
-  conn = sqlite3.connect(DB_FILE)
-  cursor = conn.cursor()
-  cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-  conn.commit()
-  conn.close()
+  query = (
+      "INSERT INTO users (user_id) VALUES (%s) ON CONFLICT DO NOTHING"
+      if DATABASE_URL
+      else "INSERT OR IGNORE INTO users (user_id) VALUES (?)"
+  )
+  execute_query(query, (user_id,), commit=True)
 
   user_states.pop(user_id, None)
   temp_data.pop(user_id, None)
@@ -464,29 +631,20 @@ def start_cmd(message):
   if len(args) > 1 and args[1].startswith("anime_"):
     try:
       anime_id = int(args[1].replace("anime_", ""))
-      conn = sqlite3.connect(DB_FILE)
-      cursor = conn.cursor()
-      cursor.execute(
-          "SELECT name, secret_name, info, photo, views, code FROM animes WHERE"
-          " id = ?",
-          (anime_id,),
+      q = (
+          "SELECT name, secret_name, info, views, code, episodes_count, status,"
+          " quality, genre, channel_name, photo FROM animes WHERE id = ?"
       )
-      anime = cursor.fetchone()
+      anime = execute_query(q, (anime_id,), fetchone=True)
 
       if anime:
-        cursor.execute(
-            "UPDATE animes SET views = views + 1 WHERE id = ?", (anime_id,)
+        execute_query(
+            "UPDATE animes SET views = views + 1 WHERE id = ?",
+            (anime_id,),
+            commit=True,
         )
-        conn.commit()
-      conn.close()
-
-      if anime:
-        name, secret_name, info, photo, views, code = anime
-        text = (
-            f"🎬 <b>{name}</b>\n🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
-            f" {info}\n\n🔑 Kodi: <code>{code}</code>\n\n👁 Ko'rildi:"
-            f" {views+1} marta"
-        )
+        photo = anime[10]
+        text = format_anime_text(anime[:10])
         markup = get_anime_folder_keyboard(anime_id, page=1)
 
         if photo:
@@ -532,15 +690,16 @@ def group_messages(message):
     bot.reply_to(message, "⚠ Anime nomini yozing. Masalan: /anime Naruto")
     return
 
-  conn = sqlite3.connect(DB_FILE)
-  cursor = conn.cursor()
-  cursor.execute(
-      "SELECT id, name, secret_name, info, photo, code FROM animes WHERE"
-      " LOWER(name) LIKE ? OR LOWER(secret_name) LIKE ? OR LOWER(code) = ?",
-      (f"%{query}%", f"%{query}%", query),
+  animes = (
+      execute_query(
+          "SELECT id, name, secret_name, info, photo, code FROM animes WHERE"
+          " LOWER(name) LIKE ? OR LOWER(secret_name) LIKE ? OR LOWER(code) ="
+          " ?",
+          (f"%{query}%", f"%{query}%", query),
+          fetchall=True,
+      )
+      or []
   )
-  animes = cursor.fetchall()
-  conn.close()
 
   if not animes:
     bot.reply_to(message, "❌ Afsuski, bunday anime topilmadi.")
@@ -586,7 +745,7 @@ def group_messages(message):
 def main_messages(message):
   user_id = message.from_user.id
   chat_id = message.chat.id
-  text_val = message.text.strip() if message.text else ""
+    text_val = message.text.strip() if message.text else ""
   text_lower = text_val.lower()
 
   if chat_id < 0:
@@ -603,27 +762,25 @@ def main_messages(message):
   # 1. Kanal qo'shish
   if state == "ADD_CHANNEL_WAIT" and user_id == ADMIN_ID:
     ch = text_val if text_val.startswith("@") else "@" + text_val
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
     try:
-      cursor.execute("INSERT INTO channels (username) VALUES (?)", (ch,))
-      conn.commit()
+      execute_query(
+          "INSERT INTO channels (username) VALUES (?)", (ch,), commit=True
+      )
       send_clean_message(
           chat_id,
           f"✅ {ch} kanali qo'shildi!",
           reply_markup=get_main_inline_menu(user_id),
       )
-    except sqlite3.IntegrityError:
+    except Exception:
       send_clean_message(
           chat_id,
           "⚠ Bu kanal allaqachon mavjud.",
           reply_markup=get_main_inline_menu(user_id),
       )
-    conn.close()
     user_states.pop(user_id, None)
     return
 
-  # 2. Yangi anime va tahrirlash qadamlari
+  # 2. Yangi anime va kengaytirilgan qadamlar
   if user_id == ADMIN_ID:
     if state == "ADD_NAME":
       temp_data[user_id] = {"name": text_val}
@@ -643,6 +800,47 @@ def main_messages(message):
 
     elif state == "ADD_CODE":
       temp_data[user_id]["code"] = text_lower
+      user_states[user_id] = "ADD_EPISODES"
+      send_clean_message(
+          chat_id,
+          "🎞 Anime necha qismdan iborat? (Masalan: 12 yoki 24 / Noma'lum):",
+      )
+      return
+
+    elif state == "ADD_EPISODES":
+      temp_data[user_id]["episodes_count"] = text_val
+      user_states[user_id] = "ADD_STATUS"
+      send_clean_message(
+          chat_id, "📌 Anime statusini kiriting (Masalan: Davom etmoqda / Tugallangan):"
+      )
+      return
+
+    elif state == "ADD_STATUS":
+      temp_data[user_id]["status"] = text_val
+      user_states[user_id] = "ADD_QUALITY"
+      send_clean_message(
+          chat_id, "💿 Video sifatini kiriting (Masalan: 720p / 1080p):"
+      )
+      return
+
+    elif state == "ADD_QUALITY":
+      temp_data[user_id]["quality"] = text_val
+      user_states[user_id] = "ADD_GENRE"
+      send_clean_message(
+          chat_id, "🎭 Anime janrini kiriting (Masalan: Jangari, Sarguzasht):"
+      )
+      return
+
+    elif state == "ADD_GENRE":
+      temp_data[user_id]["genre"] = text_val
+      user_states[user_id] = "ADD_CHANNEL_NAME"
+      send_clean_message(
+          chat_id, "📢 Kanal nomini kiriting (Masalan: @AnimeKanal):"
+      )
+      return
+
+    elif state == "ADD_CHANNEL_NAME":
+      temp_data[user_id]["channel_name"] = text_val
       user_states[user_id] = "ADD_INFO"
       send_clean_message(
           chat_id,
@@ -674,14 +872,11 @@ def main_messages(message):
       new_code = text_lower
       new_photo = temp_data[user_id].get("edit_photo", "")
 
-      conn = sqlite3.connect(DB_FILE)
-      cursor = conn.cursor()
-      cursor.execute(
+      execute_query(
           "UPDATE animes SET name = ?, code = ?, photo = ? WHERE id = ?",
           (new_name, new_code, new_photo, anime_id),
+          commit=True,
       )
-      conn.commit()
-      conn.close()
 
       user_states.pop(user_id, None)
       temp_data.pop(user_id, None)
@@ -693,15 +888,12 @@ def main_messages(message):
       return
 
     elif state == "ADMIN_EDIT_PART_SEARCH":
-      conn = sqlite3.connect(DB_FILE)
-      cursor = conn.cursor()
-      cursor.execute(
+      res = execute_query(
           "SELECT id, name FROM animes WHERE LOWER(name) LIKE ? OR LOWER(code)"
           " = ?",
           (f"%{text_lower}%", text_lower),
+          fetchone=True,
       )
-      res = cursor.fetchone()
-      conn.close()
 
       if res:
         temp_data[user_id] = {"anime_id": res[0], "anime_name": res[1]}
@@ -733,65 +925,63 @@ def main_messages(message):
   # 3. Qidirish so'rovlari
   if state == "SEARCH_NAME_WAIT":
     user_states.pop(user_id, None)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, name FROM animes WHERE LOWER(name) LIKE ?",
-        (f"%{text_lower}%",),
+    results = (
+        execute_query(
+            "SELECT id, name FROM animes WHERE LOWER(name) LIKE ?",
+            (f"%{text_lower}%",),
+            fetchall=True,
+        )
+        or []
     )
-    results = cursor.fetchall()
-    conn.close()
     show_search_results(chat_id, results)
     return
 
   if state == "SEARCH_SECRET_WAIT":
     user_states.pop(user_id, None)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, name FROM animes WHERE LOWER(secret_name) LIKE ?",
-        (f"%{text_lower}%",),
+    results = (
+        execute_query(
+            "SELECT id, name FROM animes WHERE LOWER(secret_name) LIKE ?",
+            (f"%{text_lower}%",),
+            fetchall=True,
+        )
+        or []
     )
-    results = cursor.fetchall()
-    conn.close()
     show_search_results(chat_id, results)
     return
 
   if state == "SEARCH_CODE_WAIT":
     user_states.pop(user_id, None)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, name FROM animes WHERE LOWER(code) = ?", (text_lower,)
+    results = (
+        execute_query(
+            "SELECT id, name FROM animes WHERE LOWER(code) = ?",
+            (text_lower,),
+            fetchall=True,
+        )
+        or []
     )
-    results = cursor.fetchall()
-    conn.close()
     show_search_results(chat_id, results)
     return
 
   # 4. Kod orqali bevosita topish
-  conn = sqlite3.connect(DB_FILE)
-  cursor = conn.cursor()
-  cursor.execute(
-      "SELECT id, name, secret_name, info, photo, views, code FROM animes WHERE"
-      " LOWER(code) = ?",
-      (text_lower,),
+  q = (
+      "SELECT name, secret_name, info, views, code, episodes_count, status,"
+      " quality, genre, channel_name, photo, id FROM animes WHERE LOWER(code) ="
+      " ?"
   )
-  anime = cursor.fetchone()
-  if anime:
-    anime_id, name, secret_name, info, photo, views, code = anime
-    cursor.execute(
-        "UPDATE animes SET views = views + 1 WHERE id = ?", (anime_id,)
-    )
-    conn.commit()
-    conn.close()
+  anime = execute_query(q, (text_lower,), fetchone=True)
 
-    text = (
-        f"🎬 <b>{name}</b>\n🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
-        f" {info}\n\n🔑 Kodi: <code>{code}</code>\n\n👁 Ko'rildi:"
-        f" {views+1} marta"
+  if anime:
+    anime_id = anime[11]
+    photo = anime[10]
+    execute_query(
+        "UPDATE animes SET views = views + 1 WHERE id = ?",
+        (anime_id,),
+        commit=True,
     )
+
+    text = format_anime_text(anime[:10])
     markup = get_anime_folder_keyboard(anime_id, page=1)
+
     if photo:
       send_clean_photo(
           chat_id,
@@ -806,9 +996,7 @@ def main_messages(message):
           chat_id, text, reply_markup=markup, parse_mode="HTML", protect=True
       )
     return
-  conn.close()
 
-  # Bosh menyu
   send_clean_message(
       chat_id,
       "🤖 Kerakli bo'limni tanlang:",
@@ -828,28 +1016,55 @@ def handle_media(message):
 
   # Rasmni qabul qilish (Yangi anime uchun)
   if state == "ADD_PHOTO" and user_id == ADMIN_ID:
-    photo_id = ""
-    if message.content_type == "photo":
-      photo_id = message.photo[-1].file_id
-
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO animes (name, secret_name, code, info, photo) VALUES (?,"
-        " ?, ?, ?, ?)",
-        (
-            temp_data[user_id]["name"],
-            temp_data[user_id]["secret_name"],
-            temp_data[user_id]["code"],
-            temp_data[user_id]["info"],
-            photo_id,
-        ),
+    photo_id = (
+        message.photo[-1].file_id if message.content_type == "photo" else ""
     )
-    anime_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    d = temp_data[user_id]
 
-    temp_data[user_id]["anime_id"] = anime_id
+    if DATABASE_URL and psycopg2:
+      q = """INSERT INTO animes (name, secret_name, code, info, photo, episodes_count, status, quality, genre, channel_name) 
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id"""
+      anime_id = execute_query(
+          q,
+          (
+              d["name"],
+              d["secret_name"],
+              d["code"],
+              d["info"],
+              photo_id,
+              d["episodes_count"],
+              d["status"],
+              d["quality"],
+              d["genre"],
+              d["channel_name"],
+          ),
+          fetchone=True,
+          commit=True,
+      )[0]
+    else:
+      conn = sqlite3.connect(DB_FILE)
+      cursor = conn.cursor()
+      cursor.execute(
+          """INSERT INTO animes (name, secret_name, code, info, photo, episodes_count, status, quality, genre, channel_name) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+          (
+              d["name"],
+              d["secret_name"],
+              d["code"],
+              d["info"],
+              photo_id,
+              d["episodes_count"],
+              d["status"],
+              d["quality"],
+              d["genre"],
+              d["channel_name"],
+          ),
+      )
+      anime_id = cursor.lastrowid
+      conn.commit()
+      conn.close()
+
+    temp_data[user_id] = {"anime_id": anime_id}
     user_states[user_id] = "ADD_AUTO_VIDEO"
     send_clean_message(
         chat_id,
@@ -869,23 +1084,22 @@ def handle_media(message):
     anime_id = temp_data[user_id]["anime_id"]
     video_id = message.video.file_id
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT MAX(part_num) FROM parts WHERE anime_id = ?", (anime_id,)
-    )
-    res = cursor.fetchone()[0]
+    res = execute_query(
+        "SELECT MAX(part_num) FROM parts WHERE anime_id = ?",
+        (anime_id,),
+        fetchone=True,
+    )[0]
     next_part = 1 if res is None else res + 1
 
-    cursor.execute(
+    execute_query(
         "INSERT INTO parts (anime_id, part_num, video_id) VALUES (?, ?, ?)",
         (anime_id, next_part, video_id),
+        commit=True,
     )
-    conn.commit()
 
-    cursor.execute("SELECT name FROM animes WHERE id = ?", (anime_id,))
-    anime_name = cursor.fetchone()[0]
-    conn.close()
+    anime_name = execute_query(
+        "SELECT name FROM animes WHERE id = ?", (anime_id,), fetchone=True
+    )[0]
 
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -897,7 +1111,7 @@ def handle_media(message):
 
     send_clean_message(
         chat_id,
-        f"✅ <b>{anime_name}</b> animasiga **{next_part}-qism** qo'shildi! 🎬\n\nYana"
+        f"✅ <b>{anime_name}</b> animasiga <b>{next_part}-qism</b> qo'shildi! 🎬\n\nYana"
         " qism qo'shasizmi?",
         reply_markup=markup,
         parse_mode="HTML",
@@ -906,10 +1120,9 @@ def handle_media(message):
 
   # Jild rasmini tahrirlash uchun qabul qilish
   if state == "ADMIN_EDIT_FOLDER_PHOTO" and user_id == ADMIN_ID:
-    photo_id = ""
-    if message.content_type == "photo":
-      photo_id = message.photo[-1].file_id
-
+    photo_id = (
+        message.photo[-1].file_id if message.content_type == "photo" else ""
+    )
     temp_data[user_id]["edit_photo"] = photo_id
     user_states[user_id] = "ADMIN_EDIT_FOLDER_NAME"
     send_clean_message(chat_id, "📝 Yangi jild nomini kiriting:")
@@ -927,25 +1140,23 @@ def handle_media(message):
     part_num = temp_data[user_id]["part_num"]
     video_id = message.video.file_id
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
+    part_exists = execute_query(
         "SELECT id FROM parts WHERE anime_id = ? AND part_num = ?",
         (anime_id, part_num),
+        fetchone=True,
     )
-    if cursor.fetchone():
-      cursor.execute(
+    if part_exists:
+      execute_query(
           "UPDATE parts SET video_id = ? WHERE anime_id = ? AND part_num = ?",
           (video_id, anime_id, part_num),
+          commit=True,
       )
     else:
-      cursor.execute(
+      execute_query(
           "INSERT INTO parts (anime_id, part_num, video_id) VALUES (?, ?, ?)",
           (anime_id, part_num, video_id),
+          commit=True,
       )
-
-    conn.commit()
-    conn.close()
 
     user_states.pop(user_id, None)
     temp_data.pop(user_id, None)
@@ -996,12 +1207,15 @@ def callback_handler(call):
         reply_markup=get_search_inline_keyboard(),
     )
 
-  elif data == "menu_available":
+  elif data.startswith("menu_available_page_"):
+    page = int(data.replace("menu_available_page_", ""))
     bot.answer_callback_query(call.id)
     send_clean_message(
         chat_id,
-        "📂 Mavjud anime jildlari:",
-        reply_markup=get_available_animes_keyboard(action_type="show"),
+        f"📂 Mavjud anime jildlari ({page}-sahifa):",
+        reply_markup=get_available_animes_keyboard(
+            page=page, action_type="show"
+        ),
     )
 
   elif data == "menu_recommended":
@@ -1023,7 +1237,9 @@ def callback_handler(call):
     send_clean_message(
         chat_id,
         "📂 Qaysi anime jildiga yangi qism qo'shmoqchisiz? Tanlang:",
-        reply_markup=get_available_animes_keyboard(action_type="add_part"),
+        reply_markup=get_available_animes_keyboard(
+            page=1, action_type="add_part"
+        ),
     )
 
   elif data == "admin_edit_menu" and user_id == ADMIN_ID:
@@ -1049,7 +1265,9 @@ def callback_handler(call):
     send_clean_message(
         chat_id,
         "📁 Tahrirlash uchun animeni tanlang:",
-        reply_markup=get_available_animes_keyboard(action_type="edit_folder"),
+        reply_markup=get_available_animes_keyboard(
+            page=1, action_type="edit_folder"
+        ),
     )
 
   elif data.startswith("select_edit_folder_") and user_id == ADMIN_ID:
@@ -1075,16 +1293,19 @@ def callback_handler(call):
     send_clean_message(
         chat_id,
         "⚙ Boshqarish uchun animeni tanlang:",
-        reply_markup=get_available_animes_keyboard(action_type="admin_opt"),
+        reply_markup=get_available_animes_keyboard(
+            page=1, action_type="admin_opt"
+        ),
     )
 
   elif data == "admin_channels" and user_id == ADMIN_ID:
     bot.answer_callback_query(call.id)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT username FROM channels")
-    channels = [row[0] for row in cursor.fetchall()]
-    conn.close()
+    channels = [
+        row[0]
+        for row in execute_query(
+            "SELECT username FROM channels", fetchall=True
+        ) or []
+    ]
 
     bot_info = bot.get_me()
     add_group_url = f"https://t.me/{bot_info.username}?startgroup=true"
@@ -1101,7 +1322,7 @@ def callback_handler(call):
     for ch in channels:
       markup.add(
           types.InlineKeyboardButton(
-              f"❌ O'chirish: {ch}", callback_data=f"del_ch_{ch}"
+              f"❌ O'chirish / Uzish: {ch}", callback_data=f"del_ch_{ch}"
           )
       )
     markup.add(
@@ -1113,25 +1334,26 @@ def callback_handler(call):
     ch_text = "\n".join(channels) if channels else "Hozircha kanallar yo'q"
     send_clean_message(
         chat_id,
-        f"📢 **Kanallarni boshqarish bo'limi:**\n\nUlangan"
+        f"📢 <b>Kanallarni boshqarish bo'limi:</b>\n\nUlangan"
         f" kanallar:\n{ch_text}",
         reply_markup=markup,
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
   elif data == "admin_stats" and user_id == ADMIN_ID:
     bot.answer_callback_query(call.id)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users")
-    total_users = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM animes")
-    total_animes = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM parts")
-    total_parts = cursor.fetchone()[0]
-    cursor.execute("SELECT SUM(views) FROM animes")
-    total_views = cursor.fetchone()[0] or 0
-    conn.close()
+    total_users = execute_query(
+        "SELECT COUNT(*) FROM users", fetchone=True
+    )[0]
+    total_animes = execute_query(
+        "SELECT COUNT(*) FROM animes", fetchone=True
+    )[0]
+    total_parts = execute_query(
+        "SELECT COUNT(*) FROM parts", fetchone=True
+    )[0]
+    total_views = (
+        execute_query("SELECT SUM(views) FROM animes", fetchone=True)[0] or 0
+    )
 
     markup = types.InlineKeyboardMarkup()
     markup.add(
@@ -1158,15 +1380,13 @@ def callback_handler(call):
 
   elif data.startswith("del_ch_") and user_id == ADMIN_ID:
     ch_name = data.replace("del_ch_", "")
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM channels WHERE username = ?", (ch_name,))
-    conn.commit()
-    conn.close()
+    execute_query(
+        "DELETE FROM channels WHERE username = ?", (ch_name,), commit=True
+    )
     bot.answer_callback_query(call.id, f"{ch_name} o'chirildi!")
     send_clean_message(
         chat_id,
-        f"✅ {ch_name} kanali o'chirildi!",
+        f"✅ {ch_name} kanali o'chirildi (uzildi)!",
         reply_markup=get_main_inline_menu(user_id),
     )
 
@@ -1191,20 +1411,19 @@ def callback_handler(call):
     temp_data[user_id] = {"anime_id": anime_id}
     bot.answer_callback_query(call.id)
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT MAX(part_num) FROM parts WHERE anime_id = ?", (anime_id,)
-    )
-    res = cursor.fetchone()[0]
+    res = execute_query(
+        "SELECT MAX(part_num) FROM parts WHERE anime_id = ?",
+        (anime_id,),
+        fetchone=True,
+    )[0]
     next_num = 1 if res is None else res + 1
-    cursor.execute("SELECT name FROM animes WHERE id = ?", (anime_id,))
-    an_name = cursor.fetchone()[0]
-    conn.close()
+    an_name = execute_query(
+        "SELECT name FROM animes WHERE id = ?", (anime_id,), fetchone=True
+    )[0]
 
     send_clean_message(
         chat_id,
-        f"🎬 <b>{an_name}</b> uchun **{next_num}-qism** videosini yuboring:",
+        f"🎬 <b>{an_name}</b> uchun <b>{next_num}-qism</b> videosini yuboring:",
         parse_mode="HTML",
     )
 
@@ -1232,20 +1451,19 @@ def callback_handler(call):
     temp_data[user_id] = {"anime_id": anime_id}
     bot.answer_callback_query(call.id)
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT MAX(part_num) FROM parts WHERE anime_id = ?", (anime_id,)
-    )
-    res = cursor.fetchone()[0]
+    res = execute_query(
+        "SELECT MAX(part_num) FROM parts WHERE anime_id = ?",
+        (anime_id,),
+        fetchone=True,
+    )[0]
     next_num = 1 if res is None else res + 1
-    cursor.execute("SELECT name FROM animes WHERE id = ?", (anime_id,))
-    an_name = cursor.fetchone()[0]
-    conn.close()
+    an_name = execute_query(
+        "SELECT name FROM animes WHERE id = ?", (anime_id,), fetchone=True
+    )[0]
 
     send_clean_message(
         chat_id,
-        f"🎬 <b>{an_name}</b> uchun **{next_num}-qism** videosini yuboring:",
+        f"🎬 <b>{an_name}</b> uchun <b>{next_num}-qism</b> videosini yuboring:",
         parse_mode="HTML",
     )
 
@@ -1261,12 +1479,10 @@ def callback_handler(call):
 
   elif data.startswith("delete_anime_") and user_id == ADMIN_ID:
     anime_id = int(data.replace("delete_anime_", ""))
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM parts WHERE anime_id = ?", (anime_id,))
-    cursor.execute("DELETE FROM animes WHERE id = ?", (anime_id,))
-    conn.commit()
-    conn.close()
+    execute_query(
+        "DELETE FROM parts WHERE anime_id = ?", (anime_id,), commit=True
+    )
+    execute_query("DELETE FROM animes WHERE id = ?", (anime_id,), commit=True)
     bot.answer_callback_query(call.id, "Anime o'chirildi!")
     send_clean_message(
         chat_id,
@@ -1276,32 +1492,24 @@ def callback_handler(call):
 
   elif data.startswith("show_anime_"):
     anime_id = int(data.replace("show_anime_", ""))
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT name, secret_name, info, photo, views, code FROM animes WHERE"
-        " id = ?",
-        (anime_id,),
+    q = (
+        "SELECT name, secret_name, info, views, code, episodes_count, status,"
+        " quality, genre, channel_name, photo FROM animes WHERE id = ?"
     )
-    anime = cursor.fetchone()
-
-    cursor.execute(
-        "UPDATE animes SET views = views + 1 WHERE id = ?", (anime_id,)
-    )
-    conn.commit()
-    conn.close()
+    anime = execute_query(q, (anime_id,), fetchone=True)
 
     if not anime:
       bot.answer_callback_query(call.id, "❌ Anime topilmadi!", show_alert=True)
       return
 
-    name, secret_name, info, photo, views, code = anime
-    text = (
-        f"🎬 <b>{name}</b>\n🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
-        f" {info}\n\n🔑 Kodi: <code>{code}</code>\n\n👁 Ko'rildi:"
-        f" {views+1} marta"
+    execute_query(
+        "UPDATE animes SET views = views + 1 WHERE id = ?",
+        (anime_id,),
+        commit=True,
     )
 
+    photo = anime[10]
+    text = format_anime_text(anime[:10])
     markup = get_anime_folder_keyboard(anime_id, page=1)
     bot.answer_callback_query(call.id)
 
@@ -1340,19 +1548,15 @@ def callback_handler(call):
     anime_id = int(parts_data[0])
     part_num = int(parts_data[1])
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
+    part = execute_query(
         "SELECT video_id FROM parts WHERE anime_id = ? AND part_num = ?",
         (anime_id, part_num),
+        fetchone=True,
     )
-    part = cursor.fetchone()
-    conn.close()
 
     bot.answer_callback_query(call.id)
     if part:
-      video_id = part[0]
-      bot.send_video(chat_id, video_id, caption=f"🎬 {part_num}-qism")
+      bot.send_video(chat_id, part[0], caption=f"🎬 {part_num}-qism")
     else:
       bot.answer_callback_query(
           call.id, "❌ Video topilmadi!", show_alert=True
