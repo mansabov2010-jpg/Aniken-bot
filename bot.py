@@ -72,47 +72,6 @@ def init_db():
         video_id TEXT
     )""")
   conn.commit()
-
-  cursor.execute("SELECT COUNT(*) FROM animes")
-  if cursor.fetchone()[0] == 0:
-    sample_animes = [
-        (
-            "Death Note",
-            "L Death Note",
-            "01",
-            "O'lim daftari haqida afsonaviy anime.",
-            "",
-        ),
-        (
-            "Naruto",
-            "Uzumaki Naruto",
-            "02",
-            "Ninja bo'lishni orzu qilgan bolakay tarixi.",
-            "",
-        ),
-        (
-            "Attack on Titan",
-            "Shingeki no Kyojin",
-            "03",
-            "Devlarga qarshi kurashuvchi insoniyat.",
-            "",
-        ),
-        (
-            "Demon Slayer",
-            "Kimetsu no Yaiba",
-            "04",
-            "Qishlog'i vayron bo'lgan yigitning qasos yo'li.",
-            "",
-        ),
-    ]
-    for an, sec, cd, inf, ph in sample_animes:
-      cursor.execute(
-          "INSERT INTO animes (name, secret_name, code, info, photo, views) VALUES"
-          " (?, ?, ?, ?, ?, ?)",
-          (an, sec, cd, inf, ph, 10),
-      )
-    conn.commit()
-
   conn.close()
 
 
@@ -226,6 +185,9 @@ def get_main_inline_menu(user_id):
             "📂 Mavjud jildga qism qo'shish", callback_data="admin_add_part"
         ),
         types.InlineKeyboardButton(
+            "✏️ Anime jildlarini tahrirlash", callback_data="admin_edit_menu"
+        ),
+        types.InlineKeyboardButton(
             "📢 Kanallarni boshqarish", callback_data="admin_channels"
         ),
         types.InlineKeyboardButton(
@@ -245,7 +207,7 @@ def get_search_inline_keyboard():
           "📝 Nomi orqali", callback_data="search_by_name"
       ),
       types.InlineKeyboardButton(
-          "🕵️️‍♂️ Yashirin nom orqali", callback_data="search_by_secret"
+          "🕵‍♂️ Yashirin nom orqali", callback_data="search_by_secret"
       ),
       types.InlineKeyboardButton("🔢 Kodi orqali", callback_data="search_by_code"),
   )
@@ -282,6 +244,8 @@ def get_available_animes_keyboard(action_type="show"):
         cb = f"select_anime_for_part_{anime_id}"
       elif action_type == "admin_opt":
         cb = f"admin_anime_opt_{anime_id}"
+      elif action_type == "edit_folder":
+        cb = f"select_edit_folder_{anime_id}"
       else:
         cb = f"show_anime_{anime_id}"
 
@@ -330,7 +294,8 @@ def get_recommended_animes_keyboard():
   return markup
 
 
-def get_anime_folder_keyboard(anime_id):
+# --- QISMLARNI 15 TATADAN SAHIFALASH (PAGINATION) ---
+def get_anime_folder_keyboard(anime_id, page=1):
   markup = types.InlineKeyboardMarkup(row_width=5)
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
@@ -338,11 +303,25 @@ def get_anime_folder_keyboard(anime_id):
       "SELECT part_num FROM parts WHERE anime_id = ? ORDER BY part_num ASC",
       (anime_id,),
   )
-  parts = cursor.fetchall()
+  parts = [row[0] for row in cursor.fetchall()]
   conn.close()
 
+  items_per_page = 15
+  total_pages = (len(parts) + items_per_page - 1) // items_per_page
+  if total_pages == 0:
+    total_pages = 1
+
+  if page > total_pages:
+    page = total_pages
+  if page < 1:
+    page = 1
+
+  start_idx = (page - 1) * items_per_page
+  end_idx = start_idx + items_per_page
+  current_parts = parts[start_idx:end_idx]
+
   buttons = []
-  for (p,) in parts:
+  for p in current_parts:
     buttons.append(
         types.InlineKeyboardButton(
             text=str(p), callback_data=f"get_part_{anime_id}_{p}"
@@ -352,11 +331,30 @@ def get_anime_folder_keyboard(anime_id):
   if buttons:
     markup.add(*buttons)
 
+  nav_buttons = []
+  if page > 1:
+    nav_buttons.append(
+        types.InlineKeyboardButton(
+            "⬅️", callback_data=f"page_{anime_id}_{page-1}"
+        )
+    )
+
+  nav_buttons.append(
+      types.InlineKeyboardButton("❌", callback_data="menu_available")
+  )
+
+  if page < total_pages:
+    nav_buttons.append(
+        types.InlineKeyboardButton(
+            "➡️", callback_data=f"page_{anime_id}_{page+1}"
+        )
+    )
+
+  markup.add(*nav_buttons)
   markup.add(
-      types.InlineKeyboardButton("⬅ Orqaga", callback_data="menu_available"),
       types.InlineKeyboardButton(
           "🏠 Asosiy menyu", callback_data="back_to_main"
-      ),
+      )
   )
   return markup
 
@@ -491,11 +489,11 @@ def start_cmd(message):
       if anime:
         name, secret_name, info, photo, views, code = anime
         text = (
-            f"🎬 <b>{name}</b>\n🕵️️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
+            f"🎬 <b>{name}</b>\n🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
             f" {info}\n\n🔑 Kodi: <code>{code}</code>\n\n👁 Ko'rildi:"
             f" {views+1} marta"
         )
-        markup = get_anime_folder_keyboard(anime_id)
+        markup = get_anime_folder_keyboard(anime_id, page=1)
 
         if photo:
           send_clean_photo(
@@ -566,7 +564,7 @@ def group_messages(message):
 
     desc = info[:150] if info else "Ma'lumot yo'q"
     caption = (
-        f"🎬 <b>{name}</b>\n🕵️‍♂️️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
+        f"🎬 <b>{name}</b>\n🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
         f" {desc}\n\n🔑 Kodi: <code>{code}</code>\n\n⬇️ Animeni to'liq ko'rish"
         " uchun pastdagi tugmani bosing:"
     )
@@ -589,7 +587,7 @@ def group_messages(message):
     break
 
 
-# --- SHAXSIY CHATDAGI MULOQOT VA QADAMBA-QADAM QO'SHISH ---
+# --- SHAXSIY CHATDAGI MULOQOT VA BARCHA PROCESSRLAR ---
 @bot.message_handler(func=lambda message: True)
 def main_messages(message):
   user_id = message.from_user.id
@@ -608,7 +606,7 @@ def main_messages(message):
 
   state = user_states.get(user_id)
 
-  # 1. Kanal qo'shish jarayoni
+  # 1. Kanal qo'shish
   if state == "ADD_CHANNEL_WAIT" and user_id == ADMIN_ID:
     ch = text_val
     if not ch.startswith("@"):
@@ -633,7 +631,7 @@ def main_messages(message):
     user_states.pop(user_id, None)
     return
 
-  # 2. Yangi anime qo'shish qadamlari (XATOLARSIZ, ANIQ KETMA-KETLIK)
+  # 2. Yangi anime qo'shish qadamlari
   if user_id == ADMIN_ID:
     if state == "ADD_NAME":
       temp_data[user_id]["name"] = text_val
@@ -669,6 +667,76 @@ def main_messages(message):
       user_states[user_id] = "ADD_PHOTO"
       send_clean_message(
           chat_id, "🖼 Muqova rasmini yuboring (o'tkazib yuborish uchun /skip):"
+      )
+      return
+
+    # JILD TAHRIRLASH QADAMLARI
+    elif state == "ADMIN_EDIT_FOLDER_NAME":
+      temp_data[user_id]["edit_name"] = text_val
+      user_states[user_id] = "ADMIN_EDIT_FOLDER_CODE"
+      send_clean_message(chat_id, "🔢 Endi jild uchun yangi kodni kiriting:")
+      return
+
+    elif state == "ADMIN_EDIT_FOLDER_CODE":
+      anime_id = temp_data[user_id]["anime_id"]
+      new_name = temp_data[user_id]["edit_name"]
+      new_code = text_lower
+      new_photo = temp_data[user_id].get("edit_photo", "")
+
+      conn = sqlite3.connect(DB_FILE)
+      cursor = conn.cursor()
+      cursor.execute(
+          "UPDATE animes SET name = ?, code = ?, photo = ? WHERE id = ?",
+          (new_name, new_code, new_photo, anime_id),
+      )
+      conn.commit()
+      conn.close()
+
+      user_states.pop(user_id, None)
+      temp_data.pop(user_id, None)
+      send_clean_message(
+          chat_id,
+          "✅ Jild muvaffaqiyatli tahrirlandi!",
+          reply_markup=get_main_inline_menu(user_id),
+      )
+      return
+
+    # QISM TAHRIRLASH QADAMLARI
+    elif state == "ADMIN_EDIT_PART_SEARCH":
+      conn = sqlite3.connect(DB_FILE)
+      cursor = conn.cursor()
+      cursor.execute(
+          "SELECT id, name FROM animes WHERE LOWER(name) LIKE ? OR LOWER(code)"
+          " = ?",
+          (f"%{text_lower}%", text_lower),
+      )
+      res = cursor.fetchone()
+      conn.close()
+
+            if res:
+        temp_data[user_id] = {"anime_id": res[0], "anime_name": res[1]}
+        user_states[user_id] = "ADMIN_EDIT_PART_NUM"
+        send_clean_message(
+            chat_id,
+            f"✅ Anime topildi: **{res[1]}**\n\n🔢 Nechanchi"
+            " qismni tahrirlamoqchisiz? (Faqat raqam kiriting):",
+        )
+      else:
+        send_clean_message(
+            chat_id,
+            "❌ Bunday anime topilmadi. Qaytadan nomini yoki kodini yuboring:",
+        )
+      return
+
+    elif state == "ADMIN_EDIT_PART_NUM":
+      if not text_val.isdigit():
+        send_clean_message(chat_id, "⚠️ Iltimos, faqat raqam kiriting:")
+        return
+
+      temp_data[user_id]["part_num"] = int(text_val)
+      user_states[user_id] = "ADMIN_EDIT_PART_VIDEO"
+      send_clean_message(
+          chat_id, "🎬 Endi ushbu qism uchun yangi videoni yuboring:"
       )
       return
 
@@ -711,7 +779,7 @@ def main_messages(message):
     show_search_results(chat_id, results)
     return
 
-    # 4. Kod orqali bevosita topish
+  # 4. Kod orqali bevosita topish
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
   cursor.execute(
@@ -733,7 +801,7 @@ def main_messages(message):
         f" {info}\n\n🔑 Kodi: <code>{code}</code>\n\n👁 Ko'rildi:"
         f" {views+1} marta"
     )
-    markup = get_anime_folder_keyboard(anime_id)
+    markup = get_anime_folder_keyboard(anime_id, page=1)
     if photo:
       send_clean_photo(
           chat_id, text, reply_markup=markup, parse_mode="HTML", protect=True
@@ -745,7 +813,7 @@ def main_messages(message):
     return
   conn.close()
 
-  # Agar hech qaysi holatga tushmasa, bosh menyuni eslatamiz
+  # Agar hech qaysi holatga tushmasa, bosh menyu
   send_clean_message(
       chat_id,
       "🤖 Kerakli bo'limni tanlang:",
@@ -763,7 +831,7 @@ def handle_media(message):
 
   state = user_states.get(user_id)
 
-  # Rasmni qabul qilish (ADD_PHOTO bosqichi)
+  # Rasmni qabul qilish (Yangi anime uchun)
   if state == "ADD_PHOTO" and user_id == ADMIN_ID:
     photo_id = ""
     if message.content_type == "photo":
@@ -797,7 +865,7 @@ def handle_media(message):
     )
     return
 
-  # Videoni qabul qilish (ADD_AUTO_VIDEO bosqichi)
+  # Videoni qabul qilish (Yangi anime/qism uchun)
   if state == "ADD_AUTO_VIDEO" and user_id == ADMIN_ID:
     if message.content_type != "video":
       send_clean_message(
@@ -842,6 +910,58 @@ def handle_media(message):
         " qism qo'shasizmi?",
         reply_markup=markup,
         parse_mode="HTML",
+    )
+    return
+
+  # Jild rasmini tahrirlash uchun qabul qilish
+  if state == "ADMIN_EDIT_FOLDER_PHOTO" and user_id == ADMIN_ID:
+    photo_id = ""
+    if message.content_type == "photo":
+      photo_id = message.photo[-1].file_id
+
+    temp_data[user_id]["edit_photo"] = photo_id
+    user_states[user_id] = "ADMIN_EDIT_FOLDER_NAME"
+    send_clean_message(chat_id, "📝 Yangi jild nomini kiriting:")
+    return
+
+  # Qism videosini tahrirlash uchun qabul qilish
+  if state == "ADMIN_EDIT_PART_VIDEO" and user_id == ADMIN_ID:
+    if message.content_type != "video":
+      send_clean_message(
+          chat_id, "⚠️ Iltimos, anime uchun to'g'ri video fayl yuboring:"
+      )
+      return
+
+    anime_id = temp_data[user_id]["anime_id"]
+    part_num = temp_data[user_id]["part_num"]
+    video_id = message.video.file_id
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id FROM parts WHERE anime_id = ? AND part_num = ?",
+        (anime_id, part_num),
+    )
+    if cursor.fetchone():
+      cursor.execute(
+          "UPDATE parts SET video_id = ? WHERE anime_id = ? AND part_num = ?",
+          (video_id, anime_id, part_num),
+      )
+    else:
+      cursor.execute(
+          "INSERT INTO parts (anime_id, part_num, video_id) VALUES (?, ?, ?)",
+          (anime_id, part_num, video_id),
+      )
+
+    conn.commit()
+    conn.close()
+
+    user_states.pop(user_id, None)
+    temp_data.pop(user_id, None)
+    send_clean_message(
+        chat_id,
+        f"✅ {part_num}-qism muvaffaqiyatli saqlandi!",
+        reply_markup=get_main_inline_menu(user_id),
     )
     return
 
@@ -913,6 +1033,51 @@ def callback_handler(call):
         chat_id,
         "📂 Qaysi anime jildiga yangi qism qo'shmoqchisiz? Tanlang:",
         reply_markup=get_available_animes_keyboard(action_type="add_part"),
+    )
+
+  # TAHRIRLASH MENYUSI
+  elif data == "admin_edit_menu" and user_id == ADMIN_ID:
+    bot.answer_callback_query(call.id)
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton(
+            "📁 Jild tahrirlash", callback_data="admin_edit_folder"
+        ),
+        types.InlineKeyboardButton(
+            "🎬 Qism tahrirlash", callback_data="admin_edit_part"
+        ),
+        types.InlineKeyboardButton(
+            "⬅️ Asosiy menyu", callback_data="back_to_main"
+        ),
+    )
+    send_clean_message(
+        chat_id, "✏️ Tahrirlash bo'limini tanlang:", reply_markup=markup
+    )
+
+  elif data == "admin_edit_folder" and user_id == ADMIN_ID:
+    bot.answer_callback_query(call.id)
+    send_clean_message(
+        chat_id,
+        "📁 Tahrirlash uchun animeni tanlang:",
+        reply_markup=get_available_animes_keyboard(action_type="edit_folder"),
+    )
+
+  elif data.startswith("select_edit_folder_") and user_id == ADMIN_ID:
+    anime_id = int(data.replace("select_edit_folder_", ""))
+    bot.answer_callback_query(call.id)
+    user_states[user_id] = "ADMIN_EDIT_FOLDER_PHOTO"
+    temp_data[user_id] = {"anime_id": anime_id}
+    send_clean_message(
+        chat_id,
+        "🖼 Yangi muqova rasmini yuboring (rasm kerak bo'lmasa /skip yuboring):",
+    )
+
+  elif data == "admin_edit_part" and user_id == ADMIN_ID:
+    bot.answer_callback_query(call.id)
+    user_states[user_id] = "ADMIN_EDIT_PART_SEARCH"
+    send_clean_message(
+        chat_id,
+        "🎬 Tahrirlamoqchi bo'lgan animening kodi yoki nomini kiriting:",
     )
 
   elif data == "admin_manage" and user_id == ADMIN_ID:
@@ -1147,7 +1312,7 @@ def callback_handler(call):
         f" {views+1} marta"
     )
 
-    markup = get_anime_folder_keyboard(anime_id)
+    markup = get_anime_folder_keyboard(anime_id, page=1)
     bot.answer_callback_query(call.id)
 
     if photo:
@@ -1158,6 +1323,23 @@ def callback_handler(call):
       send_clean_message(
           chat_id, text, reply_markup=markup, parse_mode="HTML", protect=True
       )
+
+  # SAHIFALASH (PAGINATION) TUGMALARI HANDLERI
+  elif data.startswith("page_"):
+    parts_data = data.replace("page_", "").split("_")
+    anime_id = int(parts_data[0])
+    page = int(parts_data[1])
+    bot.answer_callback_query(call.id)
+
+    markup = get_anime_folder_keyboard(anime_id, page=page)
+    try:
+      bot.edit_message_reply_markup(
+          chat_id=chat_id,
+          message_id=call.message.message_id,
+          reply_markup=markup,
+      )
+    except Exception:
+      pass
 
   elif data.startswith("get_part_"):
     parts_data = data.replace("get_part_", "").split("_")
