@@ -588,7 +588,7 @@ def inline_query_handler(query):
         )
 
     bot.answer_inline_query(query.id, results, cache_time=1)
-        @bot.message_handler(commands=["start"])
+    @bot.message_handler(commands=["start"])
 def start_cmd(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
