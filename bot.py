@@ -73,7 +73,6 @@ def init_db():
     )""")
   conn.commit()
 
-  # Ommabop animelarni boshlang'ich tarzda qo'shib qo'yish (agar bo'sh bo'lsa)
   cursor.execute("SELECT COUNT(*) FROM animes")
   if cursor.fetchone()[0] == 0:
     sample_animes = [
@@ -246,7 +245,7 @@ def get_search_inline_keyboard():
           "📝 Nomi orqali", callback_data="search_by_name"
       ),
       types.InlineKeyboardButton(
-          "🕵️‍♂️ Yashirin nom orqali", callback_data="search_by_secret"
+          "🕵️️‍♂️ Yashirin nom orqali", callback_data="search_by_secret"
       ),
       types.InlineKeyboardButton("🔢 Kodi orqali", callback_data="search_by_code"),
   )
@@ -428,7 +427,7 @@ def inline_query_handler(query):
             input_message_content=types.InputTextMessageContent(
                 message_text=(
                     f"🎬 <b>{name}</b>\n🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
-                    f" {info}\n\n🔑 Kodi: <code>{code}</code>\n\n⬇️️ Animeni"
+                    f" {info}\n\n🔑 Kodi: <code>{code}</code>\n\n⬇ Animeni"
                     " ko'rish uchun pastdagi tugmani bosing:"
                 ),
                 parse_mode="HTML",
@@ -492,7 +491,7 @@ def start_cmd(message):
       if anime:
         name, secret_name, info, photo, views, code = anime
         text = (
-            f"🎬 <b>{name}</b>\n🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
+            f"🎬 <b>{name}</b>\n🕵️️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
             f" {info}\n\n🔑 Kodi: <code>{code}</code>\n\n👁 Ko'rildi:"
             f" {views+1} marta"
         )
@@ -567,7 +566,7 @@ def group_messages(message):
 
     desc = info[:150] if info else "Ma'lumot yo'q"
     caption = (
-        f"🎬 <b>{name}</b>\n🕵️‍♂️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
+        f"🎬 <b>{name}</b>\n🕵️‍♂️️ Yashirin nom: <i>{secret_name}</i>\n\n📖"
         f" {desc}\n\n🔑 Kodi: <code>{code}</code>\n\n⬇️ Animeni to'liq ko'rish"
         " uchun pastdagi tugmani bosing:"
     )
@@ -590,12 +589,13 @@ def group_messages(message):
     break
 
 
-# --- SHAXSIY CHATDAGI Muloqot ---
+# --- SHAXSIY CHATDAGI MULOQOT VA QADAMBA-QADAM QO'SHISH ---
 @bot.message_handler(func=lambda message: True)
 def main_messages(message):
   user_id = message.from_user.id
   chat_id = message.chat.id
-  text_val = message.text.strip().lower()
+  text_val = message.text.strip() if message.text else ""
+  text_lower = text_val.lower()
 
   if chat_id < 0:
     return
@@ -608,8 +608,9 @@ def main_messages(message):
 
   state = user_states.get(user_id)
 
+  # 1. Kanal qo'shish jarayoni
   if state == "ADD_CHANNEL_WAIT" and user_id == ADMIN_ID:
-    ch = message.text.strip()
+    ch = text_val
     if not ch.startswith("@"):
       ch = "@" + ch
     conn = sqlite3.connect(DB_FILE)
@@ -632,13 +633,91 @@ def main_messages(message):
     user_states.pop(user_id, None)
     return
 
-  # Kod orqali to'g'ridan-to'g'ri topish
+  # 2. Yangi anime qo'shish qadamlari (XATOLARSIZ, ANIQ KETMA-KETLIK)
+  if user_id == ADMIN_ID:
+    if state == "ADD_NAME":
+      temp_data[user_id]["name"] = text_val
+      user_states[user_id] = "ADD_SECRET_NAME"
+      send_clean_message(
+          chat_id, "🕵️‍♂️ Anime uchun yashirin nom (kalit so'z) kiriting:"
+      )
+      return
+
+    elif state == "ADD_SECRET_NAME":
+      temp_data[user_id]["secret_name"] = text_val
+      user_states[user_id] = "ADD_CODE"
+      send_clean_message(
+          chat_id, "🔢 Anime uchun maxsus raqamli kod kiriting (masalan: 12):"
+      )
+      return
+
+    elif state == "ADD_CODE":
+      temp_data[user_id]["code"] = text_lower
+      user_states[user_id] = "ADD_INFO"
+      send_clean_message(
+          chat_id,
+          "📖 Anime haqida qisqacha ma'lumot kiriting (o'tkazib yuborish uchun"
+          " /skip):",
+      )
+      return
+
+    elif state == "ADD_INFO":
+      info_text = (
+          text_val if text_val != "/skip" else "Ma'lumot mavjud emas"
+      )
+      temp_data[user_id]["info"] = info_text
+      user_states[user_id] = "ADD_PHOTO"
+      send_clean_message(
+          chat_id, "🖼 Muqova rasmini yuboring (o'tkazib yuborish uchun /skip):"
+      )
+      return
+
+  # 3. Qidirish so'rovlari
+  if state == "SEARCH_NAME_WAIT":
+    user_states.pop(user_id, None)
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, name FROM animes WHERE LOWER(name) LIKE ?",
+        (f"%{text_lower}%",),
+    )
+    results = cursor.fetchall()
+    conn.close()
+    show_search_results(chat_id, results)
+    return
+
+  if state == "SEARCH_SECRET_WAIT":
+    user_states.pop(user_id, None)
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, name FROM animes WHERE LOWER(secret_name) LIKE ?",
+        (f"%{text_lower}%",),
+    )
+    results = cursor.fetchall()
+    conn.close()
+    show_search_results(chat_id, results)
+    return
+
+  if state == "SEARCH_CODE_WAIT":
+    user_states.pop(user_id, None)
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, name FROM animes WHERE LOWER(code) = ?", (text_lower,)
+    )
+    results = cursor.fetchall()
+    conn.close()
+    show_search_results(chat_id, results)
+    return
+
+    # 4. Kod orqali bevosita topish
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
   cursor.execute(
       "SELECT id, name, secret_name, info, photo, views, code FROM animes WHERE"
       " LOWER(code) = ?",
-      (text_val,),
+      (text_lower,),
   )
   anime = cursor.fetchone()
   if anime:
@@ -666,88 +745,16 @@ def main_messages(message):
     return
   conn.close()
 
-  if state == "SEARCH_NAME_WAIT":
-    query = f"%{message.text.strip().lower()}%"
-    user_states.pop(user_id, None)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, name FROM animes WHERE LOWER(name) LIKE ?", (query,)
-    )
-    results = cursor.fetchall()
-    conn.close()
-    show_search_results(chat_id, results)
-    return
-
-  if state == "SEARCH_SECRET_WAIT":
-    query = f"%{message.text.strip().lower()}%"
-    user_states.pop(user_id, None)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, name FROM animes WHERE LOWER(secret_name) LIKE ?", (query,)
-    )
-    results = cursor.fetchall()
-    conn.close()
-    show_search_results(chat_id, results)
-    return
-
-  if state == "SEARCH_CODE_WAIT":
-    query = message.text.strip().lower()
-    user_states.pop(user_id, None)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, name FROM animes WHERE LOWER(code) = ?", (query,)
-    )
-    results = cursor.fetchall()
-    conn.close()
-    show_search_results(chat_id, results)
-    return
-
-  # QADAMBA-QADAM YANGI ANIME QO'SHISH (ALOHIDA-ALOHIDA)
-  if state == "ADD_NAME" and user_id == ADMIN_ID:
-    temp_data[user_id]["name"] = message.text.strip()
-    user_states[user_id] = "ADD_SECRET_NAME"
-    send_clean_message(
-        chat_id, "🕵️‍♂️ Anime uchun **yashirin nom** (kalit so'z) kiriting:"
-    )
-    return
-
-  if state == "ADD_SECRET_NAME" and user_id == ADMIN_ID:
-    temp_data[user_id]["secret_name"] = message.text.strip()
-    user_states[user_id] = "ADD_CODE"
-    send_clean_message(
-        chat_id, "🔢 Anime uchun maxsus **raqamli kod** kiriting (masalan: 12):"
-    )
-    return
-
-    if state == "ADD_CODE" and user_id == ADMIN_ID:
-      temp_data[user_id]["code"] = message.text.strip().lower()
-      user_states[user_id] = "ADD_INFO"
-      send_clean_message(
-          chat_id,
-          "📖 Anime haqida qisqacha ma'lumot kiriting (o'tkazib yuborish uchun"
-          " /skip):",
-      )
-      return
-
-    if state == "ADD_INFO" and user_id == ADMIN_ID:
-      info_text = (
-          message.text.strip()
-          if message.text != "/skip"
-          else "Ma'lumot mavjud emas"
-      )
-      temp_data[user_id]["info"] = info_text
-      user_states[user_id] = "ADD_PHOTO"
-      send_clean_message(
-          chat_id, "🖼 Muqova rasmini yuboring (o'tkazib yuborish uchun /skip):"
-      )
-      return
+  # Agar hech qaysi holatga tushmasa, bosh menyuni eslatamiz
+  send_clean_message(
+      chat_id,
+      "🤖 Kerakli bo'limni tanlang:",
+      reply_markup=get_main_inline_menu(user_id),
+  )
 
 
-# --- MEDIA HANDLER ---
-@bot.message_handler(content_types=["photo", "video"])
+# --- MEDIA HANDLER (RASM VA VIDEO QABUL QILISH) ---
+@bot.message_handler(content_types=["photo", "video", "document"])
 def handle_media(message):
   user_id = message.from_user.id
   chat_id = message.chat.id
@@ -756,10 +763,13 @@ def handle_media(message):
 
   state = user_states.get(user_id)
 
+  # Rasmni qabul qilish (ADD_PHOTO bosqichi)
   if state == "ADD_PHOTO" and user_id == ADMIN_ID:
-    photo_id = (
-        message.photo[-1].file_id if message.content_type == "photo" else ""
-    )
+    photo_id = ""
+    if message.content_type == "photo":
+      photo_id = message.photo[-1].file_id
+    elif message.caption and message.caption.lower() == "/skip":
+      photo_id = ""
 
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -787,9 +797,12 @@ def handle_media(message):
     )
     return
 
+  # Videoni qabul qilish (ADD_AUTO_VIDEO bosqichi)
   if state == "ADD_AUTO_VIDEO" and user_id == ADMIN_ID:
     if message.content_type != "video":
-      send_clean_message(chat_id, "⚠ Iltimos, faqat video fayl yuboring:")
+      send_clean_message(
+          chat_id, "⚠ Iltimos, anime uchun to'g'ri video fayl yuboring:"
+      )
       return
 
     anime_id = temp_data[user_id]["anime_id"]
@@ -855,6 +868,8 @@ def callback_handler(call):
       )
 
   elif data == "back_to_main":
+    user_states.pop(user_id, None)
+    temp_data.pop(user_id, None)
     bot.answer_callback_query(call.id)
     send_clean_message(
         chat_id,
@@ -1008,7 +1023,7 @@ def callback_handler(call):
   elif data == "search_by_secret":
     user_states[user_id] = "SEARCH_SECRET_WAIT"
     bot.answer_callback_query(call.id)
-    send_clean_message(chat_id, "🕵️‍♂️ Yashirin nomini yozing:")
+    send_clean_message(chat_id, "🕵️‍♂️️ Yashirin nomini yozing:")
 
   elif data == "search_by_code":
     user_states[user_id] = "SEARCH_CODE_WAIT"
@@ -1049,7 +1064,7 @@ def callback_handler(call):
             callback_data=f"add_next_auto_{anime_id}",
         ),
         types.InlineKeyboardButton(
-            "🗑 Animenish butunlay o'chirish",
+            "🗑 Animeni butunlay o'chirish",
             callback_data=f"delete_anime_{anime_id}",
         ),
         types.InlineKeyboardButton("⬅ Ortga", callback_data="admin_manage"),
