@@ -1532,6 +1532,7 @@ if __name__ == "__main__":
     print("Bot muvaffaqiyatli ishga tushdi!")
     while True:
         try:
-            bot.polling(none_stop=True, interval=0, timeout=20)
+            bot.polling(none_stop=True, interval=0)
         except Exception as e:
             print(f"Polling xatosi: {e}")
+            time.sleep(5)
