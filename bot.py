@@ -745,7 +745,7 @@ def group_messages(message):
 def main_messages(message):
   user_id = message.from_user.id
   chat_id = message.chat.id
-    text_val = message.text.strip() if message.text else ""
+  text_val = message.text.strip() if message.text else ""
   text_lower = text_val.lower()
 
   if chat_id < 0:
