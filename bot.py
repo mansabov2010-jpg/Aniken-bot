@@ -1050,7 +1050,7 @@ def main_messages(message):
         "❓ Noma'lum buyruq. Asosiy menyudan foydalaning:",
         reply_markup=get_main_inline_menu(user_id),
             )
-        @bot.callback_query_handler(func=lambda call: True)
+@bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     user_id = call.from_user.id
     chat_id = call.message.chat.id
