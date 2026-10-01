@@ -482,7 +482,7 @@ def get_anime_folder_keyboard(anime_id, page=1):
         )
     )
     return markup
-    def format_anime_text(anime_data, bot_username=""):
+def format_anime_text(anime_data, bot_username=""):
     (
         name,
         secret_name,
