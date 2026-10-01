@@ -721,7 +721,7 @@ def main_messages(message):
             f"✅ Anime topildi: **{res[1]}**\n\n🔢 Nechanchi"
             " qismni tahrirlamoqchisiz? (Faqat raqam kiriting):",
         )
-      else:
+    else:
         send_clean_message(
             chat_id,
             "❌ Bunday anime topilmadi. Qaytadan nomini yoki kodini yuboring:",
