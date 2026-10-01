@@ -1565,7 +1565,7 @@ def callback_handler(call):
 
 def run_telegram_bot():
     try:
-        bot.remove_webhook(drop_pending_updates=True)
+        bot.remove_webhook()
         bot.infinity_polling()
     except Exception as e:
         print(f"Botda xatolik: {e}")
@@ -1573,7 +1573,6 @@ def run_telegram_bot():
 if __name__ == '__main__':
     bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
     bot_thread.start()
-    
+
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
