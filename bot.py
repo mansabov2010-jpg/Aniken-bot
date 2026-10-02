@@ -516,7 +516,7 @@ def format_anime_text(anime_data, bot_username=''):
       f'✨ **YUKLAB OLISH** ✨'
   )
   return formatted_text
-    @bot.message_handler(commands=['start'])
+  @bot.message_handler(commands=['start'])
 def send_start(message):
   user_id = message.from_user.id
   user_states.pop(user_id, None)
