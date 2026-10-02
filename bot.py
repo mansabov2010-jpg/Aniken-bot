@@ -1137,7 +1137,7 @@ def message_handler(message):
           parse_mode='Markdown',
       )
 
-    elif state == 'ADD_EPISODES':
+elif state == 'ADD_EPISODES':
     if not text.isdigit():
         send_clean_message(
             message.chat.id,
