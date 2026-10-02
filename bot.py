@@ -1324,10 +1324,12 @@ if __name__ == '__main__':
     pass
 
   time.sleep(2)
-  try:
-    bot.remove_webhook()
-    time.sleep(1)
-    print('Polling boshlandi...')
-    bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
-  except Exception as e:
-    print(f'Polling xatoligi: {e}')
+  while True:
+    try:
+      bot.remove_webhook()
+      time.sleep(1)
+      print('Polling boshlandi...')
+      bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
+    except Exception as e:
+      print(f'Polling xatoligi: {e}')
+      time.sleep(5)  # 5 sekund kutib, avtomatik qaytadan ulanadi
