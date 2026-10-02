@@ -1108,7 +1108,7 @@ def message_handler(message):
           protect=True,
       )
 
-elif user_id == ADMIN_ID and state == 'ADD_NAME':
+if user_id == ADMIN_ID and state == 'ADD_NAME':
   temp_data[user_id]['name'] = text
   user_states[user_id] = 'ADD_SECRET_NAME'
   send_clean_message(
