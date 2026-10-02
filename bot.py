@@ -947,7 +947,7 @@ def callback_handler(call):
             "🔙 Asosiy menyu", callback_data='back_to_main'
     )
 )
-        try:
+    try:
       bot.edit_message_text(
           text,
           chat_id,
