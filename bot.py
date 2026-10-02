@@ -1117,7 +1117,7 @@ if user_id == ADMIN_ID and state == 'ADD_NAME':
       parse_mode='Markdown',
   )
 
-    elif state == 'ADD_SECRET_NAME':
+  elif state == 'ADD_SECRET_NAME':
       temp_data[user_id]['secret_name'] = text
       user_states[user_id] = 'ADD_CODE'
       send_clean_message(
