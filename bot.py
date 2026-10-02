@@ -12,7 +12,7 @@ try:
 except ImportError:
   psycopg2 = None
 
-TOKEN = os.environ.get('BOT_TOKEN', '8987164421:AAEFK4UEHSV2lPe9E4Kk3KT39qcqpphiTK0')
+TOKEN = os.environ.get('BOT_TOKEN', '8987164421:AAEQwE3A2Fghdj75Gkto0bJlRo1IJA14LKU')
 
 ADMIN_ID = int(os.environ.get('ADMIN_ID', '7988354170'))
 DATABASE_URL = os.environ.get('DATABASE_URL', None)
@@ -23,11 +23,11 @@ app = Flask(__name__)
 
 
 @app.route('/')
-def home():
+def home():       
   return 'Bot is running and alive!'
 
 
-def run_web():
+def run_web():  
   app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
 
 
