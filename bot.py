@@ -1253,11 +1253,11 @@ def message_handler(message):
        ch_username = '@' + ch_username
 
     if ch_username != '/skip':
-    execute_query(
-          'INSERT OR IGNORE INTO channels (username) VALUES (?)',
-          (ch_username,),
-          commit=True,
-    )
+        execute_query(
+            'INSERT OR IGNORE INTO channels (username) VALUES (?)',
+            (ch_username,),
+            commit=True,
+        )
 
             "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
             parse_mode='Markdown',
