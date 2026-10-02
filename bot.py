@@ -514,16 +514,19 @@ def format_anime_text(anime_data, bot_username=''):
       f'🔥 Anime ID: {code}\n'
       f'🔥 Reyting: ⭐️ 5/5\n\n'
       f'✨ **YUKLAB OLISH** ✨'
+      f"✨ **YUKLAB OLISH** ✨"
   )
   return formatted_text
-  @bot.message_handler(commands=['start'])
+
+
+@bot.message_handler(commands=['start'])
 def send_start(message):
   user_id = message.from_user.id
   user_states.pop(user_id, None)
   temp_data.pop(user_id, None)
 
   execute_query(
-      'INSERT INTO users (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING',
+      'INSERT INTO users (user_id) VALUES (?)',
       (user_id,),
       commit=True,
   )
