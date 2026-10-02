@@ -1293,13 +1293,19 @@ def handle_media(message):
 
 
 if __name__ == '__main__':
-  keep_alive()
   print('Bot ishga tushmoqda...')
-  time.sleep(5)
+  
+  # Agar keep_alive() funksiyasi Flask'ni alohida oqimda ochsa, uni chaqiramiz:
+  try:
+    keep_alive()
+  except Exception:
+    pass
+
+  time.sleep(2)
   try:
     bot.remove_webhook()
     time.sleep(1)
-    bot.polling(none_stop=True, interval=3, timeout=30, skip_pending=True)
+    print('Polling boshlandi...')
+    bot.infinity_polling(skip_pending=True)
   except Exception as e:
     print(f'Polling xatoligi: {e}')
-    
