@@ -13,7 +13,7 @@ except ImportError:
   psycopg2 = None
 
 TOKEN = os.environ.get(
-    'BOT_TOKEN', '8987164421:AAEQwE3A2Fghdj75Gkto0bJlRo1IJA14LKU'
+    'BOT_TOKEN', '8987164421:AAHDUT9ZzTGe6okKfa-EuYtzq8ov5JtzkIE'
 )
 
 ADMIN_ID = int(os.environ.get('ADMIN_ID', '7986354170'))
