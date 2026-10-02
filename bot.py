@@ -1270,6 +1270,10 @@ def handle_media(message):
 if __name__ == '__main__':
   keep_alive()
   print('Bot ishga tushdi...')
-  bot.infinity_polling(skip_pending=True)
+  try:
+    bot.remove_webhook()
+    bot.infinity_polling(skip_pending=True)
+  except Exception as e:
+    print(f'Xatolik: {e}')
 
         
