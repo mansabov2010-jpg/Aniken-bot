@@ -1270,10 +1270,10 @@ def handle_media(message):
 if __name__ == '__main__':
   keep_alive()
   print('Bot ishga tushmoqda...')
-  time.sleep(3)
+  time.sleep(5)  # Render to'liq o'rnashib olishi uchun biroz ko'proq kutamiz
   try:
     bot.remove_webhook()
-    # infinity_polling o'rniga oddiy polling va interval beramiz
-    bot.polling(none_stop=True, interval=1, timeout=20, skip_pending=True)
+    time.sleep(1)
+    bot.polling(none_stop=True, interval=3, timeout=30, skip_pending=True)
   except Exception as e:
     print(f'Polling xatoligi: {e}')
