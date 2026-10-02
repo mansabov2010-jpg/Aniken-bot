@@ -509,7 +509,7 @@ def format_anime_text(anime_data, bot_username=''):
       f'🤖 Bot: @{bot_username}'
   )
   return formatted_text
-    @bot.message_handler(commands=['start'])
+@bot.message_handler(commands=['start'])
 def send_start(message):
   user_id = message.from_user.id
   # 1-talab: /start bosilganda har qanday holat/bosqich bekor qilinib, bosh menyuga qaytadi
