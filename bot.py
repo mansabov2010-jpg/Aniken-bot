@@ -218,9 +218,11 @@ def send_clean_photo(
       parse_mode=parse_mode,
       protect_content=protect,
   )
-  add_bot_message_to_history(chat_id, msg.message_id, protect=protect)
-  return msg
-  def check_sub(user_id):
+      add_bot_message_to_history(chat_id, msg.message_id, protect=protect)
+    return msg
+
+
+def check_sub(user_id):
   if user_id == ADMIN_ID:
     return True
   channels = []
