@@ -1247,18 +1247,24 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-  elif (
-      state == 'ADD_CHANNEL'
-      and user_states.get(user_id) == 'ADD_CHANNEL'
-      and 'name' in temp_data.get(user_id, {})
-  ):
-    temp_data[user_id]['channel_name'] = text
-    user_states[user_id] = 'ADD_INFO'
-    send_clean_message(
-        message.chat.id,
-        "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
-        parse_mode='Markdown',
-    )
+    elif state == 'ADD_CHANNEL':
+        ch_username = text.strip()
+        if not ch_username.startswith('@') and ch_username != '/skip':
+            ch_username = '@' + ch_username
+
+        if ch_username != '/skip':
+            execute_query(
+                'INSERT OR IGNORE INTO channels (username) VALUES (?)',
+                (ch_username,),
+                commit=True,
+            )
+
+        user_states[user_id] = 'ADD_INFO'
+        send_clean_message(
+            message.chat.id,
+            "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
+            parse_mode='Markdown',
+        )
 
   elif state == 'ADD_INFO':
     info_text = "Ma'lumot mavjud emas" if text == '/skip' else text
