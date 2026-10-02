@@ -1137,7 +1137,7 @@ def message_handler(message):
           parse_mode='Markdown',
       )
 
-elif state == 'ADD_EPISODES':  # <--- Boshidan boshlanadi (chapda)
+elif state == 'ADD_EPISODES': # <--- Boshidan boshlanadi (chapda)
   if not text.isdigit():  # <--- Biroz o'ngga surib (4 ta probel tashlab) yoziladi
     send_clean_message(
         message.chat.id,
