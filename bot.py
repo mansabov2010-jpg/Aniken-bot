@@ -166,7 +166,7 @@ set_bot_commands()
 user_states = {}
 temp_data = {}
 user_last_messages = {}
-  user_last_messages = {}
+user_last_messages = {}
 
 
 def add_bot_message_to_history(chat_id, msg_id, protect=False):
