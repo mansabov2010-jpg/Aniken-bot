@@ -1138,14 +1138,22 @@ def message_handler(message):
       )
 
     elif state == 'ADD_EPISODES':
-      temp_data[user_id]['episodes_count'] = text
-      user_states[user_id] = 'ADD_STATUS'
-      send_clean_message(
-          message.chat.id,
-          "🌐 **Anime statusini kiriting** (Masalan: Davom etmoqda /"
-          " Tugallangan):",
-          parse_mode='Markdown',
-      )
+    if not text.isdigit():
+        send_clean_message(
+            message.chat.id,
+            "❌ Iltimos, faqat raqam kiriting (masalan: 25 / 85):",
+            parse_mode='Markdown'
+        )
+        return
+
+    temp_data[user_id]['episodes_count'] = text
+    user_states[user_id] = 'ADD_STATUS'
+    send_clean_message(
+        message.chat.id,
+        "🌐 **Anime statusini kiriting** (Masalan: Davom etmoqda / Tugallangan):",
+        parse_mode='Markdown'
+    )
+
 
     elif state == 'ADD_STATUS':
       temp_data[user_id]['status'] = text
