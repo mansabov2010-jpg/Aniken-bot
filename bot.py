@@ -1250,7 +1250,7 @@ def message_handler(message):
   elif state == 'ADD_CHANNEL':
     ch_username = text.strip()
     if ch_username != '/skip' and not ch_username.startswith('@'):
-    ch_username = '@' + ch_username
+       ch_username = '@' + ch_username
 
     if ch_username != '/skip':
     execute_query(
