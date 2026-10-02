@@ -1238,31 +1238,27 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-    elif state == 'ADD_GENRE':
-      temp_data[user_id]['genre'] = text
-      user_states[user_id] = 'ADD_CHANNEL'
-      send_clean_message(
-          message.chat.id,
-          '📢 **Kanal nomini kiriting**:',
-          parse_mode='Markdown',
-      )
-
-
-    elif state == 'ADD_CHANNEL':
-        ch_username = text.strip()
-        if not ch_username.startswith('@') and ch_username != '/skip':
-            ch_username = '@' + ch_username
-
-        if ch_username != '/skip':
-            execute_query(
-                'INSERT OR IGNORE INTO channels (username) VALUES (?)',
-                (ch_username,),
-                commit=True,
+        elif state == 'ADD_GENRE':
+            temp_data[user_id]['genre'] = text
+            user_states[user_id] = 'ADD_CHANNEL'
+            send_clean_message(
+                message.chat.id,
+                '📢 **Kanal nomini kiriting**:',
+                parse_mode='Markdown',
             )
 
-        user_states[user_id] = 'ADD_INFO'
-        send_clean_message(
-            message.chat.id,
+        elif state == 'ADD_CHANNEL':
+            ch_username = text.strip()
+            if ch_username != '/skip' and not ch_username.startswith('@'):
+                ch_username = '@' + ch_username
+
+            if ch_username != '/skip':
+                execute_query(
+                    'INSERT OR IGNORE INTO channels (username) VALUES (?)',
+                    (ch_username,),
+                    commit=True,
+                )
+
             "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
             parse_mode='Markdown',
         )
