@@ -1269,11 +1269,11 @@ def handle_media(message):
 
 if __name__ == '__main__':
   keep_alive()
+  print('Kutilyapti...')
+  time.sleep(2)  # Eski jarayon to'liq o'chishi uchun 2 soniya kutamiz
   print('Bot ishga tushdi...')
   try:
     bot.remove_webhook()
     bot.infinity_polling(skip_pending=True)
   except Exception as e:
     print(f'Xatolik: {e}')
-
-        
