@@ -1270,21 +1270,25 @@ def handle_media(message):
         commit=True,
     )
 
-    # 2-talab: Anime yaratilib saqlanishi bilanoq avtomatik ravishda 1-qismni so'rashni boshlaydi
-    user_states[user_id] = 'ADD_PART_VIDEO'
-    # Bazadan yangi qo'shilgan anime ID sini olamiz
-    last_anime = execute_query('SELECT id FROM animes ORDER BY id DESC LIMIT 1', fetchone=True)
+    user_states[user_id] = "ADD_PART_VIDEO"
+    last_anime = execute_query(
+        "SELECT id FROM animes ORDER BY id DESC LIMIT 1", fetchone=True
+    )
     anime_id = last_anime[0] if last_anime else 1
-    temp_data[user_id] = {'anime_id': anime_id, 'next_part_num': 1}
+    temp_data[user_id] = {"anime_id": anime_id, "next_part_num": 1}
 
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("✅ Tamom", callback_data='finish_adding_parts'))
+    markup.add(
+        types.InlineKeyboardButton(
+            "✅ Tamom", callback_data="finish_adding_parts"
+        )
+    )
 
     send_clean_message(
         message.chat.id,
-        "✅ **Anime muvaffaqiyatli bazaga qo'shildi!**\n\n🎥 Endi **1-qismni** yuboring:",
+        f"✅ **Anime muvaffaqiyatli bazaga qo'shildi!**\n\n🎬 Endi **1-qismni** yuboring:",
         reply_markup=markup,
-        parse_mode='Markdown',
+        parse_mode="Markdown",
     )
 
   elif user_id == ADMIN_ID and state == 'ADD_PART_VIDEO' and message.video:
