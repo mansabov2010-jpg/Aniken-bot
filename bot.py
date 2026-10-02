@@ -1018,7 +1018,7 @@ def callback_handler(call):
       )
     except Exception:
       pass
-      @bot.message_handler(func=lambda message: True)
+@bot.message_handler(func=lambda message: True)
 def message_handler(message):
   user_id = message.from_user.id
   state = user_states.get(user_id)
