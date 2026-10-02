@@ -258,7 +258,7 @@ def get_sub_keyboard(unsubscribed_channels):
 
 
 def get_main_inline_menu(user_id):
-  markup = types.InlineKeyboardMarkup(row_width=1)
+  markup = types.InlineKeyboardMarkup(row_width=2)
   markup.add(
       types.InlineKeyboardButton(
           "🔍 Animelarni izlash", callback_data='menu_search'
@@ -266,29 +266,31 @@ def get_main_inline_menu(user_id):
       types.InlineKeyboardButton(
           "📁 Mavjud animelar", callback_data='menu_available_page_1'
       ),
+  )
+  markup.add(
       types.InlineKeyboardButton(
-          "🔥 Tavsiya etiladigan animelar", callback_data='menu_recommended'
-      ),
+          "🔥 Tavsiya etiladigan", callback_data='menu_recommended'
+      )
   )
   if user_id == ADMIN_ID:
     markup.add(
         types.InlineKeyboardButton(
-            "➕ Yangi anime qo'shish", callback_data='admin_add_folder'
+            "➕ Anime qo'shish", callback_data='admin_add_folder'
         ),
         types.InlineKeyboardButton(
-            "➕ Mavjud jildga qism qo'shish", callback_data='admin_add_part'
+            "➕ Qism qo'shish", callback_data='admin_add_part'
         ),
         types.InlineKeyboardButton(
-            "✏️ Anime jildlarini tahrirlash", callback_data='admin_edit_menu'
+            "✏️ Tahrirlash", callback_data='admin_edit_menu'
         ),
         types.InlineKeyboardButton(
-            "⚙️ Kanallarni boshqarish", callback_data='admin_channels'
+            "⚙️ Kanallar", callback_data='admin_channels'
         ),
         types.InlineKeyboardButton(
             "📊 Statistika", callback_data='admin_stats'
         ),
         types.InlineKeyboardButton(
-            "🗑 Animelarni boshqarish", callback_data='admin_manage'
+            "🗑 Boshqarish", callback_data='admin_manage'
         ),
     )
   return markup
@@ -306,8 +308,6 @@ def get_search_inline_keyboard():
       ),
   )
   return markup
-
-
 def get_available_animes_keyboard(page=1, action_type='show'):
   markup = types.InlineKeyboardMarkup(row_width=1)
   animes = (
@@ -427,7 +427,7 @@ def get_recommended_animes_keyboard():
 
 
 def get_anime_folder_keyboard(anime_id, page=1):
-  markup = types.InlineKeyboardMarkup(row_width=1)
+  markup = types.InlineKeyboardMarkup(row_width=6)
   parts_res = (
       execute_query(
           'SELECT part_num FROM parts WHERE anime_id = ? ORDER BY part_num ASC',
@@ -438,7 +438,7 @@ def get_anime_folder_keyboard(anime_id, page=1):
   )
   parts = [row[0] for row in parts_res]
 
-  item_per_page = 15
+  item_per_page = 18
   total_pages = (len(parts) + item_per_page - 1) // item_per_page
   page = max(1, min(page, total_pages))
 
@@ -450,7 +450,7 @@ def get_anime_folder_keyboard(anime_id, page=1):
   for p in current_parts:
     buttons.append(
         types.InlineKeyboardButton(
-            f'{p}-qism', callback_data=f'get_part_{anime_id}_{p}'
+            f'{p}', callback_data=f'get_part_{anime_id}_{p}'
         )
     )
 
@@ -461,14 +461,14 @@ def get_anime_folder_keyboard(anime_id, page=1):
   if page > 1:
     nav_buttons.append(
         types.InlineKeyboardButton(
-            '◀️', callback_data=f'page_{anime_id}_{page-1}'
+            '⬅️', callback_data=f'page_{anime_id}_{page-1}'
         )
     )
   nav_buttons.append(types.InlineKeyboardButton('❌', callback_data='none'))
   if page < total_pages:
     nav_buttons.append(
         types.InlineKeyboardButton(
-            '▶️', callback_data=f'page_{anime_id}_{page+1}'
+            '➡️', callback_data=f'page_{anime_id}_{page+1}'
         )
     )
 
@@ -497,7 +497,6 @@ def format_anime_text(anime_data, bot_username=''):
       channel_name,
   ) = anime_data
 
-  # 5-rasmdagidek tartibli yangi dizayn formati:
   formatted_text = (
       f'<b>🏷 Nomi: {name}</b>\n\n'
       f'<b>🎬 Qismlar soni:</b> {episodes_count}\n'
@@ -514,7 +513,6 @@ def format_anime_text(anime_data, bot_username=''):
 @bot.message_handler(commands=['start'])
 def send_start(message):
   user_id = message.from_user.id
-  # 1-talab: /start bosilganda har qanday holat/bosqich bekor qilinib, bosh menyuga qaytadi
   user_states.pop(user_id, None)
   temp_data.pop(user_id, None)
 
@@ -606,7 +604,7 @@ def cmd_anime(message):
     markup = get_sub_keyboard(sub_res)
     send_clean_message(
         message.chat.id,
-        "⚠️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
+        "⚠️️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
         " kerak:",
         reply_markup=markup,
     )
@@ -856,7 +854,7 @@ def callback_handler(call):
     temp_data[user_id] = {}
     send_clean_message(
         chat_id,
-        "🎬 **Anime nomini kiriting** (Masalan: Re:zero hayotni noldan boshlash):",
+        "🎬 **Anime nomini kiriting**:",
         parse_mode='Markdown',
     )
 
@@ -884,7 +882,6 @@ def callback_handler(call):
         parse_mode='Markdown',
     )
 
-  # 2-talab: "Tamom" tugmasi bosilganda jarayonni to'xtatib, bosh menyuga qaytarish
   elif data == 'finish_adding_parts' and user_id == ADMIN_ID:
     bot.answer_callback_query(call.id, "✅ Qismlarni qo'shish yakunlandi!")
     user_states.pop(user_id, None)
@@ -1040,6 +1037,8 @@ def callback_handler(call):
       )
     except Exception:
       pass
+
+
 @bot.message_handler(func=lambda message: True)
 def message_handler(message):
   user_id = message.from_user.id
@@ -1131,7 +1130,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_SECRET_NAME'
     send_clean_message(
         message.chat.id,
-        '🔑 **Anime uchun maxfiy nomini kiriting** (masalan: rezero):',
+        '🔑 **Maxfiy nomini kiriting**:',
         parse_mode='Markdown',
     )
 
@@ -1140,7 +1139,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_CODE'
     send_clean_message(
         message.chat.id,
-        '🔢 **Anime kodini kiriting** (Unikal raqam yoki harf, masalan: 1):',
+        '🔢 **Anime kodini kiriting**:',
         parse_mode='Markdown',
     )
 
@@ -1154,19 +1153,11 @@ def message_handler(message):
     )
 
   elif state == 'ADD_EPISODES':
-    if not text.isdigit():
-      send_clean_message(
-          message.chat.id,
-          '❌ Iltimos, faqat raqam kiriting (masalan: 25 / 85):',
-          parse_mode='Markdown',
-      )
-      return
-
     temp_data[user_id]['episodes_count'] = text
     user_states[user_id] = 'ADD_STATUS'
     send_clean_message(
         message.chat.id,
-        '🌐 **Anime statusini kiriting** (Masalan: Davom etmoqda / Tugallangan):',
+        '🌐 **Statusini kiriting**:',
         parse_mode='Markdown',
     )
 
@@ -1175,7 +1166,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_QUALITY'
     send_clean_message(
         message.chat.id,
-        '💻 **Video sifatini kiriting** (Masalan: 720p, 1080p):',
+        '💻 **Sifatini kiriting**:',
         parse_mode='Markdown',
     )
 
@@ -1184,7 +1175,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_GENRE'
     send_clean_message(
         message.chat.id,
-        '🎭 **Anime janrini kiriting** (Masalan: Jangari, Sarguzasht):',
+        '🎭 **Janrini kiriting**:',
         parse_mode='Markdown',
     )
 
@@ -1193,7 +1184,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_CHANNEL'
     send_clean_message(
         message.chat.id,
-        '📢 **Kanal nomini kiriting** (Masalan: @AnimeKanal):',
+        '📢 **Kanal nomini kiriting**:',
         parse_mode='Markdown',
     )
 
@@ -1202,8 +1193,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_INFO'
     send_clean_message(
         message.chat.id,
-        "📖 **Anime haqida qisqacha ma'lumot kiriting** (o'tkazib yuborish"
-        ' uchun /skip):',
+        "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
         parse_mode='Markdown',
     )
 
@@ -1213,7 +1203,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_PHOTO'
     send_clean_message(
         message.chat.id,
-        '🖼 **Anime uchun rasm yuboring** (Rasm yoki poster):',
+        '🖼 **Rasm yuboring**:',
         parse_mode='Markdown',
     )
 
@@ -1228,7 +1218,7 @@ def message_handler(message):
     )
     user_states.pop(user_id, None)
     send_clean_message(
-        message.chat.id, f'✅ Kanal muvaffaqiyatli qo\'shildi: {ch_username}'
+        message.chat.id, f'✅ Kanal qo\'shildi: {ch_username}'
     )
 
   elif user_id == ADMIN_ID and state == 'DEL_CHANNEL':
@@ -1238,7 +1228,7 @@ def message_handler(message):
     )
     user_states.pop(user_id, None)
     send_clean_message(
-        message.chat.id, f"🗑 Kanal ro'yxatidan o'chirildi: {ch_username}"
+        message.chat.id, f"🗑 Kanal o'chirildi: {ch_username}"
     )
 
 
@@ -1270,25 +1260,25 @@ def handle_media(message):
         commit=True,
     )
 
-    user_states[user_id] = "ADD_PART_VIDEO"
+    user_states[user_id] = 'ADD_PART_VIDEO'
     last_anime = execute_query(
-        "SELECT id FROM animes ORDER BY id DESC LIMIT 1", fetchone=True
+        'SELECT id FROM animes ORDER BY id DESC LIMIT 1', fetchone=True
     )
     anime_id = last_anime[0] if last_anime else 1
-    temp_data[user_id] = {"anime_id": anime_id, "next_part_num": 1}
+    temp_data[user_id] = {'anime_id': anime_id, 'next_part_num': 1}
 
     markup = types.InlineKeyboardMarkup()
     markup.add(
         types.InlineKeyboardButton(
-            "✅ Tamom", callback_data="finish_adding_parts"
+            '✅ Tamom', callback_data='finish_adding_parts'
         )
     )
 
     send_clean_message(
         message.chat.id,
-        f"✅ **Anime muvaffaqiyatli bazaga qo'shildi!**\n\n🎬 Endi **1-qismni** yuboring:",
+        "✅ **Anime bazaga qo'shildi!**\n\n🎬 Endi **1-qismni** yuboring:",
         reply_markup=markup,
-        parse_mode="Markdown",
+        parse_mode='Markdown',
     )
 
   elif user_id == ADMIN_ID and state == 'ADD_PART_VIDEO' and message.video:
@@ -1297,21 +1287,18 @@ def handle_media(message):
     anime_id = d.get('anime_id')
     part_num = d.get('next_part_num', 1)
 
-    # Qismni bazaga saqlaymiz
     execute_query(
         'INSERT INTO parts (anime_id, part_num, video_id) VALUES (?, ?, ?)',
         (anime_id, part_num, video_id),
         commit=True,
     )
 
-    # Keyingi qism raqamini 1 taga oshiramiz
     next_part = part_num + 1
     temp_data[user_id]['next_part_num'] = next_part
 
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("✅ Tamom", callback_data='finish_adding_parts'))
+    markup.add(types.InlineKeyboardButton('✅ Tamom', callback_data='finish_adding_parts'))
 
-    # 2-talab: Ketidan keyingi qismni so'rab, tagida "Tamom" tugmasi chiqadi
     send_clean_message(
         message.chat.id,
         f"✅ **{part_num}-qism saqlandi!**\n\n🎥 Endi **{next_part}-qismni** yuboring:",
@@ -1336,4 +1323,4 @@ if __name__ == '__main__':
       bot.infinity_polling(skip_pending=True, timeout=60, long_polling_timeout=60)
     except Exception as e:
       print(f'Polling xatoligi: {e}')
-      time.sleep(5)  # 5 sekund kutib, avtomatik qaytadan ulanadi
+      time.sleep(5)
