@@ -1137,8 +1137,8 @@ def message_handler(message):
           parse_mode='Markdown',
       )
 
-elif state == 'ADD_EPISODES': # <--- Boshidan boshlanadi (chapda)
-  if not text.isdigit():  # <--- Biroz o'ngga surib (4 ta probel tashlab) yoziladi
+elif state == 'ADD_EPISODES': 
+  if not text.isdigit():  
     send_clean_message(
         message.chat.id,
         '❌ Iltimos, faqat raqam kiriting (masalan: 25 / 85):',
