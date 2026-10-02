@@ -1239,13 +1239,14 @@ def message_handler(message):
     )
 
     elif state == 'ADD_GENRE':
-        temp_data[user_id]['genre'] = text
-        user_states[user_id] = 'ADD_CHANNEL'
-        send_clean_message(
-            message.chat.id,
-            '📢 **Kanal nomini kiriting**:',
-            parse_mode='Markdown',
-        ) 
+      temp_data[user_id]['genre'] = text
+      user_states[user_id] = 'ADD_CHANNEL'
+      send_clean_message(
+          message.chat.id,
+          '📢 **Kanal nomini kiriting**:',
+          parse_mode='Markdown',
+      )
+
 
     elif state == 'ADD_CHANNEL':
         ch_username = text.strip()
