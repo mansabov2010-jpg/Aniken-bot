@@ -1258,10 +1258,13 @@ def message_handler(message):
             (ch_username,),
             commit=True,
         )
+      user_states[user_id] = 'ADD_INFO'
+      send_clean_message(
+           message.chat.id,
+          "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
+          parse_mode='Markdown',
+      )
 
-            "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
-            parse_mode='Markdown',
-        )
 
   elif state == 'ADD_INFO':
     info_text = "Ma'lumot mavjud emas" if text == '/skip' else text
