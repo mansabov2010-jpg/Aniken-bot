@@ -827,7 +827,7 @@ def callback_handler(call):
       bot.answer_callback_query(
           call.id, "❌ Bu qism topilmadi!", show_alert=True
       )
-          elif data == 'search_by_name':
+  elif data == 'search_by_name':
     bot.answer_callback_query(call.id)
     user_states[user_id] = 'WAITING_SEARCH_NAME'
     try:
