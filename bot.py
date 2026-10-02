@@ -13,7 +13,7 @@ except ImportError:
   psycopg2 = None
 
 TOKEN = os.environ.get(
-    'BOT_TOKEN', '0007164421:AAHKA2EtH6IqaSYuFR0Ose6c1xvO-0OugkRU'
+    'BOT_TOKEN', '8987164421:AAEFK4UEHSV2lPe9E4Kk3KT39qcqpphiTK0'
 )
 ADMIN_ID = int(os.environ.get('ADMIN_ID', '7988354170'))
 DATABASE_URL = os.environ.get('DATABASE_URL', None)
