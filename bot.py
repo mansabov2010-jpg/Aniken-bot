@@ -166,7 +166,7 @@ set_bot_commands()
 user_states = {}
 temp_data = {}
 user_last_messages = {}
-    def add_bot_message_to_history(chat_id, msg_id, protect=False):
+  def add_bot_message_to_history(chat_id, msg_id, protect=False):
   if chat_id == 0:
     return
   if chat_id not in user_last_messages:
