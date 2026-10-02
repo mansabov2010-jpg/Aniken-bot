@@ -166,7 +166,10 @@ set_bot_commands()
 user_states = {}
 temp_data = {}
 user_last_messages = {}
-  def add_bot_message_to_history(chat_id, msg_id, protect=False):
+  user_last_messages = {}
+
+
+def add_bot_message_to_history(chat_id, msg_id, protect=False):
   if chat_id == 0:
     return
   if chat_id not in user_last_messages:
@@ -177,6 +180,13 @@ user_last_messages = {}
       m for m in user_last_messages[chat_id] if not m.get('protect')
   ]
   while len(unprotected) > 2:
+    old_item = unprotected.pop(0)
+    user_last_messages[chat_id].remove(old_item)
+    try:
+      bot.delete_message(chat_id, old_item['msg_id'])
+    except Exception:
+      pass
+
     old_item = unprotected.pop(0)
     user_last_messages[chat_id].remove(old_item)
     try:
