@@ -1137,17 +1137,17 @@ def message_handler(message):
           parse_mode='Markdown',
       )
 
-elif state == 'ADD_EPISODES':
-    if not text.isdigit():
-        send_clean_message(
-            message.chat.id,
-            "❌ Iltimos, faqat raqam kiriting (masalan: 25 / 85):",
-            parse_mode='Markdown'
-        )
-        return
+elif state == 'ADD_EPISODES':  # <--- Boshidan boshlanadi (chapda)
+  if not text.isdigit():  # <--- Biroz o'ngga surib (4 ta probel tashlab) yoziladi
+    send_clean_message(
+        message.chat.id,
+        '❌ Iltimos, faqat raqam kiriting (masalan: 25 / 85):',
+        parse_mode='Markdown',
+    )
+    return
 
-    temp_data[user_id]['episodes_count'] = text
-    user_states[user_id] = 'ADD_STATUS'
+  temp_data[user_id]['episodes_count'] = text
+  user_states[user_id] = 'ADD_STATUS'
     send_clean_message(
         message.chat.id,
         "🌐 **Anime statusini kiriting** (Masalan: Davom etmoqda / Tugallangan):",
