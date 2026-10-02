@@ -14,7 +14,7 @@ except ImportError:
 
 TOKEN = os.environ.get('BOT_TOKEN', '8987164421:AAEQwE3A2Fghdj75Gkto0bJlRo1IJA14LKU')
 
-ADMIN_ID = int(os.environ.get('ADMIN_ID', '7988354170'))
+ADMIN_ID = int(os.environ.get('ADMIN_ID', '7986354170'))
 DATABASE_URL = os.environ.get('DATABASE_URL', None)
 DB_FILE = "bot_data.db"
 
