@@ -1270,5 +1270,6 @@ def handle_media(message):
 if __name__ == '__main__':
   keep_alive()
   print('Bot ishga tushdi...')
-  bot.infinity_polling()
+  bot.infinity_polling(skip_pending=True)
+
         
