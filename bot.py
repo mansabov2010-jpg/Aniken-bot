@@ -223,9 +223,6 @@ def send_clean_photo(
 
 
 def check_sub(user_id):
-
-
-def check_sub(user_id):
   if user_id == ADMIN_ID:
     return True
   channels = []
