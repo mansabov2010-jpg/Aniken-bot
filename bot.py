@@ -958,7 +958,7 @@ def callback_handler(call):
       )
     except Exception:
       pass
-            elif data == 'admin_manage' and user_id == ADMIN_ID:
+  elif data == 'admin_manage' and user_id == ADMIN_ID:
     bot.answer_callback_query(call.id)
     markup = get_available_animes_keyboard(page=1, action_type='admin_opt')
     try:
