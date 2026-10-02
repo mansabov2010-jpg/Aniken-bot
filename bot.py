@@ -15,7 +15,6 @@ except ImportError:
 TOKEN = os.environ.get(
     'BOT_TOKEN', '8987164421:AAHDUT9ZzTGe6okKfa-EuYtzq8ov5JtzkIE'
 )
-
 ADMIN_ID = int(os.environ.get('ADMIN_ID', '7986354170'))
 DATABASE_URL = os.environ.get('DATABASE_URL', None)
 DB_FILE = 'bot_data.db'
@@ -43,6 +42,9 @@ def set_bot_commands():
   commands = [
       types.BotCommand('start', 'Botni ishga tushirish va asosiy menyu'),
       types.BotCommand('anime', 'Anime qidirish'),
+      types.BotCommand(
+          'animekod', 'Kod orqali anime olish (Masalan: /animekod 1)'
+      ),
   ]
   try:
     bot.set_my_commands(
@@ -308,6 +310,8 @@ def get_search_inline_keyboard():
       ),
   )
   return markup
+
+
 def get_available_animes_keyboard(page=1, action_type='show'):
   markup = types.InlineKeyboardMarkup(row_width=1)
   animes = (
@@ -497,19 +501,23 @@ def format_anime_text(anime_data, bot_username=''):
       channel_name,
   ) = anime_data
 
+  bot_link = f'https://t.me/{bot_username}?start=anime_{code}'
+
   formatted_text = (
-      f'<b>🏷 Nomi: {name}</b>\n\n'
-      f'<b>🎬 Qismlar soni:</b> {episodes_count}\n'
-      f'<b>🌐 Holati:</b> {status}\n'
-      f'<b>💻 Sifati:</b> {quality}\n'
-      f'<b>🎭 Janri:</b> {genre}\n'
-      f'<b>📢 Kanali:</b> {channel_name}\n\n'
-      f'<b>📖 Mazmuni:</b>\n{info}\n\n'
-      f'<b>🔑 Kodi:</b> <code>{code}</code>\n'
-      f'<b>👀 Ko\'rilgan:</b> {views}\n\n'
-      f'🤖 Bot: @{bot_username}'
+      f'<i>{name}</i>\n\n'
+      f'┣ 🎬 <b>Qism: {episodes_count}</b>\n'
+      f'┣ 🌐 <b>Holati: {status}</b>\n'
+      f'┣ 💻 <b>Sifat: {quality}</b>\n'
+      f'┣ 🎭 <b>Janrlari: {genre}</b>\n'
+      f'┗ 📢 <b>Kanal: {channel_name}</b>\n\n'
+      f'🔥 <b>Botimiz: @{bot_username}</b>\n'
+      f'🔥 <b>Anime ID: <tg-spoiler>{code}</tg-spoiler></b>\n'
+      f'🔥 <b>Reyting: / 5</b>\n'
+      f'🔥 <b>Link:</b> <code>{bot_link}</code>'
   )
   return formatted_text
+
+
 @bot.message_handler(commands=['start'])
 def send_start(message):
   user_id = message.from_user.id
@@ -604,7 +612,7 @@ def cmd_anime(message):
     markup = get_sub_keyboard(sub_res)
     send_clean_message(
         message.chat.id,
-        "⚠️️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
+        "⚠️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
         " kerak:",
         reply_markup=markup,
     )
@@ -617,6 +625,57 @@ def cmd_anime(message):
       reply_markup=markup,
       parse_mode='Markdown',
   )
+
+
+@bot.message_handler(commands=['animekod'])
+def cmd_animekod(message):
+  args = message.text.split()
+  if len(args) < 2:
+    bot.reply_to(
+        message,
+        "⚠️ Iltimos, kodni kiriting! Masalan: <code>/animekod 1</code>",
+        parse_mode='HTML',
+    )
+    return
+
+  code = args[1].strip()
+  anime = execute_query(
+      'SELECT id, name, secret_name, info, views, code, episodes_count, status,'
+      ' quality, genre, channel_name, photo FROM animes WHERE code = ?',
+      (code,),
+      fetchone=True,
+  )
+
+  if not anime:
+    bot.reply_to(message, "❌ Bu kod bo'yicha hech qanday anime topilmadi.")
+    return
+
+  anime_id = anime[0]
+  bot_username = bot.get_me().username
+  anime_data = anime[1:11]
+  text = format_anime_text(anime_data, bot_username)
+  photo = anime[11]
+
+  markup = types.InlineKeyboardMarkup(row_width=1)
+  markup.add(
+      types.InlineKeyboardButton(
+          '✨ YUKLAB OLISH ✨',
+          url=f'https://t.me/{bot_username}?start=anime_{code}',
+      )
+  )
+
+  if photo:
+    bot.send_photo(
+        message.chat.id,
+        photo,
+        caption=text,
+        reply_markup=markup,
+        parse_mode='HTML',
+    )
+  else:
+    bot.send_message(
+        message.chat.id, text, reply_markup=markup, parse_mode='HTML'
+    )
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -968,7 +1027,7 @@ def callback_handler(call):
     )
     try:
       bot.edit_message_text(
-          text,
+              text,
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1188,7 +1247,11 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-  elif state == 'ADD_CHANNEL' and user_states.get(user_id) == 'ADD_CHANNEL' and 'name' in temp_data.get(user_id, {}):
+  elif (
+      state == 'ADD_CHANNEL'
+      and user_states.get(user_id) == 'ADD_CHANNEL'
+      and 'name' in temp_data.get(user_id, {})
+  ):
     temp_data[user_id]['channel_name'] = text
     user_states[user_id] = 'ADD_INFO'
     send_clean_message(
@@ -1207,7 +1270,11 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-  elif user_id == ADMIN_ID and state == 'ADD_CHANNEL' and 'name' not in temp_data.get(user_id, {}):
+  elif (
+      user_id == ADMIN_ID
+      and state == 'ADD_CHANNEL'
+      and 'name' not in temp_data.get(user_id, {})
+  ):
     ch_username = text.strip()
     if not ch_username.startswith('@'):
       ch_username = '@' + ch_username
@@ -1217,9 +1284,7 @@ def message_handler(message):
         commit=True,
     )
     user_states.pop(user_id, None)
-    send_clean_message(
-        message.chat.id, f'✅ Kanal qo\'shildi: {ch_username}'
-    )
+    send_clean_message(message.chat.id, f"✅ Kanal qo'shildi: {ch_username}")
 
   elif user_id == ADMIN_ID and state == 'DEL_CHANNEL':
     ch_username = text.strip()
@@ -1227,9 +1292,7 @@ def message_handler(message):
         'DELETE FROM channels WHERE username = ?', (ch_username,), commit=True
     )
     user_states.pop(user_id, None)
-    send_clean_message(
-        message.chat.id, f"🗑 Kanal o'chirildi: {ch_username}"
-    )
+    send_clean_message(message.chat.id, f"🗑 Kanal o'chirildi: {ch_username}")
 
 
 @bot.message_handler(content_types=['photo', 'video'])
@@ -1297,11 +1360,16 @@ def handle_media(message):
     temp_data[user_id]['next_part_num'] = next_part
 
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton('✅ Tamom', callback_data='finish_adding_parts'))
+    markup.add(
+        types.InlineKeyboardButton(
+            '✅ Tamom', callback_data='finish_adding_parts'
+        )
+    )
 
     send_clean_message(
         message.chat.id,
-        f"✅ **{part_num}-qism saqlandi!**\n\n🎥 Endi **{next_part}-qismni** yuboring:",
+        f'✅ **{part_num}-qism saqlandi!**\n\n🎥 Endi'
+        f' **{next_part}-qismni** yuboring:',
         reply_markup=markup,
         parse_mode='Markdown',
     )
