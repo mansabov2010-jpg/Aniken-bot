@@ -1225,14 +1225,14 @@ def message_handler(message):
     )
 
     if state == 'WAITING_SEARCH_CODE':
-    user_states.pop(user_id, None)
-    anime = execute_query(
-        'SELECT id, name, sub_name, hidden_name, info, views, code,'
-        ' episodes_count, status, quality, genre, channel_name, photo FROM animes'
-        ' WHERE code = ?',
-        (text.strip(),),
-        fetchone=True,
-    )
+      user_states.pop(user_id, None)
+      anime = execute_query(
+          'SELECT id, name, sub_name, hidden_name, info, views, code,'
+          ' episodes_count, status, quality, genre, channel_name, photo FROM animes'
+          ' WHERE code = ?',
+          (text.strip(),),
+          fetchone=True,
+      )
     if not anime:
       send_clean_message(
           message.chat.id,
