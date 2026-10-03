@@ -1431,7 +1431,7 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-elif state == 'ADD_STATUS':
+  elif state == 'ADD_STATUS':
     temp_data[user_id]['status'] = text
     user_states[user_id] = 'ADD_CHANNEL'
     bot.send_message(
