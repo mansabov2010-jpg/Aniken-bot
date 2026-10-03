@@ -182,60 +182,6 @@ set_bot_commands()
 
 user_states = {}
 temp_data = {}
-user_last_messages = {}
-
-
-def add_bot_message_to_history(chat_id, msg_id, protect=False):
-  if chat_id == 0:
-    return
-  if chat_id not in user_last_messages:
-    user_last_messages[chat_id] = []
-  user_last_messages[chat_id].append({'msg_id': msg_id, 'protect': protect})
-
-  unprotected = [
-      m for m in user_last_messages[chat_id] if not m.get('protect')
-  ]
-  while len(unprotected) > 2:
-    old_item = unprotected.pop(0)
-    user_last_messages[chat_id].remove(old_item)
-    try:
-      bot.delete_message(chat_id, old_item['msg_id'])
-    except Exception:
-      pass
-
-
-def send_clean_message(
-    chat_id, text, reply_markup=None, parse_mode=None, protect=False
-):
-  msg = bot.send_message(
-      chat_id,
-      text,
-      reply_markup=reply_markup,
-      parse_mode=parse_mode,
-      protect_content=protect,
-  )
-  add_bot_message_to_history(chat_id, msg.message_id, protect=protect)
-  return msg
-
-
-def send_clean_photo(
-    chat_id,
-    photo,
-    caption=None,
-    reply_markup=None,
-    parse_mode=None,
-    protect=False,
-):
-  msg = bot.send_photo(
-      chat_id,
-      photo,
-      caption=caption,
-      reply_markup=reply_markup,
-      parse_mode=parse_mode,
-      protect_content=protect,
-  )
-  add_bot_message_to_history(chat_id, msg.message_id, protect=protect)
-  return msg
 
 
 def check_sub(user_id):
@@ -591,21 +537,21 @@ def send_start(message):
         photo = anime[12]
 
         if photo:
-          send_clean_photo(
+          bot.send_photo(
               message.chat.id,
               photo,
               caption=text,
               reply_markup=markup,
               parse_mode='HTML',
-              protect=True,
+              protect_content=True,
           )
         else:
-          send_clean_message(
+          bot.send_message(
               message.chat.id,
               text,
               reply_markup=markup,
               parse_mode='HTML',
-              protect=True,
+              protect_content=True,
           )
         return
     except Exception:
@@ -614,7 +560,7 @@ def send_start(message):
   sub_res = check_sub(user_id)
   if sub_res != True:
     markup = get_sub_keyboard(sub_res)
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         "⚠️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
         " kerak:",
@@ -623,7 +569,7 @@ def send_start(message):
     return
 
   markup = get_main_inline_menu(user_id)
-  send_clean_message(
+  bot.send_message(
       message.chat.id,
       "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
       reply_markup=markup,
@@ -640,7 +586,7 @@ def cmd_anime(message):
   sub_res = check_sub(user_id)
   if sub_res != True:
     markup = get_sub_keyboard(sub_res)
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         "⚠️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
         " kerak:",
@@ -649,7 +595,7 @@ def cmd_anime(message):
     return
 
   markup = get_search_inline_keyboard()
-  send_clean_message(
+  bot.send_message(
       message.chat.id,
       "🔍 **Anime qidirish usulini tanlang:**",
       reply_markup=markup,
@@ -728,7 +674,7 @@ def callback_handler(call):
       except Exception:
         pass
       markup = get_main_inline_menu(user_id)
-      send_clean_message(
+      bot.send_message(
           chat_id,
           "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
           reply_markup=markup,
@@ -766,7 +712,7 @@ def callback_handler(call):
     except Exception:
       pass
     markup = get_main_inline_menu(user_id)
-    send_clean_message(
+    bot.send_message(
         chat_id,
         "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
         reply_markup=markup,
@@ -865,21 +811,21 @@ def callback_handler(call):
         pass
 
       if photo:
-        send_clean_photo(
+        bot.send_photo(
             chat_id,
             photo,
             caption=text,
             reply_markup=markup,
             parse_mode='HTML',
-            protect=True,
+            protect_content=True,
         )
       else:
-        send_clean_message(
+        bot.send_message(
             chat_id,
             text,
             reply_markup=markup,
             parse_mode='HTML',
-            protect=True,
+            protect_content=True,
         )
 
   elif data.startswith('watch_anime_'):
@@ -965,9 +911,16 @@ def callback_handler(call):
     bot.answer_callback_query(call.id)
     user_states[user_id] = 'ADD_NAME'
     temp_data[user_id] = {}
+    
+    # Eski menyu xabarini o'chiramizki, boshqa ostma-ust bo'lib qolmasin
+    try:
+      bot.delete_message(chat_id, call.message.message_id)
+    except Exception:
+      pass
+
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data='back_to_admin_menu'))
-    send_clean_message(
+    bot.send_message(
         chat_id,
         "🎬 **Animening asosiy nomini kiriting**:",
         reply_markup=markup,
@@ -1002,6 +955,11 @@ def callback_handler(call):
 
     temp_data[user_id] = {'anime_id': anime_id, 'next_part_num': next_part_num}
     
+    try:
+      bot.delete_message(chat_id, call.message.message_id)
+    except Exception:
+      pass
+
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton(
@@ -1011,7 +969,7 @@ def callback_handler(call):
             '🔙 Orqaga', callback_data='admin_add_part'
         )
     )
-    send_clean_message(
+    bot.send_message(
         chat_id,
         f"🎥 Tanlangan anime uchun navbatdagi qism: **{next_part_num}-qism**.\n\nVideoni yuboring:",
         reply_markup=markup,
@@ -1027,7 +985,7 @@ def callback_handler(call):
     except Exception:
       pass
     markup = get_main_inline_menu(user_id)
-    send_clean_message(
+    bot.send_message(
         chat_id,
         "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
         reply_markup=markup,
@@ -1103,9 +1061,13 @@ def callback_handler(call):
   elif data == 'admin_add_channel' and user_id == ADMIN_ID:
     bot.answer_callback_query(call.id)
     user_states[user_id] = 'ADD_CHANNEL_NAME'
+    try:
+      bot.delete_message(chat_id, call.message.message_id)
+    except Exception:
+      pass
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data='admin_channels'))
-    send_clean_message(
+    bot.send_message(
         chat_id,
         "📢 Qo'shiladigan kanal username'ini yuboring (Masalan: @AnimeKanal):",
         reply_markup=markup,
@@ -1114,9 +1076,13 @@ def callback_handler(call):
   elif data == 'admin_del_channel' and user_id == ADMIN_ID:
     bot.answer_callback_query(call.id)
     user_states[user_id] = 'DEL_CHANNEL_NAME'
+    try:
+      bot.delete_message(chat_id, call.message.message_id)
+    except Exception:
+      pass
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data='admin_channels'))
-    send_clean_message(
+    bot.send_message(
         chat_id,
         "🗑 O'chiriladigan kanal username'ini yuboring (Masalan: @AnimeKanal):",
         reply_markup=markup,
@@ -1268,7 +1234,11 @@ def callback_handler(call):
 
     user_states[user_id] = 'REPLACE_PART_VIDEO'
     temp_data[user_id] = {'anime_id': anime_id, 'part_num': part_num}
-    send_clean_message(
+    try:
+      bot.delete_message(chat_id, call.message.message_id)
+    except Exception:
+      pass
+    bot.send_message(
         chat_id,
         f"🎥 **{part_num}-qism** o'rniga qo'shish uchun yangi **videoni**"
         ' yuboring:',
@@ -1331,7 +1301,7 @@ def message_handler(message):
         or []
     )
     if not animes:
-      send_clean_message(message.chat.id, '❌ Hech qanday anime topilmadi.')
+      bot.send_message(message.chat.id, '❌ Hech qanday anime topilmadi.')
       return
     markup = types.InlineKeyboardMarkup(row_width=1)
     for anime_id, name in animes:
@@ -1340,7 +1310,7 @@ def message_handler(message):
               f'🎬 {name}', callback_data=f'show_anime_{anime_id}'
           )
       )
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         '🔍 **Topilgan animelar:**',
         reply_markup=markup,
@@ -1357,7 +1327,7 @@ def message_handler(message):
         fetchone=True,
     )
     if not anime:
-      send_clean_message(
+      bot.send_message(
           message.chat.id,
           "❌ Bu kod bo'yicha hech qanday anime topilmadi.",
       )
@@ -1380,27 +1350,27 @@ def message_handler(message):
     photo = anime[12]
 
     if photo:
-      send_clean_photo(
+      bot.send_photo(
           message.chat.id,
           photo,
           caption=formatted_text,
           reply_markup=markup,
           parse_mode='HTML',
-          protect=True,
+          protect_content=True,
       )
     else:
-      send_clean_message(
+      bot.send_message(
           message.chat.id,
           formatted_text,
           reply_markup=markup,
           parse_mode='HTML',
-          protect=True,
+          protect_content=True,
       )
 
   elif user_id == ADMIN_ID and state == 'ADD_NAME':
     temp_data[user_id]['name'] = text
     user_states[user_id] = 'ADD_SUB_NAME'
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         "🏷 **Animening qo'shimcha nomini kiriting**:",
         parse_mode='Markdown',
@@ -1409,7 +1379,7 @@ def message_handler(message):
   elif state == 'ADD_SUB_NAME':
     temp_data[user_id]['sub_name'] = text
     user_states[user_id] = 'ADD_HIDDEN_NAME'
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         "🔑 **Yashirin nomlarini (kalit so'zlar, vergul bilan) kiriting**:",
         parse_mode='Markdown',
@@ -1418,7 +1388,7 @@ def message_handler(message):
   elif state == 'ADD_HIDDEN_NAME':
     temp_data[user_id]['hidden_name'] = text
     user_states[user_id] = 'ADD_CODE'
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         '🔢 **Anime kodini kiriting**:',
         parse_mode='Markdown',
@@ -1427,7 +1397,7 @@ def message_handler(message):
   elif state == 'ADD_CODE':
     temp_data[user_id]['code'] = text
     user_states[user_id] = 'ADD_EPISODES'
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         '🎬 **Qism sonini kiriting (yoki Tugallangan):**',
         parse_mode='Markdown',
@@ -1439,7 +1409,7 @@ def message_handler(message):
     temp_data[user_id]['quality'] = '720p, 1080p'
     temp_data[user_id]['genre'] = 'Drama, Isekai'
     user_states[user_id] = 'ADD_CHANNEL'
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         '📢 **Kanal nomini kiriting**:',
         parse_mode='Markdown',
@@ -1460,7 +1430,7 @@ def message_handler(message):
       )
 
     user_states[user_id] = 'ADD_INFO'
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
         parse_mode='Markdown',
@@ -1470,7 +1440,7 @@ def message_handler(message):
     info_text = "Ma'lumot mavjud emas" if text == '/skip' else text
     temp_data[user_id]['info'] = info_text
     user_states[user_id] = 'ADD_PHOTO'
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         '🖼 **Rasm yuboring (fayl yoki havola):**',
         parse_mode='Markdown',
@@ -1488,7 +1458,7 @@ def message_handler(message):
         commit=True,
     )
     user_states.pop(user_id, None)
-    send_clean_message(message.chat.id, f"✅ Kanal qo'shildi: {ch_username}")
+    bot.send_message(message.chat.id, f"✅ Kanal qo'shildi: {ch_username}")
 
   elif user_id == ADMIN_ID and state == 'DEL_CHANNEL_NAME':
     ch_username = text.strip()
@@ -1496,7 +1466,7 @@ def message_handler(message):
         'DELETE FROM channels WHERE username = ?', (ch_username,), commit=True
     )
     user_states.pop(user_id, None)
-    send_clean_message(message.chat.id, f"🗑 Kanal o'chirildi: {ch_username}")
+    bot.send_message(message.chat.id, f"🗑 Kanal o'chirildi: {ch_username}")
 
 
 @bot.message_handler(content_types=['photo', 'video', 'text'])
@@ -1550,7 +1520,7 @@ def handle_media(message):
         )
     )
 
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         "✅ **Anime bazaga qo'shildi!**\n\n🎬 Endi **1-qismni** yuboring:",
         reply_markup=markup,
@@ -1579,7 +1549,7 @@ def handle_media(message):
         )
     )
 
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         f'✅ **{part_num}-qism saqlandi!**\n\n🎥 Endi'
         f' **{next_part}-qismni** yuboring:',
@@ -1609,7 +1579,7 @@ def handle_media(message):
         )
     )
 
-    send_clean_message(
+    bot.send_message(
         message.chat.id,
         f"✅ **{part_num}-qism** o'rniga yangi video muvaffaqiyatli qo'shildi!",
         reply_markup=markup,
