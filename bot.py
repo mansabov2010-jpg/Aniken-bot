@@ -1307,13 +1307,14 @@ def message_handler(message):
     )
 
   elif state == 'ADD_EPISODES':
-        temp_data[user_id]['episodes_count'] = text
-        user_states[user_id] = 'ADD_STATUS'
+    temp_data[user_id]['episodes_count'] = text
+    user_states[user_id] = 'ADD_STATUS'
     send_clean_message(
         message.chat.id,
         '🌐 **Statusini kiriting (default: Tugallangan):**',
         parse_mode='Markdown',
     )
+
 
   elif state == 'ADD_STATUS':
     temp_data[user_id]['status'] = text
