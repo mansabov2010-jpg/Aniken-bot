@@ -1012,7 +1012,7 @@ def callback_handler(call):
     animes_count = (
         execute_query('SELECT COUNT(*) FROM animes', fetchone=True)[0] or 0
     )
-      parts_count = (
+    parts_count = (
         execute_query('SELECT COUNT(*) FROM parts', fetchone=True)[0] or 0
     )
     text = (
