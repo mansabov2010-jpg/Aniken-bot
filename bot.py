@@ -1422,7 +1422,7 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-elif state == 'ADD_EPISODES':
+  elif state == 'ADD_EPISODES':
     temp_data[user_id]['episodes_count'] = text
     user_states[user_id] = 'ADD_STATUS'
     bot.send_message(
