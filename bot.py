@@ -86,15 +86,16 @@ def init_db():
             CREATE TABLE IF NOT EXISTS animes (
                 id SERIAL PRIMARY KEY,
                 name TEXT,
-                secret_name TEXT,
+                sub_name TEXT,
+                hidden_name TEXT,
                 code TEXT,
                 info TEXT,
                 photo TEXT,
                 episodes_count TEXT DEFAULT 'Noma''lum',
-                status TEXT DEFAULT 'Davom etmoqda',
-                quality TEXT DEFAULT '720p',
-                genre TEXT DEFAULT 'Noma''lum',
-                channel_name TEXT DEFAULT 'Noma''lum',
+                status TEXT DEFAULT 'Tugallangan',
+                quality TEXT DEFAULT '720p, 1080p',
+                genre TEXT DEFAULT 'Drama, Isekai, fantastik',
+                channel_name TEXT DEFAULT '@AniRem_Org',
                 views INTEGER DEFAULT 0
             )
         """)
@@ -117,15 +118,16 @@ def init_db():
             CREATE TABLE IF NOT EXISTS animes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT,
-                secret_name TEXT,
+                sub_name TEXT,
+                hidden_name TEXT,
                 code TEXT,
                 info TEXT,
                 photo TEXT,
                 episodes_count TEXT DEFAULT 'Noma''lum',
-                status TEXT DEFAULT 'Davom etmoqda',
-                quality TEXT DEFAULT '720p',
-                genre TEXT DEFAULT 'Noma''lum',
-                channel_name TEXT DEFAULT 'Noma''lum',
+                status TEXT DEFAULT 'Tugallangan',
+                quality TEXT DEFAULT '720p, 1080p',
+                genre TEXT DEFAULT 'Drama, Isekai, fantastik',
+                channel_name TEXT DEFAULT '@AniRem_Org',
                 views INTEGER DEFAULT 0
             )
         """)
@@ -490,7 +492,8 @@ def get_anime_folder_keyboard(anime_id, page=1):
 def format_anime_text(anime_data, bot_username=''):
   (
       name,
-      secret_name,
+      sub_name,
+      hidden_name,
       info,
       views,
       code,
@@ -535,9 +538,9 @@ def send_start(message):
     try:
       code = args[1].split('_')[1]
       anime = execute_query(
-          'SELECT id, name, secret_name, info, views, code, episodes_count,'
-          ' status, quality, genre, channel_name, photo FROM animes WHERE code'
-          ' = ?',
+          'SELECT id, name, sub_name, hidden_name, info, views, code,'
+          ' episodes_count, status, quality, genre, channel_name, photo FROM'
+          ' animes WHERE code = ?',
           (code,),
           fetchone=True,
       )
@@ -556,9 +559,9 @@ def send_start(message):
             )
         )
         bot_username = bot.get_me().username
-        anime_data = anime[1:11]
+        anime_data = anime[1:12]
         text = format_anime_text(anime_data, bot_username)
-        photo = anime[11]
+        photo = anime[12]
 
         if photo:
           send_clean_photo(
@@ -640,8 +643,9 @@ def cmd_animekod(message):
 
   code = args[1].strip()
   anime = execute_query(
-      'SELECT id, name, secret_name, info, views, code, episodes_count, status,'
-      ' quality, genre, channel_name, photo FROM animes WHERE code = ?',
+      'SELECT id, name, sub_name, hidden_name, info, views, code,'
+      ' episodes_count, status, quality, genre, channel_name, photo FROM animes'
+      ' WHERE code = ?',
       (code,),
       fetchone=True,
   )
@@ -652,9 +656,9 @@ def cmd_animekod(message):
 
   anime_id = anime[0]
   bot_username = bot.get_me().username
-  anime_data = anime[1:11]
+  anime_data = anime[1:12]
   text = format_anime_text(anime_data, bot_username)
-  photo = anime[11]
+  photo = anime[12]
 
   markup = types.InlineKeyboardMarkup(row_width=1)
   markup.add(
@@ -691,7 +695,7 @@ def callback_handler(call):
   if data == 'check_subscription':
     sub_res = check_sub(user_id)
     if sub_res == True:
-      bot.answer_callback_query(call.id, "✅ Obuna tasdiqlandi!")
+      bot.answer_callback_query(call.id, '✅ Obuna tasdiqlandi!')
       try:
         bot.delete_message(chat_id, call.message.message_id)
       except Exception:
@@ -789,8 +793,9 @@ def callback_handler(call):
     anime_id = int(data.split('_')[2])
     bot.answer_callback_query(call.id)
     anime = execute_query(
-        'SELECT id, name, secret_name, info, views, code, episodes_count,'
-        ' status, quality, genre, channel_name, photo FROM animes WHERE id = ?',
+        'SELECT id, name, sub_name, hidden_name, info, views, code,'
+        ' episodes_count, status, quality, genre, channel_name, photo FROM'
+        ' animes WHERE id = ?',
         (anime_id,),
         fetchone=True,
     )
@@ -807,9 +812,9 @@ def callback_handler(call):
           )
       )
       bot_username = bot.get_me().username
-      anime_data = anime[1:11]
+      anime_data = anime[1:12]
       text = format_anime_text(anime_data, bot_username)
-      photo = anime[11]
+      photo = anime[12]
 
       try:
         bot.delete_message(chat_id, call.message.message_id)
@@ -888,7 +893,7 @@ def callback_handler(call):
     user_states[user_id] = 'WAITING_SEARCH_NAME'
     try:
       bot.edit_message_text(
-          "🔤 Qidirilayotgan anime nomini kiriting:",
+          "🔤 Qidirilayotgan anime nomini (yoki kalit so'zni) kiriting:",
           chat_id,
           call.message.message_id,
       )
@@ -913,7 +918,7 @@ def callback_handler(call):
     temp_data[user_id] = {}
     send_clean_message(
         chat_id,
-        "🎬 **Anime nomini kiriting**:",
+        "🎬 **Animening asosiy nomini kiriting**:",
         parse_mode='Markdown',
     )
 
@@ -1017,7 +1022,7 @@ def callback_handler(call):
     )
     text = (
         f"📊 **Bot statistikasi:**\n\n👥 Foydalanuvchilar: {users_count}\n🎬"
-        f" Animelar jildlari: {animes_count}\n📁 Jami qismlar: {parts_count}"
+            f" Animelar jildlari: {animes_count}\n📁 Jami qismlar: {parts_count}"
     )
     markup = types.InlineKeyboardMarkup()
     markup.add(
@@ -1051,7 +1056,6 @@ def callback_handler(call):
   elif data.startswith('admin_anime_opt_') and user_id == ADMIN_ID:
     anime_id = int(data.split('_')[3])
     bot.answer_callback_query(call.id)
-    # Animedagi qismlarni chiqaramiz, toki qaysi qismni o'chirishni tanlay olsin
     markup = types.InlineKeyboardMarkup(row_width=6)
     parts_res = (
         execute_query(
@@ -1088,7 +1092,7 @@ def callback_handler(call):
     anime_name = anime[0] if anime else 'Anime'
     try:
       bot.edit_message_text(
-          f"⚙️ **{anime_name}** bo'yicha o'chiriladigan qismni tanlang yoki animeni to'liq o'chiring:",
+          f"⚙️️ **{anime_name}** bo'yicha o'chiriladigan qismni tanlang yoki animeni to'liq o'chiring:",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1103,7 +1107,6 @@ def callback_handler(call):
     part_num = int(parts_data[3])
     bot.answer_callback_query(call.id)
 
-    # Qismni bazadan o'chirib, o'rnini bo'sh qoldiramiz (video_id ni tozalaymiz yoki qatorni o'chiramiz, talabga ko'ra qator o'chib o'rni ochiq qoladi)
     execute_query(
         'DELETE FROM parts WHERE anime_id = ? AND part_num = ?',
         (anime_id, part_num),
@@ -1122,7 +1125,8 @@ def callback_handler(call):
     )
     try:
       bot.edit_message_text(
-          f"✅ **{part_num}-qism** muvaffaqiyatli o'chirildi va uning o'rni bo'sh qoldirildi.\n\nNima qilmoqchisiz?",
+          f"✅ **{part_num}-qism** muvaffaqiyatli o'chirildi va uning o'rni bo'sh"
+          " qoldirildi.\n\nNima qilmoqchisiz?",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1141,7 +1145,8 @@ def callback_handler(call):
     temp_data[user_id] = {'anime_id': anime_id, 'part_num': part_num}
     send_clean_message(
         chat_id,
-        f"🎥 **{part_num}-qism** o'rniga qo'shish uchun yangi **videoni** yuboring:",
+        f"🎥 **{part_num}-qism** o'rniga qo'shish uchun yangi **videoni**"
+        ' yuboring:',
         parse_mode='Markdown',
     )
 
@@ -1158,7 +1163,8 @@ def callback_handler(call):
     )
     try:
       bot.edit_message_text(
-          "✅ Anime va uning barcha qismlari muvaffaqiyatli o'chirib yuborildi!",
+          '✅ Anime va uning barcha qismlari muvaffaqiyatli o\'chirib'
+          ' yuborildi!',
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1178,16 +1184,27 @@ def message_handler(message):
 
   if state == 'WAITING_SEARCH_NAME':
     user_states.pop(user_id, None)
+    query = text.strip().lower()
     animes = (
         execute_query(
-            'SELECT id, name FROM animes WHERE name LIKE ? ORDER BY id DESC',
-            (f'%{text}%',),
+            """
+            SELECT id, name FROM animes 
+            WHERE LOWER(name) LIKE ? OR LOWER(sub_name) LIKE ? OR LOWER(hidden_name) LIKE ? 
+            ORDER BY id DESC
+        """
+            if not (DATABASE_URL and psycopg2)
+            else """
+            SELECT id, name FROM animes 
+            WHERE LOWER(name) LIKE %s OR LOWER(sub_name) LIKE %s OR LOWER(hidden_name) LIKE %s 
+            ORDER BY id DESC
+        """,
+            (f'%{query}%', f'%{query}%', f'%{query}%'),
             fetchall=True,
         )
         or []
     )
     if not animes:
-      send_clean_message(message.chat.id, "❌ Hech qanday anime topilmadi.")
+      send_clean_message(message.chat.id, '❌ Hech qanday anime topilmadi.')
       return
     markup = types.InlineKeyboardMarkup(row_width=1)
     for anime_id, name in animes:
@@ -1198,7 +1215,7 @@ def message_handler(message):
       )
     send_clean_message(
         message.chat.id,
-        "🔍 **Topilgan animelar:**",
+        '🔍 **Topilgan animelar:**',
         reply_markup=markup,
         parse_mode='Markdown',
     )
@@ -1206,9 +1223,9 @@ def message_handler(message):
   elif state == 'WAITING_SEARCH_CODE':
     user_states.pop(user_id, None)
     anime = execute_query(
-        'SELECT id, name, secret_name, info, views, code, episodes_count,'
-        ' status, quality, genre, channel_name, photo FROM animes WHERE code'
-        ' = ?',
+        'SELECT id, name, sub_name, hidden_name, info, views, code,'
+        ' episodes_count, status, quality, genre, channel_name, photo FROM animes'
+        ' WHERE code = ?',
         (text.strip(),),
         fetchone=True,
     )
@@ -1231,9 +1248,9 @@ def message_handler(message):
         )
     )
     bot_username = bot.get_me().username
-    anime_data = anime[1:11]
+    anime_data = anime[1:12]
     formatted_text = format_anime_text(anime_data, bot_username)
-    photo = anime[11]
+    photo = anime[12]
 
     if photo:
       send_clean_photo(
@@ -1255,15 +1272,24 @@ def message_handler(message):
 
   elif user_id == ADMIN_ID and state == 'ADD_NAME':
     temp_data[user_id]['name'] = text
-    user_states[user_id] = 'ADD_SECRET_NAME'
+    user_states[user_id] = 'ADD_SUB_NAME'
     send_clean_message(
         message.chat.id,
-        '🔑 **Maxfiy nomini kiriting**:',
+        "🏷 **Animening qo'shimcha nomini kiriting**:",
         parse_mode='Markdown',
     )
 
-  elif state == 'ADD_SECRET_NAME':
-    temp_data[user_id]['secret_name'] = text
+  elif state == 'ADD_SUB_NAME':
+    temp_data[user_id]['sub_name'] = text
+    user_states[user_id] = 'ADD_HIDDEN_NAME'
+    send_clean_message(
+        message.chat.id,
+        "🔑 **Yashirin nomlarini (kalit so'zlar, vergul bilan) kiriting**:",
+        parse_mode='Markdown',
+    )
+
+  elif state == 'ADD_HIDDEN_NAME':
+    temp_data[user_id]['hidden_name'] = text
     user_states[user_id] = 'ADD_CODE'
     send_clean_message(
         message.chat.id,
@@ -1276,16 +1302,16 @@ def message_handler(message):
     user_states[user_id] = 'ADD_EPISODES'
     send_clean_message(
         message.chat.id,
-        '🎬 **Qism sonini kiriting**:',
+        '🎬 **Qism sonini kiriting (yoki Tugallangan):**',
         parse_mode='Markdown',
     )
 
   elif state == 'ADD_EPISODES':
-    temp_data[user_id]['episodes_count'] = text
+        temp_data[user_id]['episodes_count'] = text
     user_states[user_id] = 'ADD_STATUS'
     send_clean_message(
         message.chat.id,
-        '🌐 **Statusini kiriting**:',
+        '🌐 **Statusini kiriting (default: Tugallangan):**',
         parse_mode='Markdown',
     )
 
@@ -1294,7 +1320,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_QUALITY'
     send_clean_message(
         message.chat.id,
-        '💻 **Sifatini kiriting**:',
+        '💻 **Sifatini kiriting (default: 720p, 1080p):**',
         parse_mode='Markdown',
     )
 
@@ -1303,7 +1329,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_GENRE'
     send_clean_message(
         message.chat.id,
-        '🎭 **Janrini kiriting**:',
+        '🎭 **Janrini kiriting (default: Drama, Isekai, fantastik):**',
         parse_mode='Markdown',
     )
 
@@ -1312,7 +1338,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_CHANNEL'
     send_clean_message(
         message.chat.id,
-        '📢 **Kanal nomini kiriting**:',
+        '📢 **Kanal nomini kiriting (default: @AniRem_Org):**',
         parse_mode='Markdown',
     )
 
@@ -1341,7 +1367,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_PHOTO'
     send_clean_message(
         message.chat.id,
-        '🖼 **Rasm yuboring**:',
+        '🖼 **Rasm yuboring (fayl yoki havola):**',
         parse_mode='Markdown',
     )
 
@@ -1354,30 +1380,39 @@ def message_handler(message):
     send_clean_message(message.chat.id, f"🗑 Kanal o'chirildi: {ch_username}")
 
 
-@bot.message_handler(content_types=['photo', 'video'])
+@bot.message_handler(content_types=['photo', 'video', 'text'])
 def handle_media(message):
   user_id = message.from_user.id
   state = user_states.get(user_id)
 
-  if user_id == ADMIN_ID and state == 'ADD_PHOTO' and message.photo:
-    photo_id = message.photo[-1].file_id
+  if user_id == ADMIN_ID and state == 'ADD_PHOTO':
+    photo_id = ''
+    if message.photo:
+      photo_id = message.photo[-1].file_id
+    elif message.text:
+      photo_id = message.text
+
     d = temp_data.get(user_id, {})
 
     execute_query(
-        'INSERT INTO animes (name, secret_name, code, info, photo,'
-        ' episodes_count, status, quality, genre, channel_name, views) VALUES'
-        ' (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)',
+        """
+            INSERT INTO animes (
+                name, sub_name, hidden_name, code, info, photo, 
+                episodes_count, status, quality, genre, channel_name, views
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        """,
         (
             d.get('name'),
-            d.get('secret_name'),
+            d.get('sub_name', ''),
+            d.get('hidden_name', ''),
             d.get('code'),
-            d.get('info'),
+            d.get('info', "Ma'lumot kiritilmagan"),
             photo_id,
-            d.get('episodes_count', "Noma'lum"),
-            d.get('status', 'Davom etmoqda'),
-            d.get('quality', '720p'),
-            d.get('genre', "Noma'lum"),
-            d.get('channel_name', "Noma'lum"),
+            d.get('episodes_count', 'Noma\'lum'),
+            d.get('status', 'Tugallangan'),
+            d.get('quality', '720p, 1080p'),
+            d.get('genre', 'Drama, Isekai, fantastik'),
+            d.get('channel_name', '@AniRem_Org'),
         ),
         commit=True,
     )
@@ -1439,7 +1474,6 @@ def handle_media(message):
     anime_id = d.get('anime_id')
     part_num = d.get('part_num')
 
-    # O'sha raqam ostida qaytadan qo'shamiz
     execute_query(
         'INSERT INTO parts (anime_id, part_num, video_id) VALUES (?, ?, ?)',
         (anime_id, part_num, video_id),
@@ -1471,7 +1505,7 @@ if __name__ == '__main__':
   except Exception:
     pass
 
-  time.sleep(2)  # <-- sleep2 ni sleep(2) ga o'zgartiring
+  time.sleep(2)
   while True:
     try:
       bot.remove_webhook()
