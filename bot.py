@@ -149,7 +149,7 @@ def execute_query(
   is_postgres = DATABASE_URL and psycopg2
   conn = get_db_connection()
   cursor = conn.cursor()
-  
+
   if is_postgres:
     query = query.replace('?', '%s')
   else:
@@ -166,7 +166,7 @@ def execute_query(
       conn.commit()
     return result
   except Exception as e:
-    print(f"DB Error: {e}")
+    print(f'DB Error: {e}')
     if commit:
       try:
         conn.rollback()
@@ -350,7 +350,7 @@ def get_available_animes_keyboard(page=1, action_type='show'):
 
   if nav_buttons:
     markup.row(*nav_buttons)
-  
+
   if action_type in ['add_part', 'admin_opt', 'edit_folder']:
     markup.add(
         types.InlineKeyboardButton(
@@ -370,7 +370,7 @@ def get_recommended_animes_keyboard():
   markup = types.InlineKeyboardMarkup(row_width=1)
   animes = (
       execute_query(
-          "SELECT id, name, views FROM animes ORDER BY views DESC LIMIT 10",
+          'SELECT id, name, views FROM animes ORDER BY views DESC LIMIT 10',
           fetchall=True,
       )
       or []
@@ -911,7 +911,7 @@ def callback_handler(call):
     bot.answer_callback_query(call.id)
     user_states[user_id] = 'ADD_NAME'
     temp_data[user_id] = {}
-    
+
     try:
       bot.delete_message(chat_id, call.message.message_id)
     except Exception:
@@ -943,17 +943,21 @@ def callback_handler(call):
     anime_id = int(data.split('_')[4])
     bot.answer_callback_query(call.id)
     user_states[user_id] = 'ADD_PART_VIDEO'
-    
+
     last_part_res = execute_query(
         'SELECT MAX(part_num) FROM parts WHERE anime_id = ?',
         (anime_id,),
         fetchone=True,
     )
-    max_part = last_part_res[0] if last_part_res and last_part_res[0] is not None else 0
+    max_part = (
+        last_part_res[0]
+        if last_part_res and last_part_res[0] is not None
+        else 0
+    )
     next_part_num = max_part + 1
 
     temp_data[user_id] = {'anime_id': anime_id, 'next_part_num': next_part_num}
-    
+
     try:
       bot.delete_message(chat_id, call.message.message_id)
     except Exception:
@@ -966,11 +970,11 @@ def callback_handler(call):
         ),
         types.InlineKeyboardButton(
             '🔙 Orqaga', callback_data='admin_add_part'
-        )
+        ),
     )
     bot.send_message(
         chat_id,
-        f"🎥 Tanlangan anime uchun navbatdagi qism: **{next_part_num}-qism**.\n\nVideoni yuboring:",
+        f'🎥 Tanlangan anime uchun navbatdagi qism: **{next_part_num}-qism**.\n\nVideoni yuboring:',
         reply_markup=markup,
         parse_mode='Markdown',
     )
@@ -1030,9 +1034,7 @@ def callback_handler(call):
     bot.answer_callback_query(call.id)
     rows = execute_query('SELECT username FROM channels', fetchall=True)
     ch_list = (
-        '\n'.join([r[0] for r in rows])
-        if rows
-        else "Hozircha kanallar yo'q."
+        '\n'.join([r[0] for r in rows]) if rows else "Hozircha kanallar yo'q."
     )
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -1048,7 +1050,7 @@ def callback_handler(call):
     )
     try:
       bot.edit_message_text(
-          f"📢 **Majburiy obuna kanallari:**\n\n{ch_list}",
+          f'📢 **Majburiy obuna kanallari:**\n\n{ch_list}',
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1098,20 +1100,37 @@ def callback_handler(call):
     parts_count = (
         execute_query('SELECT COUNT(*) FROM parts', fetchone=True)[0] or 0
     )
-    
-    top_viewed = execute_query('SELECT name, views FROM animes ORDER BY views DESC LIMIT 3', fetchall=True) or []
-    top_viewed_text = "\n".join([f"• {row[0]} — {row[1]} marta" for row in top_viewed]) or "Ma'lumot yo'q"
 
-    oldest_animes = execute_query('SELECT name FROM animes ORDER BY id ASC LIMIT 3', fetchall=True) or []
-    oldest_text = "\n".join([f"• {row[0]}" for row in oldest_animes]) or "Ma'lumot yo'q"
+    top_viewed = (
+        execute_query(
+            'SELECT name, views FROM animes ORDER BY views DESC LIMIT 3',
+            fetchall=True,
+        )
+        or []
+    )
+    top_viewed_text = (
+        '\n'.join([f'• {row[0]} — {row[1]} marta' for row in top_viewed])
+        or "Ma'lumot yo'q"
+    )
+
+    oldest_animes = (
+        execute_query(
+            'SELECT name FROM animes ORDER BY id ASC LIMIT 3', fetchall=True
+        )
+        or []
+    )
+    oldest_text = (
+        '\n'.join([f'• {row[0]}' for row in oldest_animes])
+        or "Ma'lumot yo'q"
+    )
 
     text = (
-        f"📊 **Botning statistikasi:**\n\n"
-        f"👥 **Foydalanuvchilar:** {users_count} ta\n"
-        f"🎬 **Animelar:** {animes_count} ta\n"
-        f"📁 **Qismlar:** {parts_count} ta\n\n"
-        f"🔥 **Top 3 anime:**\n{top_viewed_text}\n\n"
-        f"📌 **Birinchilar:**\n{oldest_text}"
+        f'📊 **Botning statistikasi:**\n\n'
+        f'👥 **Foydalanuvchilar:** {users_count} ta\n'
+        f'🎬 **Animelar:** {animes_count} ta\n'
+        f'📁 **Qismlar:** {parts_count} ta\n\n'
+        f'🔥 **Top 3 anime:**\n{top_viewed_text}\n\n'
+        f'📌 **Birinchilar:**\n{oldest_text}'
     )
     markup = types.InlineKeyboardMarkup()
     markup.add(
@@ -1264,12 +1283,15 @@ def callback_handler(call):
       pass
 
 
-@bot.message_handler(func=lambda message: message.text and not message.text.startswith('/'))
+@bot.message_handler(
+    func=lambda message: message.text and not message.text.startswith('/')
+)
 def message_handler(message):
   if message.chat.type != 'private':
     return
 
   user_id = message.from_user.id
+  chat_id = message.chat.id
   state = user_states.get(user_id)
   text = message.text
 
@@ -1298,7 +1320,7 @@ def message_handler(message):
         or []
     )
     if not animes:
-      bot.send_message(message.chat.id, '❌ Hech qanday anime topilmadi.')
+      bot.send_message(chat_id, '❌ Hech qanday anime topilmadi.')
       return
     markup = types.InlineKeyboardMarkup(row_width=1)
     for anime_id, name in animes:
@@ -1308,7 +1330,7 @@ def message_handler(message):
           )
       )
     bot.send_message(
-        message.chat.id,
+        chat_id,
         '🔍 **Topilgan animelar:**',
         reply_markup=markup,
         parse_mode='Markdown',
@@ -1325,7 +1347,7 @@ def message_handler(message):
     )
     if not anime:
       bot.send_message(
-          message.chat.id,
+          chat_id,
           "❌ Bu kod bo'yicha hech qanday anime topilmadi.",
       )
       return
@@ -1348,7 +1370,7 @@ def message_handler(message):
 
     if photo:
       bot.send_photo(
-          message.chat.id,
+          chat_id,
           photo,
           caption=formatted_text,
           reply_markup=markup,
@@ -1357,7 +1379,7 @@ def message_handler(message):
       )
     else:
       bot.send_message(
-          message.chat.id,
+          chat_id,
           formatted_text,
           reply_markup=markup,
           parse_mode='HTML',
@@ -1368,7 +1390,7 @@ def message_handler(message):
     temp_data[user_id]['name'] = text
     user_states[user_id] = 'ADD_SUB_NAME'
     bot.send_message(
-        message.chat.id,
+        chat_id,
         "🏷 **Animening qo'shimcha nomini kiriting:**",
         parse_mode='Markdown',
     )
@@ -1377,7 +1399,7 @@ def message_handler(message):
     temp_data[user_id]['sub_name'] = text
     user_states[user_id] = 'ADD_HIDDEN_NAME'
     bot.send_message(
-        message.chat.id,
+        chat_id,
         "🔑 **Yashirin nomlarini (kalit so'zlar) kiriting:**",
         parse_mode='Markdown',
     )
@@ -1386,7 +1408,7 @@ def message_handler(message):
     temp_data[user_id]['hidden_name'] = text
     user_states[user_id] = 'ADD_CODE'
     bot.send_message(
-        message.chat.id,
+        chat_id,
         '🔢 **Anime kodini kiriting:**',
         parse_mode='Markdown',
     )
@@ -1395,7 +1417,7 @@ def message_handler(message):
     temp_data[user_id]['code'] = text
     user_states[user_id] = 'ADD_EPISODES'
     bot.send_message(
-        message.chat.id,
+        chat_id,
         '🎬 **Qism sonini kiriting (masalan: 12 yoki Tugallangan):**',
         parse_mode='Markdown',
     )
@@ -1407,7 +1429,7 @@ def message_handler(message):
     temp_data[user_id]['genre'] = 'Drama, Isekai'
     user_states[user_id] = 'ADD_CHANNEL'
     bot.send_message(
-        message.chat.id,
+        chat_id,
         '📢 **Kanal nomini kiriting (masalan: @AniRem_Org):**',
         parse_mode='Markdown',
     )
@@ -1428,7 +1450,7 @@ def message_handler(message):
 
     user_states[user_id] = 'ADD_INFO'
     bot.send_message(
-        message.chat.id,
+        chat_id,
         "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
         parse_mode='Markdown',
     )
@@ -1438,7 +1460,7 @@ def message_handler(message):
     temp_data[user_id]['info'] = info_text
     user_states[user_id] = 'ADD_PHOTO'
     bot.send_message(
-        message.chat.id,
+        chat_id,
         '🖼 **Rasm yuboring (fayl yoki havola):**',
         parse_mode='Markdown',
     )
@@ -1455,7 +1477,7 @@ def message_handler(message):
         commit=True,
     )
     user_states.pop(user_id, None)
-    bot.send_message(message.chat.id, f"✅ Kanal qo'shildi: {ch_username}")
+    bot.send_message(chat_id, f"✅ Kanal qo'shildi: {ch_username}")
 
   elif user_id == ADMIN_ID and state == 'DEL_CHANNEL_NAME':
     ch_username = text.strip()
@@ -1463,12 +1485,13 @@ def message_handler(message):
         'DELETE FROM channels WHERE username = ?', (ch_username,), commit=True
     )
     user_states.pop(user_id, None)
-    bot.send_message(message.chat.id, f"🗑 Kanal o'chirildi: {ch_username}")
+    bot.send_message(chat_id, f"🗑 Kanal o'chirildi: {ch_username}")
 
 
 @bot.message_handler(content_types=['photo', 'video', 'text'])
 def handle_media(message):
   user_id = message.from_user.id
+  chat_id = message.chat.id
   state = user_states.get(user_id)
 
   if user_id == ADMIN_ID and state == 'ADD_PHOTO':
@@ -1518,7 +1541,7 @@ def handle_media(message):
     )
 
     bot.send_message(
-        message.chat.id,
+        chat_id,
         "✅ **Anime bazaga qo'shildi!**\n\n🎬 Endi **1-qismni** yuboring:",
         reply_markup=markup,
         parse_mode='Markdown',
@@ -1547,7 +1570,7 @@ def handle_media(message):
     )
 
     bot.send_message(
-        message.chat.id,
+        chat_id,
         f'✅ **{part_num}-qism saqlandi!**\n\n🎥 Endi'
         f' **{next_part}-qismni** yuboring:',
         reply_markup=markup,
@@ -1577,7 +1600,7 @@ def handle_media(message):
     )
 
     bot.send_message(
-        message.chat.id,
+        chat_id,
         f"✅ **{part_num}-qism** o'rniga yangi video qo'shildi!",
         reply_markup=markup,
         parse_mode='Markdown',
