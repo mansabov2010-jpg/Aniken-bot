@@ -146,23 +146,35 @@ def init_db():
 def execute_query(
     query, params=(), fetchone=False, fetchall=False, commit=False
 ):
+  is_postgres = DATABASE_URL and psycopg2
   conn = get_db_connection()
   cursor = conn.cursor()
-  if DATABASE_URL and psycopg2:
+  
+  if is_postgres:
     query = query.replace('?', '%s')
   else:
     query = query.replace('%s', '?')
 
-  cursor.execute(query, params)
-  result = None
-  if fetchone:
-    result = cursor.fetchone()
-  elif fetchall:
-    result = cursor.fetchall()
-  if commit:
-    conn.commit()
-  conn.close()
-  return result
+  try:
+    cursor.execute(query, params)
+    result = None
+    if fetchone:
+      result = cursor.fetchone()
+    elif fetchall:
+      result = cursor.fetchall()
+    if commit:
+      conn.commit()
+    return result
+  except Exception as e:
+    print(f"DB Error: {e}")
+    if commit:
+      try:
+        conn.rollback()
+      except Exception:
+        pass
+    return None
+  finally:
+    conn.close()
 
 
 init_db()
@@ -329,11 +341,18 @@ def get_available_animes_keyboard(page=1, action_type='show'):
             "❌ Hozircha animelar yo'q", callback_data='none'
         )
     )
-    markup.add(
-        types.InlineKeyboardButton(
-            "🔙 Asosiy menyu", callback_data='back_to_main'
-        )
-    )
+    if action_type in ['add_part', 'admin_opt', 'edit_folder']:
+      markup.add(
+          types.InlineKeyboardButton(
+              "🔙 Orqaga", callback_data='back_to_admin_menu'
+          )
+      )
+    else:
+      markup.add(
+          types.InlineKeyboardButton(
+              "🔙 Asosiy menyu", callback_data='back_to_main'
+          )
+      )
     return markup
 
   items_per_page = 15
@@ -1115,7 +1134,6 @@ def callback_handler(call):
         execute_query('SELECT COUNT(*) FROM parts', fetchone=True)[0] or 0
     )
     
-    # 4 xil statistika ma'lumotlari to'plami
     top_viewed = execute_query('SELECT name, views FROM animes ORDER BY views DESC LIMIT 3', fetchall=True) or []
     top_viewed_text = "\n".join([f"• {row[0]} — {row[1]} marta" for row in top_viewed]) or "Ma'lumot yo'q"
 
@@ -1293,6 +1311,7 @@ def message_handler(message):
 
   if state == 'WAITING_SEARCH_NAME':
     query = text.strip().lower()
+    is_postgres = DATABASE_URL and psycopg2
     animes = (
         execute_query(
             """
@@ -1300,7 +1319,7 @@ def message_handler(message):
             WHERE LOWER(name) LIKE ? OR LOWER(sub_name) LIKE ? OR LOWER(hidden_name) LIKE ? 
             ORDER BY id DESC
         """
-            if not (DATABASE_URL and psycopg2)
+            if not is_postgres
             else """
             SELECT id, name FROM animes 
             WHERE LOWER(name) LIKE %s OR LOWER(sub_name) LIKE %s OR LOWER(hidden_name) LIKE %s 
@@ -1433,7 +1452,9 @@ def message_handler(message):
 
     if ch_username != '/skip':
       execute_query(
-          'INSERT OR IGNORE INTO channels (username) VALUES (?)',
+          'INSERT INTO channels (username) VALUES (?) ON CONFLICT (username) DO NOTHING'
+          if (DATABASE_URL and psycopg2)
+          else 'INSERT OR IGNORE INTO channels (username) VALUES (?)',
           (ch_username,),
           commit=True,
       )
@@ -1460,7 +1481,9 @@ def message_handler(message):
     if not ch_username.startswith('@'):
       ch_username = '@' + ch_username
     execute_query(
-        'INSERT OR IGNORE INTO channels (username) VALUES (?)',
+        'INSERT INTO channels (username) VALUES (?) ON CONFLICT (username) DO NOTHING'
+        if (DATABASE_URL and psycopg2)
+        else 'INSERT OR IGNORE INTO channels (username) VALUES (?)',
         (ch_username,),
         commit=True,
     )
