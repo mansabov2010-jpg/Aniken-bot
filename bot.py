@@ -716,7 +716,7 @@ def callback_handler(call):
     markup = get_sub_keyboard(sub_res)
     try:
       bot.edit_message_text(
-          "⚠️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
+          "⚠️️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
           " kerak:",
           chat_id,
           call.message.message_id,
@@ -1027,7 +1027,7 @@ def callback_handler(call):
     )
     try:
       bot.edit_message_text(
-              text,
+          text,
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1081,7 +1081,7 @@ def callback_handler(call):
     bot.answer_callback_query(call.id)
     execute_query('DELETE FROM parts WHERE anime_id = ?', (anime_id,), commit=True)
     execute_query('DELETE FROM animes WHERE id = ?', (anime_id,), commit=True)
-    markup = types.InlineKeyboardMarkup()
+      markup = types.InlineKeyboardMarkup()
     markup.add(
         types.InlineKeyboardButton(
             "🔙 Animelar ro'yxatiga qaytish", callback_data='admin_manage'
@@ -1242,30 +1242,29 @@ def message_handler(message):
     temp_data[user_id]['genre'] = text
     user_states[user_id] = 'ADD_CHANNEL'
     send_clean_message(
-       message.chat.id,
-       '📢 **Kanal nomini kiriting**:',
+        message.chat.id,
+        '📢 **Kanal nomini kiriting**:',
         parse_mode='Markdown',
     )
 
-   elif state == 'ADD_CHANNEL':
-      ch_username = text.strip()
-        if ch_username != '/skip' and not ch_username.startswith('@'):
-             ch_username = '@' + ch_username
+  elif state == 'ADD_CHANNEL':
+    ch_username = text.strip()
+    if ch_username != '/skip' and not ch_username.startswith('@'):
+      ch_username = '@' + ch_username
 
-        if ch_username != '/skip':
-             execute_query(
-                 'INSERT OR IGNORE INTO channels (username) VALUES (?)',
-                 (ch_username,),
-                commit=True,
-             )
+    if ch_username != '/skip':
+      execute_query(
+          'INSERT OR IGNORE INTO channels (username) VALUES (?)',
+          (ch_username,),
+          commit=True,
+      )
 
-         user_states[user_id] = 'ADD_INFO'
-          send_clean_message(
-           message.chat.id,
-            "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
-            parse_mode='Markdown',
-           )
-
+    user_states[user_id] = 'ADD_INFO'
+    send_clean_message(
+        message.chat.id,
+        "📖 **Ma'lumot kiriting** (o'tkazish uchun /skip):",
+        parse_mode='Markdown',
+    )
 
   elif state == 'ADD_INFO':
     info_text = "Ma'lumot mavjud emas" if text == '/skip' else text
