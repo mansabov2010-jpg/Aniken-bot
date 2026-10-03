@@ -1186,13 +1186,13 @@ def message_handler(message):
     if not state:
         return
 
-  if state == 'WAITING_SEARCH_NAME':
-    user_states.pop(user_id, None)
-    query = text.strip().lower()
-    animes = (
-        execute_query(
-            """
-            SELECT id, name FROM animes 
+    if state == 'WAITING_SEARCH_NAME':
+
+      query = text.strip().lower()
+      animes = (
+          execute_query(
+              """
+              SELECT id, name FROM animes 
             WHERE LOWER(name) LIKE ? OR LOWER(sub_name) LIKE ? OR LOWER(hidden_name) LIKE ? 
             ORDER BY id DESC
         """
