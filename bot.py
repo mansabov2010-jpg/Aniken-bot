@@ -1170,14 +1170,20 @@ def callback_handler(call):
           reply_markup=markup,
       )
     except Exception:
-      pass
 
 
-@bot.message_handler(func=lambda message: True)
+
+@bot.message_handler(func=lambda message: message.text and (message.text.startswith('/') or message.text.startswith('anime') or message.text.startswith('!')))
 def message_handler(message):
-  user_id = message.from_user.id
-  state = user_states.get(user_id)
-  text = message.text
+    if message.chat.type != 'private':
+        if not message.text or not (message.text.startswith('/') or message.text.startswith('anime') or message.text.startswith('!')):
+            return
+    
+    user_id = message.from_user.id
+    state = user_states.get(user_id)
+    text = message.text
+
+
 
   if not state:
     return
@@ -1306,42 +1312,18 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-  elif state == 'ADD_EPISODES':
+elif state == 'ADD_EPISODES':
     temp_data[user_id]['episodes_count'] = text
-    user_states[user_id] = 'ADD_STATUS'
-    send_clean_message(
-        message.chat.id,
-        '🌐 **Statusini kiriting (default: Tugallangan):**',
-        parse_mode='Markdown',
-    )
-
-
-  elif state == 'ADD_STATUS':
-    temp_data[user_id]['status'] = text
-    user_states[user_id] = 'ADD_QUALITY'
-    send_clean_message(
-        message.chat.id,
-        '💻 **Sifatini kiriting (default: 720p, 1080p):**',
-        parse_mode='Markdown',
-    )
-
-  elif state == 'ADD_QUALITY':
-    temp_data[user_id]['quality'] = text
-    user_states[user_id] = 'ADD_GENRE'
-    send_clean_message(
-        message.chat.id,
-        '🎭 **Janrini kiriting (default: Drama, Isekai, fantastik):**',
-        parse_mode='Markdown',
-    )
-
-  elif state == 'ADD_GENRE':
-    temp_data[user_id]['genre'] = text
+    temp_data[user_id]['status'] = "Tugallangan"
+    temp_data[user_id]['quality'] = "720p, 1080p"
+    temp_data[user_id]['genre'] = "Drama, Isekai"
     user_states[user_id] = 'ADD_CHANNEL'
     send_clean_message(
         message.chat.id,
-        '📢 **Kanal nomini kiriting (default: @AniRem_Org):**',
-        parse_mode='Markdown',
+        '📢 **Kanal nomini kiriting**:',
+        parse_mode='Markdown'
     )
+
 
   elif state == 'ADD_CHANNEL':
     ch_username = text.strip()
