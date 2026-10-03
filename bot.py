@@ -1413,12 +1413,21 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-  elif state == 'ADD_CODE':
+elif state == 'ADD_CODE':
     temp_data[user_id]['code'] = text
     user_states[user_id] = 'ADD_EPISODES'
     bot.send_message(
         chat_id,
-        '🎬 **Qism sonini kiriting (masalan: 12 yoki Tugallangan):**',
+        "🎬 **Qism sonini kiriting (masalan: 12 yoki Tugallangan):**",
+        parse_mode='Markdown',
+    )
+
+ elif state == 'ADD_EPISODES':
+    temp_data[user_id]['episodes_count'] = text
+    user_states[user_id] = 'ADD_STATUS'
+    bot.send_message(
+        chat_id,
+        "🎬 **Anime statusini kiriting (masalan: Davom etmoqda yoki Tugallangan):**",
         parse_mode='Markdown',
     )
 
