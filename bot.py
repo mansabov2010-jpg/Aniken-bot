@@ -726,7 +726,7 @@ def callback_handler(call):
     markup = get_main_inline_menu(user_id)
     try:
       bot.edit_message_text(
-          "👑 **Admin boshqaruv paneli:**",
+          "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -912,7 +912,6 @@ def callback_handler(call):
     user_states[user_id] = 'ADD_NAME'
     temp_data[user_id] = {}
     
-    # Eski menyu xabarini o'chiramizki, boshqa ostma-ust bo'lib qolmasin
     try:
       bot.delete_message(chat_id, call.message.message_id)
     except Exception:
@@ -922,7 +921,7 @@ def callback_handler(call):
     markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data='back_to_admin_menu'))
     bot.send_message(
         chat_id,
-        "🎬 **Animening asosiy nomini kiriting**:",
+        "🎬 **Animening asosiy nomini kiriting:**",
         reply_markup=markup,
         parse_mode='Markdown',
     )
@@ -932,7 +931,7 @@ def callback_handler(call):
     markup = get_available_animes_keyboard(page=1, action_type='add_part')
     try:
       bot.edit_message_text(
-          "📁 Qaysi animega qism qo'shmoqchisiz? Animeyni tanlang:",
+          "📁 Qaysi animega qism qo'shmoqchisiz? Animeni tanlang:",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1018,7 +1017,7 @@ def callback_handler(call):
     )
     try:
       bot.edit_message_text(
-          f"✏️ **{anime_name}** tanlandi. Hozircha bu yerda ma'lumotlarni to'g'ridan-to'g'ri yangilash menyusi ishlayapti.",
+          f"✏️ **{anime_name}** tanlandi.",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1107,12 +1106,12 @@ def callback_handler(call):
     oldest_text = "\n".join([f"• {row[0]}" for row in oldest_animes]) or "Ma'lumot yo'q"
 
     text = (
-        f"📊 **Botning kengaytirilgan statistikasi:**\n\n"
-        f"👥 **Jami foydalanuvchilar:** {users_count} ta\n"
-        f"🎬 **Jami animelar jildlari:** {animes_count} ta\n"
-        f"📁 **Jami qismlar:** {parts_count} ta\n\n"
-        f"🔥 **Eng ko'p ko'rilgan top 3 anime:**\n{top_viewed_text}\n\n"
-        f"📌 **Eng birinchi qo'yilgan animelar:**\n{oldest_text}"
+        f"📊 **Botning statistikasi:**\n\n"
+        f"👥 **Foydalanuvchilar:** {users_count} ta\n"
+        f"🎬 **Animelar:** {animes_count} ta\n"
+        f"📁 **Qismlar:** {parts_count} ta\n\n"
+        f"🔥 **Top 3 anime:**\n{top_viewed_text}\n\n"
+        f"📌 **Birinchilar:**\n{oldest_text}"
     )
     markup = types.InlineKeyboardMarkup()
     markup.add(
@@ -1136,7 +1135,7 @@ def callback_handler(call):
     markup = get_available_animes_keyboard(page=1, action_type='admin_opt')
     try:
       bot.edit_message_text(
-          "🗑 Boshqarish yoki qismini o'chirish uchun animeyni tanlang:",
+          "🗑 Boshqarish yoki qismini o'chirish uchun animeni tanlang:",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1162,7 +1161,7 @@ def callback_handler(call):
     for p in parts:
       buttons.append(
           types.InlineKeyboardButton(
-              f'❌ {p}-qism', callback_data=f'del_part_{anime_id}_{p}'
+              f'❌ {p}', callback_data=f'del_part_{anime_id}_{p}'
           )
       )
     if buttons:
@@ -1183,7 +1182,7 @@ def callback_handler(call):
     anime_name = anime[0] if anime else 'Anime'
     try:
       bot.edit_message_text(
-          f"⚙ **{anime_name}** bo'yicha o'chiriladigan qismni tanlang yoki animeni to'liq o'chiring:",
+          f"⚙ **{anime_name}** bo'yicha qismni o'chiring yoki animeni to'liq o'chiring:",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1207,17 +1206,16 @@ def callback_handler(call):
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton(
-            "➕ O'rniga boshqa anime qo'shish",
+            "➕ O'rniga video qo'shish",
             callback_data=f'replace_part_{anime_id}_{part_num}',
         ),
         types.InlineKeyboardButton(
-            "📭 Bo'sh qoldirish", callback_data='admin_manage'
+            "📭 Orqaga", callback_data='admin_manage'
         ),
     )
     try:
       bot.edit_message_text(
-          f"✅ **{part_num}-qism** muvaffaqiyatli o'chirildi va uning o'rni bo'sh"
-          " qoldirildi.\n\nNima qilmoqchisiz?",
+          f"✅ **{part_num}-qism** o'chirildi.",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1240,8 +1238,7 @@ def callback_handler(call):
       pass
     bot.send_message(
         chat_id,
-        f"🎥 **{part_num}-qism** o'rniga qo'shish uchun yangi **videoni**"
-        ' yuboring:',
+        f"🎥 **{part_num}-qism** o'rniga yangi videoni yuboring:",
         parse_mode='Markdown',
     )
 
@@ -1253,12 +1250,12 @@ def callback_handler(call):
     markup = types.InlineKeyboardMarkup()
     markup.add(
         types.InlineKeyboardButton(
-            "🔙 Animelar ro'yxatiga qaytish", callback_data='admin_manage'
+            "🔙 Orqaga", callback_data='admin_manage'
         )
     )
     try:
       bot.edit_message_text(
-          "✅ Anime va uning barcha qismlari muvaffaqiyatli o'chirib yuborildi!",
+          "✅ Anime va uning qismlari o'chirib yuborildi!",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1372,7 +1369,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_SUB_NAME'
     bot.send_message(
         message.chat.id,
-        "🏷 **Animening qo'shimcha nomini kiriting**:",
+        "🏷 **Animening qo'shimcha nomini kiriting:**",
         parse_mode='Markdown',
     )
 
@@ -1381,7 +1378,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_HIDDEN_NAME'
     bot.send_message(
         message.chat.id,
-        "🔑 **Yashirin nomlarini (kalit so'zlar, vergul bilan) kiriting**:",
+        "🔑 **Yashirin nomlarini (kalit so'zlar) kiriting:**",
         parse_mode='Markdown',
     )
 
@@ -1390,7 +1387,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_CODE'
     bot.send_message(
         message.chat.id,
-        '🔢 **Anime kodini kiriting**:',
+        '🔢 **Anime kodini kiriting:**',
         parse_mode='Markdown',
     )
 
@@ -1399,7 +1396,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_EPISODES'
     bot.send_message(
         message.chat.id,
-        '🎬 **Qism sonini kiriting (yoki Tugallangan):**',
+        '🎬 **Qism sonini kiriting (masalan: 12 yoki Tugallangan):**',
         parse_mode='Markdown',
     )
 
@@ -1411,7 +1408,7 @@ def message_handler(message):
     user_states[user_id] = 'ADD_CHANNEL'
     bot.send_message(
         message.chat.id,
-        '📢 **Kanal nomini kiriting**:',
+        '📢 **Kanal nomini kiriting (masalan: @AniRem_Org):**',
         parse_mode='Markdown',
     )
 
@@ -1581,7 +1578,7 @@ def handle_media(message):
 
     bot.send_message(
         message.chat.id,
-        f"✅ **{part_num}-qism** o'rniga yangi video muvaffaqiyatli qo'shildi!",
+        f"✅ **{part_num}-qism** o'rniga yangi video qo'shildi!",
         reply_markup=markup,
         parse_mode='Markdown',
     )
