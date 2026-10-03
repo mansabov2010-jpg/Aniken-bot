@@ -1471,7 +1471,7 @@ if __name__ == '__main__':
   except Exception:
     pass
 
-  time.sleep2()
+  time.sleep(2)  # <-- sleep2 ni sleep(2) ga o'zgartiring
   while True:
     try:
       bot.remove_webhook()
