@@ -1224,7 +1224,7 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-  if state == 'WAITING_SEARCH_CODE':
+    if state == 'WAITING_SEARCH_CODE':
     user_states.pop(user_id, None)
     anime = execute_query(
         'SELECT id, name, sub_name, hidden_name, info, views, code,'
