@@ -1183,10 +1183,8 @@ def message_handler(message):
     state = user_states.get(user_id)
     text = message.text
 
-
-
-  if not state:
-    return
+    if not state:
+        return
 
   if state == 'WAITING_SEARCH_NAME':
     user_states.pop(user_id, None)
