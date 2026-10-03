@@ -716,7 +716,7 @@ def callback_handler(call):
     markup = get_sub_keyboard(sub_res)
     try:
       bot.edit_message_text(
-          "⚠️️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
+          "⚠️ Botdan foydalanish uchun quyidagi kanallarga obuna bo'lishingiz"
           " kerak:",
           chat_id,
           call.message.message_id,
@@ -1012,7 +1012,7 @@ def callback_handler(call):
     animes_count = (
         execute_query('SELECT COUNT(*) FROM animes', fetchone=True)[0] or 0
     )
-    parts_count = (
+      parts_count = (
         execute_query('SELECT COUNT(*) FROM parts', fetchone=True)[0] or 0
     )
     text = (
@@ -1040,7 +1040,7 @@ def callback_handler(call):
     markup = get_available_animes_keyboard(page=1, action_type='admin_opt')
     try:
       bot.edit_message_text(
-          "🗑 Boshqarish yoki o'chirish uchun animeyni tanlang:",
+          "🗑 Boshqarish yoki qismini o'chirish uchun animeyni tanlang:",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1051,11 +1051,28 @@ def callback_handler(call):
   elif data.startswith('admin_anime_opt_') and user_id == ADMIN_ID:
     anime_id = int(data.split('_')[3])
     bot.answer_callback_query(call.id)
-    anime = execute_query(
-        'SELECT name FROM animes WHERE id = ?', (anime_id,), fetchone=True
+    # Animedagi qismlarni chiqaramiz, toki qaysi qismni o'chirishni tanlay olsin
+    markup = types.InlineKeyboardMarkup(row_width=6)
+    parts_res = (
+        execute_query(
+            'SELECT part_num FROM parts WHERE anime_id = ? ORDER BY part_num ASC',
+            (anime_id,),
+            fetchall=True,
+        )
+        or []
     )
-    anime_name = anime[0] if anime else 'Anime'
-    markup = types.InlineKeyboardMarkup(row_width=1)
+    parts = [row[0] for row in parts_res]
+
+    buttons = []
+    for p in parts:
+      buttons.append(
+          types.InlineKeyboardButton(
+              f'❌ {p}-qism', callback_data=f'del_part_{anime_id}_{p}'
+          )
+      )
+    if buttons:
+      markup.add(*buttons)
+
     markup.add(
         types.InlineKeyboardButton(
             "🗑 Animeni to'liq o'chirish",
@@ -1065,9 +1082,13 @@ def callback_handler(call):
             "🔙 Orqaga", callback_data='admin_manage'
         ),
     )
+    anime = execute_query(
+        'SELECT name FROM animes WHERE id = ?', (anime_id,), fetchone=True
+    )
+    anime_name = anime[0] if anime else 'Anime'
     try:
       bot.edit_message_text(
-          f"⚙️ **{anime_name}** bo'yicha amalni tanlang:",
+          f"⚙️ **{anime_name}** bo'yicha o'chiriladigan qismni tanlang yoki animeni to'liq o'chiring:",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1075,6 +1096,54 @@ def callback_handler(call):
       )
     except Exception:
       pass
+
+  elif data.startswith('del_part_') and user_id == ADMIN_ID:
+    parts_data = data.split('_')
+    anime_id = int(parts_data[2])
+    part_num = int(parts_data[3])
+    bot.answer_callback_query(call.id)
+
+    # Qismni bazadan o'chirib, o'rnini bo'sh qoldiramiz (video_id ni tozalaymiz yoki qatorni o'chiramiz, talabga ko'ra qator o'chib o'rni ochiq qoladi)
+    execute_query(
+        'DELETE FROM parts WHERE anime_id = ? AND part_num = ?',
+        (anime_id, part_num),
+        commit=True,
+    )
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton(
+            "➕ O'rniga boshqa anime qo'shish",
+            callback_data=f'replace_part_{anime_id}_{part_num}',
+        ),
+        types.InlineKeyboardButton(
+            "📭 Bo'sh qoldirish", callback_data='admin_manage'
+        ),
+    )
+    try:
+      bot.edit_message_text(
+          f"✅ **{part_num}-qism** muvaffaqiyatli o'chirildi va uning o'rni bo'sh qoldirildi.\n\nNima qilmoqchisiz?",
+          chat_id,
+          call.message.message_id,
+          reply_markup=markup,
+          parse_mode='Markdown',
+      )
+    except Exception:
+      pass
+
+  elif data.startswith('replace_part_') and user_id == ADMIN_ID:
+    parts_data = data.split('_')
+    anime_id = int(parts_data[2])
+    part_num = int(parts_data[3])
+    bot.answer_callback_query(call.id)
+
+    user_states[user_id] = 'REPLACE_PART_VIDEO'
+    temp_data[user_id] = {'anime_id': anime_id, 'part_num': part_num}
+    send_clean_message(
+        chat_id,
+        f"🎥 **{part_num}-qism** o'rniga qo'shish uchun yangi **videoni** yuboring:",
+        parse_mode='Markdown',
+    )
 
   elif data.startswith('confirm_del_anime_') and user_id == ADMIN_ID:
     anime_id = int(data.split('_')[3])
@@ -1276,22 +1345,6 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-  elif (
-      user_id == ADMIN_ID
-      and state == 'ADD_CHANNEL'
-      and 'name' not in temp_data.get(user_id, {})
-  ):
-    ch_username = text.strip()
-    if not ch_username.startswith('@'):
-      ch_username = '@' + ch_username
-    execute_query(
-        'INSERT OR IGNORE INTO channels (username) VALUES (?)',
-        (ch_username,),
-        commit=True,
-    )
-    user_states.pop(user_id, None)
-    send_clean_message(message.chat.id, f"✅ Kanal qo'shildi: {ch_username}")
-
   elif user_id == ADMIN_ID and state == 'DEL_CHANNEL':
     ch_username = text.strip()
     execute_query(
@@ -1380,6 +1433,36 @@ def handle_media(message):
         parse_mode='Markdown',
     )
 
+  elif user_id == ADMIN_ID and state == 'REPLACE_PART_VIDEO' and message.video:
+    video_id = message.video.file_id
+    d = temp_data.get(user_id, {})
+    anime_id = d.get('anime_id')
+    part_num = d.get('part_num')
+
+    # O'sha raqam ostida qaytadan qo'shamiz
+    execute_query(
+        'INSERT INTO parts (anime_id, part_num, video_id) VALUES (?, ?, ?)',
+        (anime_id, part_num, video_id),
+        commit=True,
+    )
+
+    user_states.pop(user_id, None)
+    temp_data.pop(user_id, None)
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton(
+            "🔙 Boshqarishga qaytish", callback_data='admin_manage'
+        )
+    )
+
+    send_clean_message(
+        message.chat.id,
+        f"✅ **{part_num}-qism** o'rniga yangi video muvaffaqiyatli qo'shildi!",
+        reply_markup=markup,
+        parse_mode='Markdown',
+    )
+
 
 if __name__ == '__main__':
   print('Bot ishga tushmoqda...')
@@ -1388,7 +1471,7 @@ if __name__ == '__main__':
   except Exception:
     pass
 
-  time.sleep(2)
+  time.sleep2()
   while True:
     try:
       bot.remove_webhook()
