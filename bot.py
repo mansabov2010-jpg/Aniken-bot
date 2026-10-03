@@ -1022,7 +1022,7 @@ def callback_handler(call):
     )
     text = (
         f"📊 **Bot statistikasi:**\n\n👥 Foydalanuvchilar: {users_count}\n🎬"
-            f" Animelar jildlari: {animes_count}\n📁 Jami qismlar: {parts_count}"
+        f" Animelar jildlari: {animes_count}\n📁 Jami qismlar: {parts_count}"
     )
     markup = types.InlineKeyboardMarkup()
     markup.add(
@@ -1092,7 +1092,7 @@ def callback_handler(call):
     anime_name = anime[0] if anime else 'Anime'
     try:
       bot.edit_message_text(
-          f"⚙️️ **{anime_name}** bo'yicha o'chiriladigan qismni tanlang yoki animeni to'liq o'chiring:",
+          f"⚙ **{anime_name}** bo'yicha o'chiriladigan qismni tanlang yoki animeni to'liq o'chiring:",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1163,8 +1163,7 @@ def callback_handler(call):
     )
     try:
       bot.edit_message_text(
-          '✅ Anime va uning barcha qismlari muvaffaqiyatli o\'chirib'
-          ' yuborildi!',
+          "✅ Anime va uning barcha qismlari muvaffaqiyatli o'chirib yuborildi!",
           chat_id,
           call.message.message_id,
           reply_markup=markup,
@@ -1173,25 +1172,23 @@ def callback_handler(call):
       pass
 
 
-@bot.message_handler(func=lambda message: message.text and (message.text.startswith('/') or message.text.startswith('anime') or message.text.startswith('!')))
+@bot.message_handler(func=lambda message: message.text and not message.text.startswith('/'))
 def message_handler(message):
-    if message.chat.type != 'private':
-        if not message.text or not (message.text.startswith('/') or message.text.startswith('anime') or message.text.startswith('!')):
-            return
-    
-    user_id = message.from_user.id
-    state = user_states.get(user_id)
-    text = message.text
+  if message.chat.type != 'private':
+    return
 
-    if not state:
-        return
+  user_id = message.from_user.id
+  state = user_states.get(user_id)
+  text = message.text
 
-    if state == 'WAITING_SEARCH_NAME':
+  if not state:
+    return
 
-      query = text.strip().lower()
-      animes = (
-          execute_query(
-              """
+  if state == 'WAITING_SEARCH_NAME':
+    query = text.strip().lower()
+    animes = (
+        execute_query(
+            """
               SELECT id, name FROM animes 
             WHERE LOWER(name) LIKE ? OR LOWER(sub_name) LIKE ? OR LOWER(hidden_name) LIKE ? 
             ORDER BY id DESC
@@ -1224,15 +1221,15 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-    if state == 'WAITING_SEARCH_CODE':
-      user_states.pop(user_id, None)
-      anime = execute_query(
-          'SELECT id, name, sub_name, hidden_name, info, views, code,'
-          ' episodes_count, status, quality, genre, channel_name, photo FROM animes'
-          ' WHERE code = ?',
-          (text.strip(),),
-          fetchone=True,
-      )
+  elif state == 'WAITING_SEARCH_CODE':
+    user_states.pop(user_id, None)
+    anime = execute_query(
+        'SELECT id, name, sub_name, hidden_name, info, views, code,'
+        ' episodes_count, status, quality, genre, channel_name, photo FROM animes'
+        ' WHERE code = ?',
+        (text.strip(),),
+        fetchone=True,
+    )
     if not anime:
       send_clean_message(
           message.chat.id,
@@ -1274,14 +1271,14 @@ def message_handler(message):
           protect=True,
       )
 
-    elif user_id == ADMIN_ID and state == 'ADD_NAME':
-      temp_data[user_id]['name'] = text
-      user_states[user_id] = 'ADD_SUB_NAME'
-      send_clean_message(
-          message.chat.id,
-          "🏷 **Animening qo'shimcha nomini kiriting**:",
-          parse_mode='Markdown',
-      )
+  elif user_id == ADMIN_ID and state == 'ADD_NAME':
+    temp_data[user_id]['name'] = text
+    user_states[user_id] = 'ADD_SUB_NAME'
+    send_clean_message(
+        message.chat.id,
+        "🏷 **Animening qo'shimcha nomini kiriting**:",
+        parse_mode='Markdown',
+    )
 
   elif state == 'ADD_SUB_NAME':
     temp_data[user_id]['sub_name'] = text
@@ -1310,18 +1307,17 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-elif state == 'ADD_EPISODES':
+  elif state == 'ADD_EPISODES':
     temp_data[user_id]['episodes_count'] = text
-    temp_data[user_id]['status'] = "Tugallangan"
-    temp_data[user_id]['quality'] = "720p, 1080p"
-    temp_data[user_id]['genre'] = "Drama, Isekai"
+    temp_data[user_id]['status'] = 'Tugallangan'
+    temp_data[user_id]['quality'] = '720p, 1080p'
+    temp_data[user_id]['genre'] = 'Drama, Isekai'
     user_states[user_id] = 'ADD_CHANNEL'
     send_clean_message(
         message.chat.id,
         '📢 **Kanal nomini kiriting**:',
-        parse_mode='Markdown'
+        parse_mode='Markdown',
     )
-
 
   elif state == 'ADD_CHANNEL':
     ch_username = text.strip()
@@ -1389,7 +1385,7 @@ def handle_media(message):
             d.get('code'),
             d.get('info', "Ma'lumot kiritilmagan"),
             photo_id,
-            d.get('episodes_count', 'Noma\'lum'),
+            d.get('episodes_count', "Noma'lum"),
             d.get('status', 'Tugallangan'),
             d.get('quality', '720p, 1080p'),
             d.get('genre', 'Drama, Isekai, fantastik'),
