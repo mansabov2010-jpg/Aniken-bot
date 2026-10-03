@@ -1081,7 +1081,7 @@ def callback_handler(call):
     bot.answer_callback_query(call.id)
     execute_query('DELETE FROM parts WHERE anime_id = ?', (anime_id,), commit=True)
     execute_query('DELETE FROM animes WHERE id = ?', (anime_id,), commit=True)
-      markup = types.InlineKeyboardMarkup()
+    markup = types.InlineKeyboardMarkup()
     markup.add(
         types.InlineKeyboardButton(
             "🔙 Animelar ro'yxatiga qaytish", callback_data='admin_manage'
