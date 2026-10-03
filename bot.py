@@ -1170,7 +1170,7 @@ def callback_handler(call):
           reply_markup=markup,
       )
     except Exception:
-
+      pass
 
 
 @bot.message_handler(func=lambda message: message.text and (message.text.startswith('/') or message.text.startswith('anime') or message.text.startswith('!')))
