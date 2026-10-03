@@ -1274,14 +1274,14 @@ def message_handler(message):
           protect=True,
       )
 
-  elif user_id == ADMIN_ID and state == 'ADD_NAME':
-    temp_data[user_id]['name'] = text
-    user_states[user_id] = 'ADD_SUB_NAME'
-    send_clean_message(
-        message.chat.id,
-        "🏷 **Animening qo'shimcha nomini kiriting**:",
-        parse_mode='Markdown',
-    )
+    elif user_id == ADMIN_ID and state == 'ADD_NAME':
+      temp_data[user_id]['name'] = text
+      user_states[user_id] = 'ADD_SUB_NAME'
+      send_clean_message(
+          message.chat.id,
+          "🏷 **Animening qo'shimcha nomini kiriting**:",
+          parse_mode='Markdown',
+      )
 
   elif state == 'ADD_SUB_NAME':
     temp_data[user_id]['sub_name'] = text
