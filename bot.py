@@ -1422,15 +1422,12 @@ def message_handler(message):
         parse_mode='Markdown',
     )
 
-  elif state == 'ADD_EPISODES':
+elif state == 'ADD_EPISODES':
     temp_data[user_id]['episodes_count'] = text
-    temp_data[user_id]['status'] = 'Tugallangan'
-    temp_data[user_id]['quality'] = '720p, 1080p'
-    temp_data[user_id]['genre'] = 'Drama, Isekai'
-    user_states[user_id] = 'ADD_CHANNEL'
+    user_states[user_id] = 'ADD_STATUS'
     bot.send_message(
         chat_id,
-        '📢 **Kanal nomini kiriting (masalan: @AniRem_Org):**',
+        "🎬 **Anime statusini kiriting (masalan: Davom etmoqda yoki Tugallangan):**",
         parse_mode='Markdown',
     )
 
