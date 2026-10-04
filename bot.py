@@ -1534,15 +1534,12 @@ def callback_handler(call):
             )
         )
         
-    try:
         bot.send_message(
-            chat_id,
-            "🎬 **Animening asosiy nomini kiriting:**",
-            reply_markup=markup,
-            parse_mode='Markdown',
-        )
-except Exception:
-    pass
+        chat_id,
+        "🎬 **Animening asosiy nomini kiriting:**",
+        reply_markup=markup,
+        parse_mode='Markdown',
+    )
 
 elif data == "admin_add_part" and user_id == ADMIN_ID:
     bot.answer_callback_query(call.id)
