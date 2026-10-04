@@ -2164,7 +2164,6 @@ def callback_handler(call):
                 chat_id,
                 call.message.message_id,
                 reply_markup=markup,
-                reply_markup=markup,
                 parse_mode="Markdown"
             )
         except Exception:
