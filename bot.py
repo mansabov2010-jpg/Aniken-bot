@@ -1563,14 +1563,14 @@ def callback_handler(call):
         except Exception:
             pass
 
-    elif data.startswith("select_anime_for_part_") and user_id == ADMIN_ID:
-        try:
-            anime_id = int(data.split("_")[4])
-        except Exception:
-            bot.answer_callback_query(call.id)
-            return
-
+elif data.startswith('select_anime_for_part_') and user_id == ADMIN_ID:
+    try:
+        anime_id = int(data.split("_")[4])
+    except Exception:
         bot.answer_callback_query(call.id)
+        return
+
+    bot.answer_callback_query(call.id)
 
         last_part_res = execute_query(
             "SELECT MAX(part_num) FROM parts WHERE anime_id = ?",
