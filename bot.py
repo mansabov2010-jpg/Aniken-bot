@@ -1539,8 +1539,10 @@ def callback_handler(call):
             chat_id,
             "🎬 **Animening asosiy nomini kiriting:**",
             reply_markup=markup,
-            parse_mode="Markdown",
+            parse_mode='Markdown',
         )
+    except Exception:
+        pass
 
     # ========================================================
     # ADMIN - QISM QO'SHISH
