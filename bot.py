@@ -879,7 +879,7 @@ def format_anime_text(
         f"?start=anime_{code}"
     )
 
-return (
+    return (
     f"<i>{html.escape(str(name))}</i>\n\n"
     f"┣ 🎬 <b>Qism: {html.escape(str(episodes_count))}</b>\n"
     f"┣ 🌐 <b>Holati: {html.escape(str(status))}</b>\n"
