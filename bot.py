@@ -2971,16 +2971,15 @@ def handle_messages(message):
 
     # ========================================================
     # ADMIN - QISMNI ALMASHTIRISH
-    # ========================
-        if user_id == ADMIN_ID and state == "REPLACE_PART_VIDEO":
+    # ========================================================
+
+    if user_id == ADMIN_ID and state == "REPLACE_PART_VIDEO":
 
         if not message.video:
-
             bot.send_message(
                 chat_id,
                 "⚠️ Iltimos, yangi videoni yuboring."
             )
-
             return
 
         video_id = message.video.file_id
@@ -2991,7 +2990,6 @@ def handle_messages(message):
         part_num = d.get("part_num")
 
         if not anime_id or not part_num:
-
             bot.send_message(
                 chat_id,
                 "❌ Qism ma'lumotlari topilmadi."
@@ -3040,7 +3038,6 @@ def handle_messages(message):
         )
 
         return
-
 
 # ============================================================
 # BOTNI ISHGA TUSHIRISH
