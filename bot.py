@@ -18,7 +18,7 @@ except ImportError:
 # SOZLAMALAR
 # =========================================================
 
-TOKEN = os.environ.get("BOT_TOKEN")
+TOKEN = os.environ.get("8987164421:AAHIKjTCtB4781Ns53b3WSHk5xgAWOXTtQ8
 
 if not TOKEN:
     raise RuntimeError(
