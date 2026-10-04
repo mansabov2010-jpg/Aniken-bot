@@ -1546,7 +1546,7 @@ def callback_handler(call):
     # ADMIN - QISM QO'SHISH
     # ========================================================
 
-    elif data == "admin_add_part" and user_id == ADMIN_ID:
+ elif data == "admin_add_part" and user_id == ADMIN_ID:
         bot.answer_callback_query(call.id)
 
         try:
