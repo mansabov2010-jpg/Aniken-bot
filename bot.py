@@ -1533,7 +1533,8 @@ def callback_handler(call):
                 callback_data="back_to_admin_menu",
             )
         )
-
+        
+    try:
         bot.send_message(
             chat_id,
             "🎬 **Animening asosiy nomini kiriting:**",
