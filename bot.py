@@ -1541,12 +1541,23 @@ def callback_handler(call):
             reply_markup=markup,
             parse_mode='Markdown',
         )
+except Exception:
+    pass
+
+elif data == "admin_add_part" and user_id == ADMIN_ID:
+    bot.answer_callback_query(call.id)
+    try:
+        bot.edit_message_text(
+            "📁 **Qaysi animega qism qo'shmoqchisiz?**\nAnimeni tanlang:",
+            chat_id,
+            call.message.message_id,
+            reply_markup=get_available_animes_keyboard(
+                page=1,
+                action_type="add_part",
+            ),
+        )
     except Exception:
         pass
-
-    # ========================================================
-    # ADMIN - QISM QO'SHISH
-    # ========================================================
 
     elif data == "admin_add_part" and user_id == ADMIN_ID:
         bot.answer_callback_query(call.id)
