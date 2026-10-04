@@ -1592,7 +1592,7 @@ def callback_handler(call):
             "next_part_num": next_part_num,
         }
 
-         try:
+        try:
             bot.delete_message(
                 chat_id,
                 call.message.message_id,
