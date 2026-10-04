@@ -1559,23 +1559,6 @@ elif data == "admin_add_part" and user_id == ADMIN_ID:
     except Exception:
         pass
 
-    elif data == "admin_add_part" and user_id == ADMIN_ID:
-        bot.answer_callback_query(call.id)
-
-        try:
-            bot.edit_message_text(
-                "📁 Qaysi animega qism qo'shmoqchisiz? "
-                "Animeni tanlang:",
-                chat_id,
-                call.message.message_id,
-                reply_markup=get_available_animes_keyboard(
-                    page=1,
-                    action_type="add_part",
-                ),
-            )
-        except Exception:
-            pass
-
 elif data.startswith('select_anime_for_part_') and user_id == ADMIN_ID:
     try:
         anime_id = int(data.split("_")[4])
