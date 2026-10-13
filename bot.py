@@ -19,11 +19,11 @@ except ImportError:
 # SOZLAMALAR
 # ============================================================
 
-TOKEN = os.environ.get('BOT_TOKEN', '8987164421:AAHIKjTCtB4781Ns53b3WSHk5xgAWOXTtQ8')
+TOKEN = os.environ.get('BOT_TOKEN', 'SIZNING_BOT_TOKENINGIZ')
 bot = telebot.TeleBot(TOKEN)
 
-# 2 nafar adminning Telegram ID raqamlari (o'zingiznikiga o'zgartiring)
-ADMIN_IDS = [7986354170, 7986354170]
+# Adminning Telegram ID raqami (o'zingiznikiga o'zgartiring)
+ADMIN_IDS = [123456789]
 
 # Foydalanuvchilarning holatini (state) saqlash uchun lug'at
 user_states = {}
@@ -140,7 +140,7 @@ def send_welcome(message):
             markup.add(types.InlineKeyboardButton("🔄 Obunani tekshirish", callback_data="check_sub"))
             
             bot.send_message(message.chat.id, 
-                             "⚠️ Diqqat! Botimizdan foydalanish uchun quyidagi kanal(lar)ga obuna bo'lishingiz shart.\n\nObuna bo'lgandan so'ng '🔄 Obunani tekshirish' tugmasini bosing:", 
+                             "⚠️ **Diqqat!** Botimizdan foydalanish uchun quyidagi kanal(lar)ga obuna bo'lishingiz shart.\n\nObuna bo'lgandan so'ng **'🔄 Obunani tekshirish'** tugmasini bosing:", 
                              reply_markup=markup, parse_mode="Markdown")
             return
 
@@ -157,7 +157,7 @@ def send_welcome(message):
         markup.add(btn_add_anime, btn_del_anime)
         markup.add(btn_broadcast, btn_stats)
         
-        bot.send_message(message.chat.id, "👑 Xush kelibsiz, Admin! Boshqaruv paneli:", reply_markup=markup, parse_mode="Markdown")
+        bot.send_message(message.chat.id, "👑 **Xush kelibsiz, Admin!** Boshqaruv paneli:", reply_markup=markup, parse_mode="Markdown")
     else:
         btn_search = types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu")
         btn_list = types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list")
@@ -169,7 +169,7 @@ def send_welcome(message):
         markup.add(btn_hot, btn_recent)
         markup.add(btn_top)
         
-        bot.send_message(message.chat.id, "✨ Assalomu alaykum! Ani Kenbot'ga xush kelibsiz.\n\nKerakli bo'limni tanlang:", reply_markup=markup, parse_mode="Markdown")
+        bot.send_message(message.chat.id, "✨ **Assalomu alaykum! Ani Kenbot'ga xush kelibsiz.**\n\nKerakli bo'limni tanlang:", reply_markup=markup, parse_mode="Markdown")
 
 
 # Callback tugmalar bilan ishlash
@@ -191,7 +191,7 @@ def callback_handler(call):
         btn_recent = types.InlineKeyboardButton("⏰ Oxirgi qo'shilganlar", callback_data="recent_animes")
         btn_top = types.InlineKeyboardButton("⭐ Top animelar", callback_data="top_animes")
         markup.add(btn_search, btn_list, btn_hot, btn_recent, btn_top)
-        bot.edit_message_text("✨ Rahmat! Endi botdan to'liq foydalanishingiz mumkin:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("✨ **Rahmat! Endi botdan to'liq foydalanishingiz mumkin:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         return
 
     if user_id not in ADMIN_IDS:
@@ -199,28 +199,28 @@ def callback_handler(call):
         if not is_sub:
             bot.answer_callback_query(call.id, "⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
             return
-            
-    if call.data == "search_menu":          
+
+    if call.data == "search_menu":
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup(row_width=1)
         btn_code = types.InlineKeyboardButton("🔢 Kod orqali izlash", callback_data="search_by_code")
         btn_name = types.InlineKeyboardButton("🔤 Nomi orqali izlash", callback_data="search_by_name")
         btn_back = types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main")
         markup.add(btn_code, btn_name, btn_back)
-        bot.edit_message_text("🔍 Qidirish usulini tanlang:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("🔍 **Qidirish usulini tanlang:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
     elif call.data == "search_by_code":
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="search_menu"))
-        bot.edit_message_text("🔢 Marhamat, anime kodini yuboring (masalan: 101):", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("🔢 **Marhamat, anime kodini yuboring (masalan: 101):**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         user_states[user_id] = "waiting_for_code_search"
 
     elif call.data == "search_by_name":
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="search_menu"))
-        bot.edit_message_text("🔤 Animening to'liq yoki yashirin nomini yuboring:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("🔤 **Animening to'liq yoki yashirin nomini yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         user_states[user_id] = "waiting_for_name_search"
         
     elif call.data == "anime_list":
@@ -234,10 +234,10 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup(row_width=1)
         if not rows:
             markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("📂 Hozircha bazada animelar mavjud emas.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("📂 **Hozircha bazada animelar mavjud emas.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
             return
             
-        text = "📂 Mavjud animelar katalogi:\n"
+        text = "📂 **Mavjud animelar katalogi:**\n"
         for title, code in rows:
             markup.add(types.InlineKeyboardButton(f"🎬 {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
@@ -259,12 +259,12 @@ def callback_handler(call):
             conn.commit()
             conn.close()
             
-            caption = f"🎬 Anime: {title}\n" \
-                      f"🔢 Kod: {code}\n" \
-                      f"📢 Kanal: {ch_name}\n" \
-                      f"🧩 Qismlari: {episodes}\n" \
-                      f"🎭 Janri: {genre}\n\n" \
-                      f"📖 Ma'lumot:\n{description}"
+            caption = f"🎬 **Anime:** {title}\n" \
+                      f"🔢 **Kod:** {code}\n" \
+                      f"📢 **Kanal:** {ch_name}\n" \
+                      f"🧩 **Qismlari:** {episodes}\n" \
+                      f"🎭 **Janri:** {genre}\n\n" \
+                      f"📖 **Ma'lumot:**\n{description}"
             
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton(f"📺 {ch_name} kanaliga o'tish", url=ch_link))
@@ -290,10 +290,10 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup(row_width=1)
         if not rows:
             markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("🔥 Hozircha qaynoq animelar yo'q.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("🔥 **Hozircha qaynoq animelar yo'q.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
             return
             
-        text = "🔥 Eng qaynoq va ko'p ko'rilgan animelar:\n"
+        text = "🔥 **Eng qaynoq va ko'p ko'rilgan animelar:**\n"
         for title, code in rows:
             markup.add(types.InlineKeyboardButton(f"🔥 {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
@@ -311,10 +311,10 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup(row_width=1)
         if not rows:
             markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("⏰ Hozircha yangi animelar qo'shilmagan.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("⏰ **Hozircha yangi animelar qo'shilmagan.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
             return
             
-        text = "⏰ Oxirgi qo'shilgan animelar:\n"
+        text = "⏰ **Oxirgi qo'shilgan animelar:**\n"
         for title, code in rows:
             markup.add(types.InlineKeyboardButton(f"⏰ {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
@@ -332,16 +332,16 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup(row_width=1)
         if not rows:
             markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("⭐ Hozircha top animelar ro'yxati bo'sh.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("⭐ **Hozircha top animelar ro'yxati bo'sh.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
             return
             
-        text = "⭐ Reytingi eng baland Top animelar:\n"
+        text = "⭐ **Reytingi eng baland Top animelar:**\n"
         for title, code in rows:
             markup.add(types.InlineKeyboardButton(f"⭐ {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
         
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        
+
     elif call.data == "back_to_main":
         bot.answer_callback_query(call.id)
         user_states.pop(user_id, None)
@@ -358,7 +358,7 @@ def callback_handler(call):
             markup.add(btn_add_force, btn_del_force)
             markup.add(btn_add_anime, btn_del_anime)
             markup.add(btn_broadcast, btn_stats)
-            bot.edit_message_text("👑 Admin boshqaruv paneli:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("👑 **Admin boshqaruv paneli:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         else:
             btn_search = types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu")
             btn_list = types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list")
@@ -366,14 +366,14 @@ def callback_handler(call):
             btn_recent = types.InlineKeyboardButton("⏰ Oxirgi qo'shilganlar", callback_data="recent_animes")
             btn_top = types.InlineKeyboardButton("⭐ Top animelar", callback_data="top_animes")
             markup.add(btn_search, btn_list, btn_hot, btn_recent, btn_top)
-            bot.edit_message_text("✨ Kerakli bo'limni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("✨ **Kerakli bo'limni tanlang:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
     # Admin boshqaruv bo'limlari
     elif call.data == "add_force_channel" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("📢 Majburiy obuna uchun kanal usernamesini yuboring (masalan: @kanal_nomi):", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("📢 **Majburiy obuna uchun kanal usernamesini yuboring** (masalan: `@kanal_nomi`):", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         user_states[user_id] = "waiting_force_username"
 
     elif call.data == "del_force_channel" and user_id in ADMIN_IDS:
@@ -387,13 +387,13 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup(row_width=1)
         if not channels:
             markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("📂 Majburiy obuna kanallari mavjud emas.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("📂 **Majburiy obuna kanallari mavjud emas.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
             return
             
         for ch_id, ch_uname in channels:
             markup.add(types.InlineKeyboardButton(f"❌ O'chirish: {ch_uname}", callback_data=f"remove_force_{ch_id}"))
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("🗑 O'chirmoqchi bo'lgan majburiy kanalni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("🗑 **O'chirmoqchi bo'lgan majburiy kanalni tanlang:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
     elif call.data.startswith("remove_force_") and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
@@ -406,13 +406,13 @@ def callback_handler(call):
         
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("✅ Majburiy kanal muvaffaqiyatli o'chirildi!", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        
+        bot.edit_message_text("✅ **Majburiy kanal muvaffaqiyatli o'chirildi!**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+
     elif call.data == "add_anime" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("📢 1-qadam: Anime joylanadigan kanal nomini kiriting:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("📢 **1-qadam:** Anime joylanadigan kanal nomini kiriting:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         user_states[user_id] = "waiting_anime_channel_name"
 
     elif call.data == "del_anime_menu" and user_id in ADMIN_IDS:
@@ -426,13 +426,13 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup(row_width=1)
         if not rows:
             markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("📂 O'chirish uchun animelar mavjud emas.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("📂 **O'chirish uchun animelar mavjud emas.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
             return
             
         for a_id, title, code in rows:
             markup.add(types.InlineKeyboardButton(f"❌ O'chirish: {title} (Kod: {code})", callback_data=f"remove_anime_{a_id}"))
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("🗑 O'chirmoqchi bo'lgan animeni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("🗑 **O'chirmoqchi bo'lgan animeni tanlang:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
     elif call.data.startswith("remove_anime_") and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
@@ -445,13 +445,13 @@ def callback_handler(call):
         
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("✅ Anime bazadan muvaffaqiyatli o'chirildi!", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("✅ **Anime bazadan muvaffaqiyatli o'chirildi!**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
     elif call.data == "admin_broadcast" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("📤 Obunachilarga yubormoqchi bo'lgan xabaringizni (matn, rasm yoki video) yuboring:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("📤 **Obunachilarga yubormoqchi bo'lgan xabaringizni (matn, rasm yoki video) yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         user_states[user_id] = "waiting_broadcast_message"
 
     elif call.data == "admin_stats" and user_id in ADMIN_IDS:
@@ -468,8 +468,10 @@ def callback_handler(call):
         
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        text = f"📊 Bot statistikasi:\n\n- Jami animelar: {anime_count} ta\n- Majburiy kanallar: {force_count} ta\n- Obunachilar: {user_count} ta"
+        text = f"📊 **Bot statistikasi:**\n\n- Jami animelar: {anime_count} ta\n- Majburiy kanallar: {force_count} ta\n- Obunachilar: {user_count} ta"
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+
+
 # Oddiy xabarlarni va bosqichlarni uzluksiz boshqarish
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'video', 'document'])
 def handle_messages(message):
@@ -489,7 +491,7 @@ def handle_messages(message):
             for ch_username, ch_link in unsubs:
                 markup.add(types.InlineKeyboardButton(f"📢 Kanalga obuna bo'lish", url=ch_link))
             markup.add(types.InlineKeyboardButton("🔄 Obunani tekshirish", callback_data="check_sub"))
-            bot.reply_to(message, "⚠️ Diqqat! Botdan foydalanish uchun avval ko'rsatilgan kanalga obuna bo'lishingiz kerak!", reply_markup=markup, parse_mode="Markdown")
+            bot.reply_to(message, "⚠️ **Diqqat!** Botdan foydalanish uchun avval ko'rsatilgan kanalga obuna bo'lishingiz kerak!", reply_markup=markup, parse_mode="Markdown")
             return
 
     state = user_states.get(user_id)
@@ -514,7 +516,7 @@ def handle_messages(message):
             except Exception:
                 failed += 1
                 
-        bot.reply_to(message, f"✅ Xabar muvaffaqiyatli tarqatildi!\n\n- Yetib bordi: {success} ta\n- Xatolik: {failed} ta", reply_markup=markup_back, parse_mode="Markdown")
+        bot.reply_to(message, f"✅ **Xabar muvaffaqiyatli tarqatildi!**\n\n- Yetib bordi: {success} ta\n- Xatolik: {failed} ta", reply_markup=markup_back, parse_mode="Markdown")
         user_states.pop(user_id, None)
 
     # Majburiy kanal qo'shish
@@ -542,13 +544,13 @@ def handle_messages(message):
         bot.reply_to(message, f"✅ Muvaffaqiyatli! Majburiy obuna uchun '{ch_uname}' kanali qo'shildi.", reply_markup=markup_back)
         user_states.pop(user_id, None)
 
-    # Anime qo'shish bosqichlari
+    # Anime qo'shish bosqichlari (Barcha qadamlar to'liq va ketma-ket)
     elif state == "waiting_anime_channel_name":
         if not message.text:
             bot.reply_to(message, "Iltimos, kanal nomini yuboring.")
             return
         user_states[f"anime_ch_name_{user_id}"] = message.text
-        bot.reply_to(message, "🔗 2-qadam: O'sha kanalning linkini yuboring:", reply_markup=markup_back, parse_mode="Markdown")
+        bot.reply_to(message, "🔗 **2-qadam:** O'sha kanalning linkini yuboring:", reply_markup=markup_back, parse_mode="Markdown")
         user_states[user_id] = "waiting_anime_channel_link"
 
     elif state == "waiting_anime_channel_link":
@@ -556,7 +558,7 @@ def handle_messages(message):
             bot.reply_to(message, "Iltimos, kanal linkini yuboring.")
             return
         user_states[f"anime_ch_link_{user_id}"] = message.text
-        bot.reply_to(message, "🎬 3-qadam: Animening to'liq nomini kiriting:", reply_markup=markup_back, parse_mode="Markdown")
+        bot.reply_to(message, "🎬 **3-qadam:** Animening to'liq nomini kiriting:", reply_markup=markup_back, parse_mode="Markdown")
         user_states[user_id] = "waiting_anime_title"
 
     elif state == "waiting_anime_title":
@@ -564,7 +566,7 @@ def handle_messages(message):
             bot.reply_to(message, "Iltimos, anime nomini yuboring.")
             return
         user_states[f"anime_title_{user_id}"] = message.text
-        bot.reply_to(message, "🔤 4-qadam: Animening yashirin yoki muqobil nomlarini yuboring (vergul bilan):", reply_markup=markup_back, parse_mode="Markdown")
+        bot.reply_to(message, "🔤 **4-qadam:** Animening yashirin yoki muqobil nomlarini yuboring (vergul bilan):", reply_markup=markup_back, parse_mode="Markdown")
         user_states[user_id] = "waiting_anime_hidden"
 
     elif state == "waiting_anime_hidden":
@@ -572,7 +574,7 @@ def handle_messages(message):
             bot.reply_to(message, "Iltimos, yashirin nomlarni yuboring.")
             return
         user_states[f"anime_hidden_{user_id}"] = message.text
-        bot.reply_to(message, "🔢 5-qadam: Anime uchun maxsus kod (raqam) yuboring (masalan: 101):", reply_markup=markup_back, parse_mode="Markdown")
+        bot.reply_to(message, "🔢 **5-qadam:** Anime uchun maxsus kod (raqam) yuboring (masalan: 101):", reply_markup=markup_back, parse_mode="Markdown")
         user_states[user_id] = "waiting_anime_code"
 
     elif state == "waiting_anime_code":
@@ -580,7 +582,7 @@ def handle_messages(message):
             bot.reply_to(message, "Iltimos, raqamli kod yuboring.")
             return
         user_states[f"anime_code_{user_id}"] = message.text
-        bot.reply_to(message, "🖼 6-qadam: Animening rasmini (posterini) yuboring:", reply_markup=markup_back, parse_mode="Markdown")
+        bot.reply_to(message, "🖼 **6-qadam:** Animening rasmini (posterini) yuboring:", reply_markup=markup_back, parse_mode="Markdown")
         user_states[user_id] = "waiting_anime_photo"
 
     elif state == "waiting_anime_photo":
@@ -588,7 +590,7 @@ def handle_messages(message):
             bot.reply_to(message, "❌ Iltimos, rasm (foto) yuboring!")
             return
         user_states[f"anime_photo_{user_id}"] = message.photo[-1].file_id
-        bot.reply_to(message, "🧩 7-qadam: Animening qismlarini yuboring (masalan: 1-12 qism):", reply_markup=markup_back, parse_mode="Markdown")
+        bot.reply_to(message, "🧩 **7-qadam:** Animening qismlarini yuboring (masalan: 1-12 qism):", reply_markup=markup_back, parse_mode="Markdown")
         user_states[user_id] = "waiting_anime_episodes"
 
     elif state == "waiting_anime_episodes":
@@ -596,7 +598,7 @@ def handle_messages(message):
             bot.reply_to(message, "Iltimos, qismlarini yuboring.")
             return
         user_states[f"anime_episodes_{user_id}"] = message.text
-        bot.reply_to(message, "🎭 8-qadam: Animening janrini yuboring (masalan: Jangari, Romantika):", reply_markup=markup_back, parse_mode="Markdown")
+        bot.reply_to(message, "🎭 **8-qadam:** Animening janrini yuboring (masalan: Jangari, Romantika):", reply_markup=markup_back, parse_mode="Markdown")
         user_states[user_id] = "waiting_anime_genre"
 
     elif state == "waiting_anime_genre":
@@ -604,7 +606,7 @@ def handle_messages(message):
             bot.reply_to(message, "Iltimos, janrni yuboring.")
             return
         user_states[f"anime_genre_{user_id}"] = message.text
-        bot.reply_to(message, "📖 9-qadam: Anime haqida qisqacha ma'lumot (tavsif) yuboring:", reply_markup=markup_back, parse_mode="Markdown")
+        bot.reply_to(message, "📖 **9-qadam:** Anime haqida qisqacha ma'lumot (tavsif) yuboring:", reply_markup=markup_back, parse_mode="Markdown")
         user_states[user_id] = "waiting_anime_description"
 
     elif state == "waiting_anime_description":
@@ -626,8 +628,8 @@ def handle_messages(message):
             conn = sqlite3.connect('bot_database.db', check_same_thread=False)
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO animes (channel_name, channel_link, title, hidden_names, code, photo_id, episodes, genre, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO animes (channel_name, channel_link, title, hidden_names, code, photo_id, episodes, genre, description) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (ch_name, ch_link, title, hidden, code, photo_id, episodes, genre, desc))
             conn.commit()
             conn.close()
@@ -655,12 +657,12 @@ def handle_messages(message):
             conn.commit()
             conn.close()
             
-            caption = f"🎬 Anime: {title}\n" \
-                      f"🔢 Kod: {code}\n" \
-                      f"📢 Kanal: {ch_name}\n" \
-                      f"🧩 Qismlari: {episodes}\n" \
-                      f"🎭 Janri: {genre}\n\n" \
-                      f"📖 Ma'lumot:\n{description}"
+            caption = f"🎬 **Anime:** {title}\n" \
+                      f"🔢 **Kod:** {code}\n" \
+                      f"📢 **Kanal:** {ch_name}\n" \
+                      f"🧩 **Qismlari:** {episodes}\n" \
+                      f"🎭 **Janri:** {genre}\n\n" \
+                      f"📖 **Ma'lumot:**\n{description}"
             
             markup.add(types.InlineKeyboardButton(f"📺 {ch_name} kanaliga o'tish", url=ch_link))
             markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
@@ -693,7 +695,7 @@ def handle_messages(message):
             markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
             bot.reply_to(message, "❌ Kechirasiz, bu nomdagi anime topilmadi.", reply_markup=markup)
         else:
-            text = f"🔍 '{message.text}' bo'yicha qidiruv natijalari:\n"
+            text = f"🔍 **'{message.text}' bo'yicha qidiruv natijalari:**\n"
             for title, code in rows:
                 markup.add(types.InlineKeyboardButton(f"🎬 {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
             markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
@@ -704,7 +706,9 @@ def handle_messages(message):
 
     else:
         bot.reply_to(message, "✨ Bot uzluksiz ishlamoqda. Asosiy menyuga qaytish uchun pastdagi tugmadan foydalaning.", reply_markup=markup_back)
-        # ============================================================
+
+
+# ============================================================
 # BOTNI ISHGA TUSHIRISH
 # ============================================================
 
