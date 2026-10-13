@@ -407,7 +407,8 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
         bot.edit_message_text("✅ Majburiy kanal muvaffaqiyatli o'chirildi!", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-elif call.data == "add_anime" and user_id in ADMIN_IDS:
+        
+    elif call.data == "add_anime" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
