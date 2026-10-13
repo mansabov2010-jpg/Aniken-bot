@@ -19,11 +19,11 @@ except ImportError:
 # SOZLAMALAR
 # ============================================================
 
-TOKEN = os.environ.get('BOT_TOKEN', 'SIZNING_BOT_TOKENINGIZ')
+TOKEN = os.environ.get('BOT_TOKEN', '8987164421:AAHIKjTCtB4781Ns53b3WSHk5xgAWOXTtQ8')
 bot = telebot.TeleBot(TOKEN)
 
 # 2 nafar adminning Telegram ID raqamlari (o'zingiznikiga o'zgartiring)
-ADMIN_IDS = [123456789, 987654321]
+ADMIN_IDS = [7986354170, 7986354170]
 
 # Foydalanuvchilarning holatini (state) saqlash uchun lug'at
 user_states = {}
@@ -199,8 +199,8 @@ def callback_handler(call):
         if not is_sub:
             bot.answer_callback_query(call.id, "⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
             return
-        if call.data == "search_menu":
-                
+            
+    if call.data == "search_menu":          
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup(row_width=1)
         btn_code = types.InlineKeyboardButton("🔢 Kod orqali izlash", callback_data="search_by_code")
