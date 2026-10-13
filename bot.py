@@ -708,7 +708,7 @@ def handle_messages(message):
 # BOTNI ISHGA TUSHIRISH
 # ============================================================
 
-if name == "main":
+if __name__ == "__main__":
     print("Bot ishga tushmoqda...")
 
     try:
