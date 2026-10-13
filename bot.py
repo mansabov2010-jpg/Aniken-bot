@@ -199,7 +199,7 @@ def callback_handler(call):
         if not is_sub:
             bot.answer_callback_query(call.id, "⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
             return
-            if call.data == "search_menu":
+        if call.data == "search_menu":
                 
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup(row_width=1)
