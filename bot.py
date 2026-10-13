@@ -78,7 +78,7 @@ def keep_alive():
 
 
 # ============================================================
-# MAJBURIY OBUNANI TEKSHIRISH
+# MAJBURIY OBUNANI TEKSHIRish (XATOSIZ)
 # ============================================================
 def check_subscription(user_id):
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
@@ -97,7 +97,8 @@ def check_subscription(user_id):
             if member.status not in ['creator', 'administrator', 'member']:
                 not_subscribed.append((ch_username, ch_link))
         except Exception:
-            not_subscribed.append((ch_username, ch_link))
+            # Agar bot kanalga qo'shilmagan bo'lsa yoki xatolik bo'lsa, foydalanuvchini bloklab qo'ymaslik uchun o'tkazib yuboramiz
+            continue
             
     if not_subscribed:
         return False, not_subscribed
@@ -109,14 +110,12 @@ def check_subscription(user_id):
 # ============================================================
 def get_admin_markup():
     markup = types.InlineKeyboardMarkup(row_width=2)
-    # Obunachilardagi barcha qidirish va ko'rish bo'limlari adminda ham bor:
     markup.add(
         types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
         types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
         types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
         types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
         types.InlineKeyboardButton("⭐ Top", callback_data="top_animes"),
-        # Admin boshqaruv bo'limlari:
         types.InlineKeyboardButton("📢 Kanal qo'shish", callback_data="add_force_channel"),
         types.InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="del_force_channel"),
         types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime"),
@@ -182,10 +181,14 @@ def callback_handler(call):
     if call.data == "check_sub":
         is_sub, _ = check_subscription(user_id)
         if not is_sub:
-            bot.answer_callback_query(call.id, "❌ Hali hamma kanallarga obuna bo'lmadingiz!", show_alert=True)
+            bot.answer_callback_query(call.id, "❌ Siz hali hamma kanallarga obuna bo'lmadingiz!", show_alert=True)
             return
-        bot.answer_callback_query(call.id, "✅ Muvaffaqiyatli!")
-        bot.edit_message_text("✨ **Botdan foydalanishingiz mumkin:**", call.message.chat.id, call.message.message_id, reply_markup=get_user_markup(), parse_mode="Markdown")
+        bot.answer_callback_query(call.id, "✅ Muvaffaqiyatli obuna bo'ldingiz!")
+        
+        if user_id in ADMIN_IDS:
+            bot.edit_message_text("👑 **Admin boshqaruv paneli:**", call.message.chat.id, call.message.message_id, reply_markup=get_admin_markup(), parse_mode="Markdown")
+        else:
+            bot.edit_message_text("✨ **Botdan foydalanishingiz mumkin:**", call.message.chat.id, call.message.message_id, reply_markup=get_user_markup(), parse_mode="Markdown")
         return
 
     if user_id not in ADMIN_IDS:
@@ -351,8 +354,7 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
         bot.edit_message_text("✅ **Kanal o'chirildi!**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_title"
-        
+
     elif call.data == "add_anime" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup()
@@ -418,7 +420,7 @@ def callback_handler(call):
 
 
 # ============================================================
-# XABARLAR VA BOSQICHLARNI TO'G'RI BOSHQARISH
+# XABARLAR VA BOSQICHLARNI BOSHQARISH (MUKAMMAL)
 # ============================================================
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'video', 'document'])
 def handle_messages(message):
@@ -430,6 +432,7 @@ def handle_messages(message):
     conn.commit()
     conn.close()
 
+    # Majburiy obunani tekshirish
     if user_id not in ADMIN_IDS:
         is_sub, unsubs = check_subscription(user_id)
         if not is_sub:
@@ -639,6 +642,7 @@ def handle_messages(message):
         user_states.pop(user_id, None)
 
     else:
+        # Agar foydalanuvchida hech qanday state bo'lmasa va u obunadan o'tgan bo'lsa
         if user_id in ADMIN_IDS:
             bot.reply_to(message, "👑 **Admin boshqaruv paneli:**", reply_markup=get_admin_markup(), parse_mode="Markdown")
         else:
