@@ -21,11 +21,11 @@ ADMIN_IDS = [7637155944,7986354170]
 # SOZLAMALAR
 # ============================================================
 
-TOKEN = os.environ.get('BOT_TOKEN', 'SIZNING_BOT_TOKENINGIZ')
+TOKEN = os.environ.get('BOT_TOKEN', '8987164421:AAHIKjTCtB4781Ns53b3WSHk5xgAWOXTtQ8')
 bot = telebot.TeleBot(TOKEN)
 
 # Adminlarning Telegram ID raqamlari
-ADMIN_IDS = [123456789]
+ADMIN_IDS = [7637155944,7986354170]
 
 # ============================================================
 # MA'LUMOTLAR BAZASINI YARATISH VA BOSHQARISH
