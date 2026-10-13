@@ -18,23 +18,12 @@ bot = telebot.TeleBot(TOKEN)
 ADMIN_IDS = [7637155944,7986354170]
 
 # ============================================================
-# SOZLAMALAR
-# ============================================================
-
-TOKEN = os.environ.get('BOT_TOKEN', '8987164421:AAHIKjTCtB4781Ns53b3WSHk5xgAWOXTtQ8')
-bot = telebot.TeleBot(TOKEN)
-
-# Adminlarning Telegram ID raqamlari
-ADMIN_IDS = [7637155944,7986354170]
-
-# ============================================================
-# MA'LUMOTLAR BAZASINI YARATISH VA BOSHQARISH
+# MA'LUMOTLAR BAZASINI YARATish
 # ============================================================
 def init_db():
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
     cursor = conn.cursor()
     
-    # Foydalanuvchilar va ularning state (holat) lari jadvali
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -42,7 +31,6 @@ def init_db():
         )
     ''')
     
-    # Vaqtinchalik wizard (anime qo'shish) ma'lumotlari jadvali
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS temp_anime_data (
             user_id INTEGER PRIMARY KEY,
@@ -57,7 +45,6 @@ def init_db():
         )
     ''')
     
-    # Majburiy obuna kanallari jadvali
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS force_channels (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +53,6 @@ def init_db():
         )
     ''')
     
-    # Animelar jadvali
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS animes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,7 +74,6 @@ def init_db():
 
 init_db()
 
-# Bazadan state olish
 def get_user_state(user_id):
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
     cursor = conn.cursor()
@@ -97,7 +82,6 @@ def get_user_state(user_id):
     conn.close()
     return row[0] if row else None
 
-# Bazaga state yozish
 def set_user_state(user_id, state):
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
     cursor = conn.cursor()
@@ -105,7 +89,6 @@ def set_user_state(user_id, state):
     conn.commit()
     conn.close()
 
-# Render 24/7 keep-alive Flask server
 app = Flask('')
 
 @app.route('/')
@@ -123,9 +106,12 @@ def keep_alive():
 
 
 # ============================================================
-# MAJBURIY OBUNANI TEKSHIRISH
+# MAJBURIY OBUNA (ADMINLAR UCHUN DOIM TRUE)
 # ============================================================
 def check_subscription(user_id):
+    if user_id in ADMIN_IDS:
+        return True, []
+        
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute("SELECT channel_username, channel_link FROM force_channels")
@@ -150,7 +136,7 @@ def check_subscription(user_id):
 
 
 # ============================================================
-# MENYU TUGMALARI
+# MENYULAR
 # ============================================================
 def get_admin_markup():
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -169,7 +155,6 @@ def get_admin_markup():
     )
     return markup
 
-
 def get_user_markup():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -183,7 +168,7 @@ def get_user_markup():
 
 
 # ============================================================
-# /START BUYrug'i
+# /START
 # ============================================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -204,9 +189,7 @@ def send_welcome(message):
                 markup.add(types.InlineKeyboardButton(f"📢 Kanalga obuna bo'lish", url=ch_link))
             markup.add(types.InlineKeyboardButton("🔄 Obunani tekshirish", callback_data="check_sub"))
             
-            bot.send_message(message.chat.id, 
-                             "⚠️ **Diqqat!** Botdan foydalanish uchun quyidagi kanalga obuna bo'lishingiz shart:", 
-                             reply_markup=markup, parse_mode="Markdown")
+            bot.send_message(message.chat.id, "⚠️ **Diqqat!** Botdan foydalanish uchun quyidagi kanalga obuna bo'lishingiz shart:", reply_markup=markup, parse_mode="Markdown")
             return
 
     if user_id in ADMIN_IDS:
@@ -216,7 +199,7 @@ def send_welcome(message):
 
 
 # ============================================================
-# CALLBACK TUGMALAR
+# CALLBACKS
 # ============================================================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -228,11 +211,7 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "❌ Siz hali hamma kanallarga obuna bo'lmadingiz!", show_alert=True)
             return
         bot.answer_callback_query(call.id, "✅ Muvaffaqiyatli obuna bo'ldingiz!")
-        
-        if user_id in ADMIN_IDS:
-            bot.edit_message_text("👑 **Admin boshqaruv paneli:**", call.message.chat.id, call.message.message_id, reply_markup=get_admin_markup(), parse_mode="Markdown")
-        else:
-            bot.edit_message_text("✨ **Botdan foydalanishingiz mumkin:**", call.message.chat.id, call.message.message_id, reply_markup=get_user_markup(), parse_mode="Markdown")
+        bot.edit_message_text("✨ **Botdan foydalanishingiz mumkin:**", call.message.chat.id, call.message.message_id, reply_markup=get_user_markup(), parse_mode="Markdown")
         return
 
     if user_id not in ADMIN_IDS:
@@ -445,6 +424,7 @@ def callback_handler(call):
         bot.edit_message_text("📤 **Tarqatish uchun xabarni yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         set_user_state(user_id, "waiting_broadcast_message")
 
+
     elif call.data == "admin_stats" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
         conn = sqlite3.connect('bot_database.db', check_same_thread=False)
@@ -464,7 +444,7 @@ def callback_handler(call):
 
 
 # ============================================================
-# XABARLAR VA WIZARD BOSQICHLARI (BAZA ORQALI)
+# XABARLAR BILAN ISHLASH (WIZARD VA TEKSHIRUVLAR)
 # ============================================================
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'video', 'document'])
 def handle_messages(message):
@@ -476,6 +456,7 @@ def handle_messages(message):
     conn.commit()
     conn.close()
 
+    # Majburiy obunani faqat oddiy foydalanuvchilar uchun tekshiramiz (Adminlar uchun emas!)
     if user_id not in ADMIN_IDS:
         is_sub, unsubs = check_subscription(user_id)
         if not is_sub:
@@ -542,7 +523,7 @@ def handle_messages(message):
         bot.reply_to(message, f"✅ Kanal muvaffaqiyatli qo'shildi!", reply_markup=markup_back)
         set_user_state(user_id, None)
 
-    # --- ANIME QO'SHISH WIZARD BOSQICHLARI ---
+    # --- ANIME QO'SHISH BOSQICHLARI (WIZARD) ---
     elif state == "waiting_anime_channel_name":
         if not message.text:
             bot.reply_to(message, "Kanal nomini yuboring.")
