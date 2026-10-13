@@ -18,7 +18,7 @@ bot = telebot.TeleBot(TOKEN)
 ADMIN_IDS = [7637155944,7986354170]
 
 # ============================================================
-# MA'LUMOTLAR BAZASINI YARATish
+# MA'LUMOTLAR BAZASINI YARATISH
 # ============================================================
 def init_db():
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
@@ -199,7 +199,7 @@ def send_welcome(message):
 
 
 # ============================================================
-# CALLBACKS
+# CALLBACKS (TUGMALAR)
 # ============================================================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -424,7 +424,6 @@ def callback_handler(call):
         bot.edit_message_text("📤 **Tarqatish uchun xabarni yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         set_user_state(user_id, "waiting_broadcast_message")
 
-
     elif call.data == "admin_stats" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
         conn = sqlite3.connect('bot_database.db', check_same_thread=False)
@@ -442,9 +441,8 @@ def callback_handler(call):
         text = f"📊 **Statistika:**\n\n- Animelar: {anime_count}\n- Kanallar: {force_count}\n- Foydalanuvchilar: {user_count}"
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
-
 # ============================================================
-# XABARLAR BILAN ISHLASH (WIZARD VA TEKSHIRUVLAR)
+# XABARLAR BILAN ISHLASH (WIZARD VA QIDIRUV)
 # ============================================================
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'video', 'document'])
 def handle_messages(message):
@@ -456,7 +454,7 @@ def handle_messages(message):
     conn.commit()
     conn.close()
 
-    # Majburiy obunani faqat oddiy foydalanuvchilar uchun tekshiramiz (Adminlar uchun emas!)
+    # Majburiy obunani faqat oddiy foydalanuvchilar uchun tekshiramiz
     if user_id not in ADMIN_IDS:
         is_sub, unsubs = check_subscription(user_id)
         if not is_sub:
@@ -523,7 +521,7 @@ def handle_messages(message):
         bot.reply_to(message, f"✅ Kanal muvaffaqiyatli qo'shildi!", reply_markup=markup_back)
         set_user_state(user_id, None)
 
-    # --- ANIME QO'SHISH BOSQICHLARI (WIZARD) ---
+    # --- ANIME QO'SHISH BOSQICHLARI ---
     elif state == "waiting_anime_channel_name":
         if not message.text:
             bot.reply_to(message, "Kanal nomini yuboring.")
@@ -658,6 +656,7 @@ def handle_messages(message):
         conn.close()
         set_user_state(user_id, None)
 
+    # --- QIDIRUV (XATO BO'LGANDA QAYTA URINISH IMkoniyati) ---
     elif state == "waiting_for_code_search":
         if not message.text:
             bot.reply_to(message, "Kodni yuboring.")
@@ -668,7 +667,6 @@ def handle_messages(message):
         cursor.execute("SELECT channel_name, channel_link, title, code, photo_id, episodes, genre, description FROM animes WHERE code = ?", (code_input,))
         row = cursor.fetchone()
         
-        markup = types.InlineKeyboardMarkup()
         if row:
             ch_name, ch_link, title, code, photo_id, episodes, genre, description = row
             cursor.execute("UPDATE animes SET views = views + 1 WHERE code = ?", (code_input,))
@@ -676,19 +674,22 @@ def handle_messages(message):
             conn.close()
             
             caption = f"🎬 **Anime:** {title}\n🔢 **Kod:** {code}\n📢 **Kanal:** {ch_name}\n🧩 **Qismlar:** {episodes}\n🎭 **Janr:** {genre}\n\n📖 **Ma'lumot:**\n{description}"
+            markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton(f"📺 {ch_name}", url=ch_link))
             markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
             
+            set_user_state(user_id, None)
             if photo_id:
                 bot.send_photo(message.chat.id, photo_id, caption=caption, reply_markup=markup, parse_mode="Markdown")
             else:
                 bot.send_message(message.chat.id, caption, reply_markup=markup, parse_mode="Markdown")
         else:
             conn.close()
+            markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
-            bot.reply_to(message, "❌ Bunday kodli anime topilmadi.", reply_markup=markup)
-            
-        set_user_state(user_id, None)
+            # Menyu ga qaytarmaydi, qayta yuborishni so'raydi:
+            bot.reply_to(message, "❌ **Topilmadi.**\nIltimos, to'g'ri kodni yuboring yoki qayta urinib ko'ring:", reply_markup=markup, parse_Mode="Markdown")
+            # State saqlanib qoladi, shuning uchun foydalanuvchi qaytadan yozishi mumkin!
 
     elif state == "waiting_for_name_search":
         if not message.text:
@@ -705,14 +706,14 @@ def handle_messages(message):
         markup = types.InlineKeyboardMarkup(row_width=1)
         if not rows:
             markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
-            bot.reply_to(message, "❌ Bu nomdagi anime topilmadi.", reply_markup=markup)
+            bot.reply_to(message, "❌ **Topilmadi.**\nIltimos, anime nomini boshqatdan yuboring yoki qayta urinib ko'ring:", reply_markup=markup, parse_mode="Markdown")
+            # State saqlanib qoladi, foydalanuvchi yana qayta yozishi mumkin
         else:
             for title, code in rows:
                 markup.add(types.InlineKeyboardButton(f"🎬 {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
             markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
+            set_user_state(user_id, None)
             bot.reply_to(message, f"🔍 **Topilgan natijalar:**", reply_markup=markup, parse_mode="Markdown")
-            
-        set_user_state(user_id, None)
 
     else:
         if user_id in ADMIN_IDS:
@@ -743,3 +744,4 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Xatolik: {e}")
             time.sleep(5)
+        
