@@ -403,284 +403,8 @@ def callback_handler(call):
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
         bot.edit_message_text("📤 **Tarqatish uchun xabarni yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         user_states[user_id] = "waiting_broadcast_message"
-
     elif call.data == "admin_stats" and user_id in ADMIN_IDS:
-        bot.answer_callback_query(call.id)
-        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute(
-        markup.add(
-            types.InlineKeyboardButton("📢 Kanal qo'shish", callback_data="add_force_channel"),
-            types.InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="del_force_channel"),
-            types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime"),
-            types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="del_anime_menu"),
-            types.InlineKeyboardButton("📤 Xabar yuborish", callback_data="admin_broadcast"),
-            types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
-        )
-        bot.send_message(message.chat.id, "👑 **Admin boshqaruv paneli:**", reply_markup=markup, parse_mode="Markdown")
-    else:
-        markup.add(
-            types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
-            types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
-            types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
-            types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
-            types.InlineKeyboardButton("⭐ Top", callback_data="top_animes")
-        )
-        bot.send_message(message.chat.id, "✨ **Asosiy menyu:**", reply_markup=markup, parse_mode="Markdown")
-
-
-# ============================================================
-# CALLBACK TUGMALAR
-# ============================================================
-@bot.callback_query_handler(func=lambda call: True)
-def callback_handler(call):
-    user_id = call.from_user.id
-    
-    if call.data == "check_sub":
-        is_sub, _ = check_subscription(user_id)
-        if not is_sub:
-            bot.answer_callback_query(call.id, "❌ Hali hamma kanallarga obuna bo'lmadingiz!", show_alert=True)
-            return
-        bot.answer_callback_query(call.id, "✅ Muvaffaqiyatli!")
         
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
-            types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
-            types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
-            types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
-            types.InlineKeyboardButton("⭐ Top", callback_data="top_animes")
-        )
-        bot.edit_message_text("✨ **Botdan foydalanishingiz mumkin:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        return
-
-    if user_id not in ADMIN_IDS:
-        is_sub, _ = check_subscription(user_id)
-        if not is_sub:
-            bot.answer_callback_query(call.id, "⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
-            return
-
-    if call.data == "search_menu":
-        bot.answer_callback_query(call.id)
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            types.InlineKeyboardButton("🔢 Kod orqali izlash", callback_data="search_by_code"),
-            types.InlineKeyboardButton("🔤 Nomi orqali izlash", callback_data="search_by_name"),
-            types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main")
-        )
-        bot.edit_message_text("🔍 **Qidirish usulini tanlang:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-
-    elif call.data == "search_by_code":
-        bot.answer_callback_query(call.id)
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="search_menu"))
-        bot.edit_message_text("🔢 **Anime kodini yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_for_code_search"
-
-    elif call.data == "search_by_name":
-        bot.answer_callback_query(call.id)
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="search_menu"))
-        bot.edit_message_text("🔤 **Anime nomini yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_for_name_search"
-        
-    elif call.data == "anime_list":
-        bot.answer_callback_query(call.id)
-        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("SELECT title, code FROM animes ORDER BY id DESC LIMIT 15")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        if not rows:
-            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("📂 **Hozircha animelar yo'q.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            return
-            
-        for title, code in rows:
-            markup.add(types.InlineKeyboardButton(f"🎬 {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("📂 **Mavjud animelar:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-
-    elif call.data.startswith("show_anime_"):
-        bot.answer_callback_query(call.id)
-        code = call.data.split("_")[2]
-        
-        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("SELECT channel_name, channel_link, title, code, photo_id, episodes, genre, description FROM animes WHERE code = ?", (code,))
-        row = cursor.fetchone()
-        
-        if row:
-            ch_name, ch_link, title, code, photo_id, episodes, genre, description = row
-            cursor.execute("UPDATE animes SET views = views + 1 WHERE code = ?", (code,))
-            conn.commit()
-            conn.close()
-            
-            caption = f"🎬 **Anime:** {title}\n🔢 **Kod:** {code}\n📢 **Kanal:** {ch_name}\n🧩 **Qismlar:** {episodes}\n🎭 **Janr:** {genre}\n\n📖 **Ma'lumot:**\n{description}"
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton(f"📺 {ch_name}", url=ch_link))
-            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="anime_list"))
-            
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-            if photo_id:
-                bot.send_photo(call.message.chat.id, photo_id, caption=caption, reply_markup=markup, parse_mode="Markdown")
-            else:
-                bot.send_message(call.message.chat.id, caption, reply_markup=markup, parse_mode="Markdown")
-        else:
-            conn.close()
-            bot.answer_callback_query(call.id, "Anime topilmadi!", show_alert=True)
-
-    elif call.data == "hot_animes" or call.data == "top_animes":
-        bot.answer_callback_query(call.id)
-        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("SELECT title, code FROM animes ORDER BY views DESC LIMIT 5")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        if not rows:
-            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("🔥 **Hozircha ma'lumot yo'q.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            return
-            
-        for title, code in rows:
-            markup.add(types.InlineKeyboardButton(f"⭐ {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("🔥 **Top / Qaynoq animelar:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-
-    elif call.data == "recent_animes":
-        bot.answer_callback_query(call.id)
-        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("SELECT title, code FROM animes ORDER BY id DESC LIMIT 5")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        if not rows:
-            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("⏰ **Yangi animelar yo'q.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            return
-            
-        for title, code in rows:
-            markup.add(types.InlineKeyboardButton(f"⏰ {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("⏰ **Oxirgi qo'shilganlar:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-
-    elif call.data == "back_to_main":
-        bot.answer_callback_query(call.id)
-        user_states.pop(user_id, None)
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        
-        if user_id in ADMIN_IDS:
-            markup.add(
-                types.InlineKeyboardButton("📢 Kanal qo'shish", callback_data="add_force_channel"),
-                types.InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="del_force_channel"),
-                types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime"),
-                types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="del_anime_menu"),
-                types.InlineKeyboardButton("📤 Xabar yuborish", callback_data="admin_broadcast"),
-                types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
-            )
-            bot.edit_message_text("👑 **Admin paneli:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        else:
-            markup.add(
-                types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
-                types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
-                types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
-                types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
-                types.InlineKeyboardButton("⭐ Top", callback_data="top_animes")
-            )
-            bot.edit_message_text("✨ **Asosiy menyu:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-
-    elif call.data == "add_force_channel" and user_id in ADMIN_IDS:
-        bot.answer_callback_query(call.id)
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("📢 **Kanal username'ini yuboring** (masalan: `@kanal`):", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_force_username"
-
-    elif call.data == "del_force_channel" and user_id in ADMIN_IDS:
-        bot.answer_callback_query(call.id)
-        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, channel_username FROM force_channels")
-        channels = cursor.fetchall()
-        conn.close()
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        if not channels:
-            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("📂 **Kanallar yo'q.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            return
-            
-        for ch_id, ch_uname in channels:
-            markup.add(types.InlineKeyboardButton(f"❌ O'chirish: {ch_uname}", callback_data=f"remove_force_{ch_id}"))
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("🗑 **O'chirish uchun kanalni tanlang:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-
-    elif call.data.startswith("remove_force_") and user_id in ADMIN_IDS:
-        bot.answer_callback_query(call.id)
-        ch_id = call.data.split("_")[2]
-        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM force_channels WHERE id = ?", (ch_id,))
-        conn.commit()
-        conn.close()
-        
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("✅ **Kanal o'chirildi!**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-
-    elif call.data == "add_anime" and user_id in ADMIN_IDS:
-        bot.answer_callback_query(call.id)
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("📢 **1-qadam:** Anime joylanadigan kanal nomini kiriting:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_channel_name"
-
-    elif call.data == "del_anime_menu" and user_id in ADMIN_IDS:
-        bot.answer_callback_query(call.id)
-        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, title, code FROM animes ORDER BY id DESC LIMIT 15")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        if not rows:
-            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-            bot.edit_message_text("📂 **Animelar yo'q.**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            return
-            
-        for a_id, title, code in rows:
-            markup.add(types.InlineKeyboardButton(f"❌ O'chirish: {title} ({code})", callback_data=f"remove_anime_{a_id}"))
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("🗑 **O'chirish uchun animeni tanlang:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-
-    elif call.data.startswith("remove_anime_") and user_id in ADMIN_IDS:
-        bot.answer_callback_query(call.id)
-        a_id = call.data.split("_")[2]
-        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM animes WHERE id = ?", (a_id,))
-        conn.commit()
-        conn.close()
-        
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("✅ **Anime o'chirildi!**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-
-    elif call.data == "admin_broadcast" and user_id in ADMIN_IDS:
-        bot.answer_callback_query(call.id)
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
-        bot.edit_message_text("📤 **Tarqatish uchun xabarni yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_broadcast_message"
-
-    elif call.data == "admin_stats" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
         conn = sqlite3.connect('bot_database.db', check_same_thread=False)
         cursor = conn.cursor()
@@ -699,7 +423,7 @@ def callback_handler(call):
 
 
 # ============================================================
-# XABARLAR VA ANIME QO'SHISH BOSQICHLARI (MUKAMMAL)
+# XABARLAR VA ANIME QO'SHish BOSQICHLARI (MUKAMMAL)
 # ============================================================
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'video', 'document'])
 def handle_messages(message):
@@ -712,9 +436,13 @@ def handle_messages(message):
     conn.close()
 
     if user_id not in ADMIN_IDS:
-        is_sub, _ = check_subscription(user_id)
+        is_sub, unsubs = check_subscription(user_id)
         if not is_sub:
-            bot.reply_to(message, "⚠️ Avval kanalga obuna bo'ling!")
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            for ch_username, ch_link in unsubs:
+                markup.add(types.InlineKeyboardButton(f"📢 Kanalga obuna bo'lish", url=ch_link))
+            markup.add(types.InlineKeyboardButton("🔄 Obunani tekshirish", callback_data="check_sub"))
+            bot.reply_to(message, "⚠️ **Diqqat!** Botdan foydalanish uchun quyidagi kanalga obuna bo'lishingiz shart:", reply_markup=markup, parse_mode="Markdown")
             return
 
     state = user_states.get(user_id)
@@ -916,7 +644,31 @@ def handle_messages(message):
         user_states.pop(user_id, None)
 
     else:
-        bot.reply_to(message, "✨ Bot ishlamoqda. Asosiy menyu uchun pastdagi tugmani bosing:", reply_markup=markup_back)
+        # Agar oddiy foydalanuvchi obuna bo'lgan bo'lsa va /start bosmagan bo'lsa ham avtomatik menyuni chiqarish
+        is_sub, _ = check_subscription(user_id)
+        if not is_sub:
+            return
+            
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        if user_id in ADMIN_IDS:
+            markup.add(
+                types.InlineKeyboardButton("📢 Kanal qo'shish", callback_data="add_force_channel"),
+                types.InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="del_force_channel"),
+                types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime"),
+                types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="del_anime_menu"),
+                types.InlineKeyboardButton("📤 Xabar yuborish", callback_data="admin_broadcast"),
+                types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
+            )
+            bot.reply_to(message, "👑 **Admin boshqaruv paneli:**", reply_markup=markup, parse_mode="Markdown")
+        else:
+            markup.add(
+                types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
+                types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
+                types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
+                types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
+                types.InlineKeyboardButton("⭐ Top", callback_data="top_animes")
+            )
+            bot.reply_to(message, "✨ **Asosiy menyu:**", reply_markup=markup, parse_mode="Markdown")
 
 
 # ============================================================
