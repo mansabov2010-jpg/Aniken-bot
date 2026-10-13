@@ -398,7 +398,7 @@ def callback_handler(call):
     elif call.data.startswith("remove_force_") and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
         ch_id = call.data.split("_")[2]
-conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM force_channels WHERE id = ?", (ch_id,))
         conn.commit()
