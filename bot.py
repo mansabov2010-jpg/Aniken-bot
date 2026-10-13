@@ -78,7 +78,7 @@ def keep_alive():
 
 
 # ============================================================
-# MAJBURIY OBUNANI TEKSHIRish
+# MAJBURIY OBUNANI TEKSHIRISH
 # ============================================================
 def check_subscription(user_id):
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
@@ -102,6 +102,41 @@ def check_subscription(user_id):
     if not_subscribed:
         return False, not_subscribed
     return True, []
+
+
+# ============================================================
+# MENYU TUGMALARI (Admin va Foydalanuvchi uchun)
+# ============================================================
+def get_admin_markup():
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    # Obunachilardagi barcha qidirish va ko'rish bo'limlari adminda ham bor:
+    markup.add(
+        types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
+        types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
+        types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
+        types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
+        types.InlineKeyboardButton("⭐ Top", callback_data="top_animes"),
+        # Admin boshqaruv bo'limlari:
+        types.InlineKeyboardButton("📢 Kanal qo'shish", callback_data="add_force_channel"),
+        types.InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="del_force_channel"),
+        types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime"),
+        types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="del_anime_menu"),
+        types.InlineKeyboardButton("📤 Xabar yuborish", callback_data="admin_broadcast"),
+        types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
+    )
+    return markup
+
+
+def get_user_markup():
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
+        types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
+        types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
+        types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
+        types.InlineKeyboardButton("⭐ Top", callback_data="top_animes")
+    )
+    return markup
 
 
 # ============================================================
@@ -131,26 +166,10 @@ def send_welcome(message):
                              reply_markup=markup, parse_mode="Markdown")
             return
 
-    markup = types.InlineKeyboardMarkup(row_width=2)
     if user_id in ADMIN_IDS:
-        markup.add(
-            types.InlineKeyboardButton("📢 Kanal qo'shish", callback_data="add_force_channel"),
-            types.InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="del_force_channel"),
-            types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime"),
-            types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="del_anime_menu"),
-            types.InlineKeyboardButton("📤 Xabar yuborish", callback_data="admin_broadcast"),
-            types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
-        )
-        bot.send_message(message.chat.id, "👑 **Admin boshqaruv paneli:**", reply_markup=markup, parse_mode="Markdown")
+        bot.send_message(message.chat.id, "👑 **Admin boshqaruv paneli:**", reply_markup=get_admin_markup(), parse_mode="Markdown")
     else:
-        markup.add(
-            types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
-            types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
-            types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
-            types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
-            types.InlineKeyboardButton("⭐ Top", callback_data="top_animes")
-        )
-        bot.send_message(message.chat.id, "✨ **Asosiy menyu:**", reply_markup=markup, parse_mode="Markdown")
+        bot.send_message(message.chat.id, "✨ **Asosiy menyu:**", reply_markup=get_user_markup(), parse_mode="Markdown")
 
 
 # ============================================================
@@ -166,16 +185,7 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "❌ Hali hamma kanallarga obuna bo'lmadingiz!", show_alert=True)
             return
         bot.answer_callback_query(call.id, "✅ Muvaffaqiyatli!")
-        
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
-            types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
-            types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
-            types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
-            types.InlineKeyboardButton("⭐ Top", callback_data="top_animes")
-        )
-        bot.edit_message_text("✨ **Botdan foydalanishingiz mumkin:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text("✨ **Botdan foydalanishingiz mumkin:**", call.message.chat.id, call.message.message_id, reply_markup=get_user_markup(), parse_mode="Markdown")
         return
 
     if user_id not in ADMIN_IDS:
@@ -297,27 +307,11 @@ def callback_handler(call):
     elif call.data == "back_to_main":
         bot.answer_callback_query(call.id)
         user_states.pop(user_id, None)
-        markup = types.InlineKeyboardMarkup(row_width=2)
         
         if user_id in ADMIN_IDS:
-            markup.add(
-                types.InlineKeyboardButton("📢 Kanal qo'shish", callback_data="add_force_channel"),
-                types.InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="del_force_channel"),
-                types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime"),
-                types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="del_anime_menu"),
-                types.InlineKeyboardButton("📤 Xabar yuborish", callback_data="admin_broadcast"),
-                types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
-            )
-            bot.edit_message_text("👑 **Admin paneli:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("👑 **Admin paneli:**", call.message.chat.id, call.message.message_id, reply_markup=get_admin_markup(), parse_mode="Markdown")
         else:
-            markup.add(
-                types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
-                types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
-                types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
-                types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
-                types.InlineKeyboardButton("⭐ Top", callback_data="top_animes")
-            )
-            bot.edit_message_text("✨ **Asosiy menyu:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text("✨ **Asosiy menyu:**", call.message.chat.id, call.message.message_id, reply_markup=get_user_markup(), parse_mode="Markdown")
 
     elif call.data == "add_force_channel" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
@@ -403,8 +397,8 @@ def callback_handler(call):
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
         bot.edit_message_text("📤 **Tarqatish uchun xabarni yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         user_states[user_id] = "waiting_broadcast_message"
+
     elif call.data == "admin_stats" and user_id in ADMIN_IDS:
-        
         bot.answer_callback_query(call.id)
         conn = sqlite3.connect('bot_database.db', check_same_thread=False)
         cursor = conn.cursor()
@@ -423,7 +417,7 @@ def callback_handler(call):
 
 
 # ============================================================
-# XABARLAR VA ANIME QO'SHish BOSQICHLARI (MUKAMMAL)
+# XABARLAR VA BOSQICHLARNI TO'G'RI BOSHQARISH
 # ============================================================
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'video', 'document'])
 def handle_messages(message):
@@ -492,7 +486,7 @@ def handle_messages(message):
         bot.reply_to(message, f"✅ Kanal muvaffaqiyatli qo'shildi!", reply_markup=markup_back)
         user_states.pop(user_id, None)
 
-    # --- ANIME QO'SHISH BOSQICHLARI (TO'LIQ VA UZLUKSIZ) ---
+    # --- ANIME QO'SHISH BOSQICHLARI ---
     elif state == "waiting_anime_channel_name":
         if not message.text:
             bot.reply_to(message, "Kanal nomini yuboring.")
@@ -644,31 +638,10 @@ def handle_messages(message):
         user_states.pop(user_id, None)
 
     else:
-        # Agar oddiy foydalanuvchi obuna bo'lgan bo'lsa va /start bosmagan bo'lsa ham avtomatik menyuni chiqarish
-        is_sub, _ = check_subscription(user_id)
-        if not is_sub:
-            return
-            
-        markup = types.InlineKeyboardMarkup(row_width=2)
         if user_id in ADMIN_IDS:
-            markup.add(
-                types.InlineKeyboardButton("📢 Kanal qo'shish", callback_data="add_force_channel"),
-                types.InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="del_force_channel"),
-                types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime"),
-                types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="del_anime_menu"),
-                types.InlineKeyboardButton("📤 Xabar yuborish", callback_data="admin_broadcast"),
-                types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
-            )
-            bot.reply_to(message, "👑 **Admin boshqaruv paneli:**", reply_markup=markup, parse_mode="Markdown")
+            bot.reply_to(message, "👑 **Admin boshqaruv paneli:**", reply_markup=get_admin_markup(), parse_mode="Markdown")
         else:
-            markup.add(
-                types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu"),
-                types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list"),
-                types.InlineKeyboardButton("🔥 Qaynoq", callback_data="hot_animes"),
-                types.InlineKeyboardButton("⏰ Yangi", callback_data="recent_animes"),
-                types.InlineKeyboardButton("⭐ Top", callback_data="top_animes")
-            )
-            bot.reply_to(message, "✨ **Asosiy menyu:**", reply_markup=markup, parse_mode="Markdown")
+            bot.reply_to(message, "✨ **Asosiy menyu:**", reply_markup=get_user_markup(), parse_mode="Markdown")
 
 
 # ============================================================
