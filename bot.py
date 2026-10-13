@@ -200,6 +200,7 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
             return
             if call.data == "search_menu":
+                
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup(row_width=1)
         btn_code = types.InlineKeyboardButton("🔢 Kod orqali izlash", callback_data="search_by_code")
