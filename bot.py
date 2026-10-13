@@ -19,2893 +19,693 @@ except ImportError:
 # SOZLAMALAR
 # ============================================================
 
-TOKEN = os.environ.get('BOT_TOKEN', '8987164421:AAHIKjTCtB4781Ns53b3WSHk5xgAWOXTtQ8')
-
-if not TOKEN:
-    raise RuntimeError(
-        "BOT_TOKEN topilmadi. Render Environment Variables "
-        "ichiga BOT_TOKEN qo'shing."
-    )
-
-ADMIN_ID = int(os.environ.get("ADMIN_ID", "7986354170"))
-
-DATABASE_URL = os.environ.get("DATABASE_URL", None)
-
-DB_FILE = "bot_data.db"
-
+TOKEN = os.environ.get('BOT_TOKEN', 'SIZNING_BOT_TOKENINGIZ')
 bot = telebot.TeleBot(TOKEN)
 
-app = Flask(__name__)
+# 2 nafar adminning Telegram ID raqamlari (o'zingiznikiga o'zgartiring)
+ADMIN_IDS = [123456789, 987654321]
 
+# Foydalanuvchilarning holatini (state) saqlash uchun lug'at
+user_states = {}
 
-# ============================================================
-# WEB SERVER
-# ============================================================
+# Ma'lumotlar bazasini yaratish / ulanish
+def init_db():
+    conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+    cursor = conn.cursor()
+    
+    # Foydalanuvchilar jadvali (Broadcast uchun)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY
+        )
+    ''')
+    
+    # Majburiy obuna kanallari jadvali
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS force_channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel_username TEXT,
+            channel_link TEXT
+        )
+    ''')
+    
+    # Animelar jadvali
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS animes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel_name TEXT,
+            channel_link TEXT,
+            title TEXT,
+            hidden_names TEXT,
+            code TEXT UNIQUE,
+            photo_id TEXT,
+            episodes TEXT,
+            genre TEXT,
+            description TEXT,
+            views INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
-@app.route("/")
+init_db()
+
+# Render 24/7 ishlashi uchun Flask web server
+app = Flask('')
+
+@app.route('/')
 def home():
-    return "Bot is running and alive!"
+    return "Ani Kenbot muvaffaqiyatli ishlamoqda!"
 
-
-def run_web():
-    app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000))
-    )
-
+def run():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
-    t = threading.Thread(target=run_web)
+    t = threading.Thread(target=run)
     t.daemon = True
     t.start()
 
 
 # ============================================================
-# BOT COMMANDS
+# MAJBURIY OBUNANI TEKSHIRISH FUNKSIYASI
 # ============================================================
-
-def set_bot_commands():
-
-    commands = [
-        types.BotCommand(
-            "start",
-            "Botni ishga tushirish va asosiy menyu"
-        ),
-        types.BotCommand(
-            "anime",
-            "Anime qidirish"
-        ),
-        types.BotCommand(
-            "animekod",
-            "Kod orqali anime olish (Masalan: /animekod 1)"
-        ),
-    ]
-
-    try:
-
-        bot.set_my_commands(
-            commands,
-            scope=types.BotCommandScopeAllPrivateChats()
-        )
-
-        bot.set_my_commands(
-            commands,
-            scope=types.BotCommandScopeAllGroupChats()
-        )
-
-    except Exception as e:
-        print(f"Bot commandlarini o'rnatishda xato: {e}")
-
-
-# ============================================================
-# DATABASE
-# ============================================================
-
-def get_db_connection():
-
-    if DATABASE_URL and psycopg2:
-
-        parsed_url = urlparse(DATABASE_URL)
-
-        return psycopg2.connect(
-            database=parsed_url.path[1:],
-            user=parsed_url.username,
-            password=parsed_url.password,
-            host=parsed_url.hostname,
-            port=parsed_url.port,
-            sslmode="require",
-        )
-
-    return sqlite3.connect(
-        DB_FILE,
-        timeout=30
-    )
-
-
-def init_db():
-
-    conn = get_db_connection()
+def check_subscription(user_id):
+    conn = sqlite3.connect('bot_database.db', check_same_thread=False)
     cursor = conn.cursor()
+    cursor.execute("SELECT channel_username, channel_link FROM force_channels")
+    channels = cursor.fetchall()
+    conn.close()
+    
+    if not channels:
+        return True, []
+        
+    not_subscribed = []
+    for ch_username, ch_link in channels:
+        try:
+            member = bot.get_chat_member(ch_username, user_id)
+            if member.status not in ['creator', 'administrator', 'member']:
+                not_subscribed.append((ch_username, ch_link))
+        except Exception:
+            not_subscribed.append((ch_username, ch_link))
+            
+    if not_subscribed:
+        return False, not_subscribed
+    return True, []
 
-    is_postgres = bool(DATABASE_URL and psycopg2)
 
-    if is_postgres:
+# ============================================================
+# BOT BUYRUQLARI VA INLINE MENYULAR
+# ============================================================
 
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                user_id BIGINT PRIMARY KEY
-            )
-            """
-        )
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS channels (
-                username TEXT PRIMARY KEY
-            )
-            """
-        )
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS animes (
-                id SERIAL PRIMARY KEY,
-                name TEXT,
-                sub_name TEXT,
-                hidden_name TEXT,
-                code TEXT,
-                info TEXT,
-                photo TEXT,
-                episodes_count TEXT DEFAULT 'Noma''lum',
-                status TEXT DEFAULT 'Tugallangan',
-                quality TEXT DEFAULT '720p, 1080p',
-                genre TEXT DEFAULT 'Drama, Isekai, fantastik',
-                channel_name TEXT DEFAULT '@AniRem_Org',
-                views INTEGER DEFAULT 0
-            )
-            """
-        )
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS parts (
-                id SERIAL PRIMARY KEY,
-                anime_id INTEGER,
-                part_num INTEGER,
-                video_id TEXT
-            )
-            """
-        )
-
-    else:
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY
-            )
-            """
-        )
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS channels (
-                username TEXT PRIMARY KEY
-            )
-            """
-        )
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS animes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                sub_name TEXT,
-                hidden_name TEXT,
-                code TEXT,
-                info TEXT,
-                photo TEXT,
-                episodes_count TEXT DEFAULT 'Noma''lum',
-                status TEXT DEFAULT 'Tugallangan',
-                quality TEXT DEFAULT '720p, 1080p',
-                genre TEXT DEFAULT 'Drama, Isekai, fantastik',
-                channel_name TEXT DEFAULT '@AniRem_Org',
-                views INTEGER DEFAULT 0
-            )
-            """
-        )
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS parts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                anime_id INTEGER,
-                part_num INTEGER,
-                video_id TEXT
-            )
-            """
-        )
-
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    user_id = message.from_user.id
+    user_states.pop(user_id, None)  # Xotirani tozalash
+    
+    # Foydalanuvchini bazaga qo'shish
+    conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
     conn.commit()
     conn.close()
+    
+    if user_id not in ADMIN_IDS:
+        is_sub, unsubs = check_subscription(user_id)
+        if not is_sub:
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            for ch_username, ch_link in unsubs:
+                markup.add(types.InlineKeyboardButton(f"📢 Kanalga obuna bo'lish", url=ch_link))
+            markup.add(types.InlineKeyboardButton("🔄 Obunani tekshirish", callback_data="check_sub"))
+            
+            bot.send_message(message.chat.id, 
+                             "⚠️ Diqqat! Botimizdan foydalanish uchun quyidagi kanal(lar)ga obuna bo'lishingiz shart.\n\nObuna bo'lgandan so'ng '🔄 Obunani tekshirish' tugmasini bosing:", 
+                             reply_markup=markup, parse_mode="Markdown")
+            return
 
-
-def execute_query(
-    query,
-    params=(),
-    fetchone=False,
-    fetchall=False,
-    commit=False
-):
-
-    is_postgres = bool(DATABASE_URL and psycopg2)
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    if is_postgres:
-        query = query.replace("?", "%s")
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    if user_id in ADMIN_IDS:
+        btn_add_force = types.InlineKeyboardButton("📢 Majburiy kanal qo'shish", callback_data="add_force_channel")
+        btn_del_force = types.InlineKeyboardButton("🗑 Majburiy kanalni o'chirish", callback_data="del_force_channel")
+        btn_add_anime = types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime")
+        btn_del_anime = types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="del_anime_menu")
+        btn_broadcast = types.InlineKeyboardButton("📤 Xabar yuborish", callback_data="admin_broadcast")
+        btn_stats = types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
+        
+        markup.add(btn_add_force, btn_del_force)
+        markup.add(btn_add_anime, btn_del_anime)
+        markup.add(btn_broadcast, btn_stats)
+        
+        bot.send_message(message.chat.id, "👑 Xush kelibsiz, Admin! Boshqaruv paneli:", reply_markup=markup, parse_mode="Markdown")
     else:
-        query = query.replace("%s", "?")
-
-    try:
-
-        cursor.execute(query, params)
-
-        result = None
-
-        if fetchone:
-            result = cursor.fetchone()
-
-        elif fetchall:
-            result = cursor.fetchall()
-
-        if commit:
-            conn.commit()
-
-        return result
-
-    except Exception as e:
-
-        print(f"DB Error: {e}")
-
-        if commit:
-
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-
-        return None
-
-    finally:
-
-        conn.close()
-
-
-# ============================================================
-# DATABASENI ISHGA TUSHIRISH
-# ============================================================
-
-init_db()
-set_bot_commands()
-
-
-# ============================================================
-# USER HOLATLARI
-# ============================================================
-
-user_states = {}
-temp_data = {}
-
-
-# ============================================================
-# OBUNANI TEKSHIRISH
-# ============================================================
-
-def check_sub(user_id):
-
-    if user_id == ADMIN_ID:
-        return True
-
-    rows = execute_query(
-        "SELECT username FROM channels",
-        fetchall=True
-    ) or []
-
-    channels = [row[0] for row in rows]
-
-    if not channels:
-        return True
-
-    unsubscribed = []
-
-    for ch in channels:
-
-        try:
-
-            member = bot.get_chat_member(
-                ch,
-                user_id
-            )
-
-            if member.status in ["left", "kicked"]:
-                unsubscribed.append(ch)
-
-        except Exception:
-            pass
-
-    return unsubscribed if unsubscribed else True
-
-
-def get_sub_keyboard(unsubscribed_channels):
-
-    markup = types.InlineKeyboardMarkup(
-        row_width=1
-    )
-
-    for ch in unsubscribed_channels:
-
-        clean_ch = ch.replace("@", "")
-
-        url = f"https://t.me/{clean_ch}"
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "📢 Kanalga a'zo bo'lish",
-                url=url
-            )
-        )
-
-    markup.add(
-        types.InlineKeyboardButton(
-            "✅ Obunani tekshirish",
-            callback_data="check_subscription"
-        )
-    )
-
-    return markup
-
-
-# ============================================================
-# ASOSIY MENYU
-# ============================================================
-
-def get_main_inline_menu(user_id):
-
-    markup = types.InlineKeyboardMarkup(
-        row_width=2
-    )
-
-    markup.add(
-        types.InlineKeyboardButton(
-            "🔍 Animelarni izlash",
-            callback_data="menu_search"
-        ),
-        types.InlineKeyboardButton(
-            "📁 Mavjud animelar",
-            callback_data="menu_available_page_1"
-        )
-    )
-
-    markup.add(
-        types.InlineKeyboardButton(
-            "🔥 Tavsiya etiladigan",
-            callback_data="menu_recommended"
-        )
-    )
-
-    if user_id == ADMIN_ID:
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "➕ Anime qo'shish",
-                callback_data="admin_add_folder"
-            ),
-            types.InlineKeyboardButton(
-                "➕ Qism qo'shish",
-                callback_data="admin_add_part"
-            ),
-            types.InlineKeyboardButton(
-                "✏️ Tahrirlash",
-                callback_data="admin_edit_menu"
-            ),
-            types.InlineKeyboardButton(
-                "⚙️ Kanallar",
-                callback_data="admin_channels"
-            ),
-            types.InlineKeyboardButton(
-                "📊 Statistika",
-                callback_data="admin_stats"
-            ),
-            types.InlineKeyboardButton(
-                "🗑 Boshqarish",
-                callback_data="admin_manage"
-            )
-        )
-
-    return markup
-
-
-# ============================================================
-# QIDIRUV MENYUSI
-# ============================================================
-
-def get_search_inline_keyboard():
-
-    markup = types.InlineKeyboardMarkup(
-        row_width=1
-    )
-
-    markup.add(
-        types.InlineKeyboardButton(
-            "🔤 Nomi orqali",
-            callback_data="search_by_name"
-        ),
-        types.InlineKeyboardButton(
-            "🔢 Kodi orqali",
-            callback_data="search_by_code"
-        ),
-        types.InlineKeyboardButton(
-            "🔙 Asosiy menyu",
-            callback_data="back_to_main"
-        )
-    )
-
-    return markup
-
-
-# ============================================================
-# ANIMELAR RO'YXATI
-# ============================================================
-
-def get_available_animes_keyboard(
-    page=1,
-    action_type="show"
-):
-
-    markup = types.InlineKeyboardMarkup(
-        row_width=1
-    )
-
-    animes = execute_query(
-        """
-        SELECT id, name
-        FROM animes
-        ORDER BY id DESC
-        """,
-        fetchall=True
-    ) or []
-
-    if not animes:
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "❌ Hozircha animelar yo'q",
-                callback_data="none"
-            )
-        )
-
-        if action_type in [
-            "add_part",
-            "admin_opt",
-            "edit_folder"
-        ]:
-
-            markup.add(
-                types.InlineKeyboardButton(
-                    "🔙 Orqaga",
-                    callback_data="back_to_admin_menu"
-                )
-            )
-
-        else:
-
-            markup.add(
-                types.InlineKeyboardButton(
-                    "🔙 Asosiy menyu",
-                    callback_data="back_to_main"
-                )
-            )
-
-        return markup
-
-    items_per_page = 15
-
-    total_pages = (
-        len(animes) + items_per_page - 1
-    ) // items_per_page
-
-    page = max(
-        1,
-        min(page, total_pages)
-    )
-
-    start_idx = (
-        page - 1
-    ) * items_per_page
-
-    current_animes = animes[
-        start_idx:start_idx + items_per_page
-    ]
-
-    for anime_id, name in current_animes:
-
-        count_row = execute_query(
-            """
-            SELECT COUNT(*)
-            FROM parts
-            WHERE anime_id = ?
-            """,
-            (anime_id,),
-            fetchone=True
-        )
-
-        parts_count = (
-            count_row[0]
-            if count_row
-            else 0
-        )
-
-        btn_text = (
-            f"📁 {name} ({parts_count}-qism)"
-        )
-
-        if action_type == "add_part":
-
-            callback_data = (
-                f"select_anime_for_part_{anime_id}"
-            )
-
-        elif action_type == "admin_opt":
-
-            callback_data = (
-                f"admin_anime_opt_{anime_id}"
-            )
-
-        elif action_type == "edit_folder":
-
-            callback_data = (
-                f"select_edit_folder_{anime_id}"
-            )
-
-        else:
-
-            callback_data = (
-                f"show_anime_{anime_id}"
-            )
-
-        markup.add(
-            types.InlineKeyboardButton(
-                btn_text,
-                callback_data=callback_data
-            )
-        )
-
-    nav_buttons = []
-
-    if page > 1:
-
-        nav_buttons.append(
-            types.InlineKeyboardButton(
-                "◀️",
-                callback_data=(
-                    f"menu_available_page_{page - 1}"
-                )
-            )
-        )
-
-    nav_buttons.append(
-        types.InlineKeyboardButton(
-            f"{page}/{total_pages}",
-            callback_data="none"
-        )
-    )
-
-    if page < total_pages:
-
-        nav_buttons.append(
-            types.InlineKeyboardButton(
-                "▶️",
-                callback_data=(
-                    f"menu_available_page_{page + 1}"
-                )
-            )
-        )
-
-    markup.row(*nav_buttons)
-
-    if action_type in [
-        "add_part",
-        "admin_opt",
-        "edit_folder"
-    ]:
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="back_to_admin_menu"
-            )
-        )
-
-    else:
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Asosiy menyu",
-                callback_data="back_to_main"
-            )
-        )
-
-    return markup
-
-
-# ============================================================
-# TAVSIYA ETILADIGAN ANIMELAR
-# ============================================================
-
-def get_recommended_animes_keyboard():
-
-    markup = types.InlineKeyboardMarkup(
-        row_width=1
-    )
-
-    animes = execute_query(
-        """
-        SELECT id, name, views
-        FROM animes
-        ORDER BY views DESC
-        LIMIT 10
-        """,
-        fetchall=True
-    ) or []
-
-    if not animes:
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "❌ Hozircha animelar yo'q",
-                callback_data="none"
-            )
-        )
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Asosiy menyu",
-                callback_data="back_to_main"
-            )
-        )
-
-        return markup
-
-    for rank, (
-        anime_id,
-        name,
-        views
-    ) in enumerate(
-        animes,
-        start=1
-    ):
-
-        markup.add(
-            types.InlineKeyboardButton(
-                f"#{rank}. 🎬 {name} - "
-                f"{views} marta ko'rilgan",
-                callback_data=f"show_anime_{anime_id}"
-            )
-        )
-
-    markup.add(
-        types.InlineKeyboardButton(
-            "🔙 Asosiy menyu",
-            callback_data="back_to_main"
-        )
-    )
-
-    return markup
-
-
-# ============================================================
-# ANIME QISMLARI
-# ============================================================
-
-def get_anime_folder_keyboard(
-    anime_id,
-    page=1
-):
-
-    markup = types.InlineKeyboardMarkup(
-        row_width=6
-    )
-
-    parts_res = execute_query(
-        """
-        SELECT part_num
-        FROM parts
-        WHERE anime_id = ?
-        ORDER BY part_num ASC
-        """,
-        (anime_id,),
-        fetchall=True
-    ) or []
-
-    parts = [
-        row[0]
-        for row in parts_res
-    ]
-
-    if not parts:
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "❌ Hozircha qismlar yo'q",
-                callback_data="none"
-            )
-        )
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Asosiy menyu",
-                callback_data="back_to_main"
-            )
-        )
-
-        return markup
-
-    items_per_page = 18
-
-    total_pages = (
-        len(parts) + items_per_page - 1
-    ) // items_per_page
-
-    page = max(
-        1,
-        min(page, total_pages)
-    )
-
-    start_idx = (
-        page - 1
-    ) * items_per_page
-
-    current_parts = parts[
-        start_idx:start_idx + items_per_page
-    ]
-
-    buttons = []
-
-    for part_num in current_parts:
-
-        buttons.append(
-            types.InlineKeyboardButton(
-                str(part_num),
-                callback_data=(
-                    f"get_part_{anime_id}_{part_num}"
-                )
-            )
-        )
-
-    if buttons:
-        markup.add(*buttons)
-
-    nav_buttons = []
-
-    if page > 1:
-
-        nav_buttons.append(
-            types.InlineKeyboardButton(
-                "⬅️",
-                callback_data=(
-                    f"page_{anime_id}_{page - 1}"
-                )
-            )
-        )
-
-    nav_buttons.append(
-        types.InlineKeyboardButton(
-            "❌",
-            callback_data="none"
-        )
-    )
-
-    if page < total_pages:
-
-        nav_buttons.append(
-            types.InlineKeyboardButton(
-                "➡️",
-                callback_data=(
-                    f"page_{anime_id}_{page + 1}"
-                )
-            )
-        )
-
-    markup.row(*nav_buttons)
-
-    markup.add(
-        types.InlineKeyboardButton(
-            "🔙 Asosiy menyu",
-            callback_data="back_to_main"
-        )
-    )
-
-    return markup
-
-
-# ============================================================
-# ANIME MATNINI FORMATLASH
-# ============================================================
-
-def format_anime_text(
-    anime_data,
-    bot_username=""
-):
-
-    (
-        name,
-        sub_name,
-        hidden_name,
-        info,
-        views,
-        code,
-        episodes_count,
-        status,
-        quality,
-        genre,
-        channel_name
-    ) = anime_data
-
-    name = html.escape(str(name or ""))
-    episodes_count = html.escape(
-        str(episodes_count or "")
-    )
-    status = html.escape(
-        str(status or "")
-    )
-    quality = html.escape(
-        str(quality or "")
-    )
-    genre = html.escape(
-        str(genre or "")
-    )
-    channel_name = html.escape(
-        str(channel_name or "")
-    )
-    code = html.escape(
-        str(code or "")
-    )
-
-    bot_link = (
-        f"https://t.me/{bot_username}"
-        f"?start=anime_{code}"
-    )
-
-    return (
-    f"<i>{html.escape(str(name))}</i>\n\n"
-    f"┣ 🎬 <b>Qism: {html.escape(str(episodes_count))}</b>\n"
-    f"┣ 🌐 <b>Holati: {html.escape(str(status))}</b>\n"
-    f"┣ 💻 <b>Sifat: {html.escape(str(quality))}</b>\n"
-    f"┣ 🎭 <b>Janrlari: {html.escape(str(genre))}</b>\n"
-    f"┗ 📢 <b>Kanal: {html.escape(str(channel_name))}</b>\n\n"
-    f"🔥 <b>Botimiz: @{html.escape(str(bot_username))}</b>\n"
-    f"🔥 <b>Anime ID: <tg-spoiler>{html.escape(str(code))}</tg-spoiler></b>\n"
-    f"🔥 <b>Reyting: / 5</b>\n"
-    f"🔥 <b>Link:</b> "
-    f"<code>{html.escape(str(bot_link))}</code>"
-)
-
-
-# ============================================================
-# /START
-# ============================================================
-
-@bot.message_handler(commands=["start"])
-def send_start(message):
-    user_id = message.from_user.id
-
-    user_states.pop(user_id, None)
-    temp_data.pop(user_id, None)
-
-    execute_query(
-        "INSERT INTO users (user_id) VALUES (?) "
-        "ON CONFLICT (user_id) DO NOTHING",
-        (user_id,),
-        commit=True,
-    )
-
-    args = message.text.split()
-
-    if len(args) > 1 and args[1].startswith("anime_"):
-        try:
-            code = args[1].split("_", 1)[1]
-
-            anime = execute_query(
-                "SELECT id, name, sub_name, hidden_name, info, views, code, "
-                "episodes_count, status, quality, genre, channel_name, photo "
-                "FROM animes WHERE code = ?",
-                (code,),
-                fetchone=True,
-            )
-
-            if anime:
-                anime_id = anime[0]
-
-                execute_query(
-                    "UPDATE animes SET views = views + 1 WHERE id = ?",
-                    (anime_id,),
-                    commit=True,
-                )
-
-                markup = types.InlineKeyboardMarkup(row_width=1)
-                markup.add(
-                    types.InlineKeyboardButton(
-                        "✨ TOMOSHA QILISH ✨",
-                        callback_data=f"watch_anime_{anime_id}",
-                    )
-                )
-
-                bot_username = bot.get_me().username
-                anime_data = anime[1:12]
-
-                text = format_anime_text(
-                    anime_data,
-                    bot_username,
-                )
-
-                photo = anime[12]
-
-                if photo:
-                    bot.send_photo(
-                        message.chat.id,
-                        photo,
-                        caption=text,
-                        reply_markup=markup,
-                        parse_mode="HTML",
-                        protect_content=True,
-                    )
-                else:
-                    bot.send_message(
-                        message.chat.id,
-                        text,
-                        reply_markup=markup,
-                        parse_mode="HTML",
-                        protect_content=True,
-                    )
-
-                return
-
-        except Exception as e:
-            print(f"START deep-link xatoligi: {e}")
-
-    sub_res = check_sub(user_id)
-
-    if sub_res != True:
-        bot.send_message(
-            message.chat.id,
-            "⚠️ Botdan foydalanish uchun quyidagi kanallarga "
-            "obuna bo'lishingiz kerak:",
-            reply_markup=get_sub_keyboard(sub_res),
-        )
-        return
-
-    bot.send_message(
-        message.chat.id,
-        "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
-        reply_markup=get_main_inline_menu(user_id),
-        parse_mode="Markdown",
-    )
-
-
-# ============================================================
-# /ANIME
-# ============================================================
-
-@bot.message_handler(commands=["anime"])
-def cmd_anime(message):
-    user_id = message.from_user.id
-
-    user_states.pop(user_id, None)
-    temp_data.pop(user_id, None)
-
-    sub_res = check_sub(user_id)
-
-    if sub_res != True:
-        bot.send_message(
-            message.chat.id,
-            "⚠️ Botdan foydalanish uchun quyidagi kanallarga "
-            "obuna bo'lishingiz kerak:",
-            reply_markup=get_sub_keyboard(sub_res),
-        )
-        return
-
-    bot.send_message(
-        message.chat.id,
-        "🔍 **Anime qidirish usulini tanlang:**",
-        reply_markup=get_search_inline_keyboard(),
-        parse_mode="Markdown",
-    )
-
-
-# ============================================================
-# /ANIMEKOD
-# ============================================================
-
-@bot.message_handler(commands=["animekod"])
-def cmd_animekod(message):
-    args = message.text.split()
-
-    if len(args) < 2:
-        bot.reply_to(
-            message,
-            "⚠️ Iltimos, kodni kiriting! "
-            "Masalan: <code>/animekod 1</code>",
-            parse_mode="HTML",
-        )
-        return
-
-    code = args[1].strip()
-
-    anime = execute_query(
-        "SELECT id, name, sub_name, hidden_name, info, views, code, "
-        "episodes_count, status, quality, genre, channel_name, photo "
-        "FROM animes WHERE code = ?",
-        (code,),
-        fetchone=True,
-    )
-
-    if not anime:
-        bot.reply_to(
-            message,
-            "❌ Bu kod bo'yicha hech qanday anime topilmadi.",
-        )
-        return
-
-    anime_id = anime[0]
-
-    bot_username = bot.get_me().username
-
-    anime_data = anime[1:12]
-
-    text = format_anime_text(
-        anime_data,
-        bot_username,
-    )
-
-    photo = anime[12]
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-
-    markup.add(
-        types.InlineKeyboardButton(
-            "✨ YUKLAB OLISH ✨",
-            url=f"https://t.me/{bot_username}?start=anime_{code}",
-        )
-    )
-
-    if photo:
-        bot.send_photo(
-            message.chat.id,
-            photo,
-            caption=text,
-            reply_markup=markup,
-            parse_mode="HTML",
-        )
-    else:
-        bot.send_message(
-            message.chat.id,
-            text,
-            reply_markup=markup,
-            parse_mode="HTML",
-        )
-
-
-# ============================================================
-# CALLBACK HANDLER
-# ============================================================
-
+        btn_search = types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu")
+        btn_list = types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list")
+        btn_hot = types.InlineKeyboardButton("🔥 Qaynoq / Yangi", callback_data="hot_animes")
+        btn_recent = types.InlineKeyboardButton("⏰ Oxirgi qo'shilganlar", callback_data="recent_animes")
+        btn_top = types.InlineKeyboardButton("⭐ Top animelar", callback_data="top_animes")
+        
+        markup.add(btn_search, btn_list)
+        markup.add(btn_hot, btn_recent)
+        markup.add(btn_top)
+        
+        bot.send_message(message.chat.id, "✨ Assalomu alaykum! Ani Kenbot'ga xush kelibsiz.\n\nKerakli bo'limni tanlang:", reply_markup=markup, parse_mode="Markdown")
+
+
+# Callback tugmalar bilan ishlash
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     user_id = call.from_user.id
-    chat_id = call.message.chat.id
-    data = call.data
-
-    if data == "none":
-        bot.answer_callback_query(call.id)
-        return
-
-    # --------------------------------------------------------
-    # OBUNANI TEKSHIRISH
-    # --------------------------------------------------------
-
-    if data == "check_subscription":
-        sub_res = check_sub(user_id)
-
-        if sub_res == True:
-            bot.answer_callback_query(
-                call.id,
-                "✅ Obuna tasdiqlandi!",
-            )
-
-            try:
-                bot.delete_message(
-                    chat_id,
-                    call.message.message_id,
-                )
-            except Exception:
-                pass
-
-            bot.send_message(
-                chat_id,
-                "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
-                reply_markup=get_main_inline_menu(user_id),
-                parse_mode="Markdown",
-            )
-
-        else:
-            bot.answer_callback_query(
-                call.id,
-                "❌ Siz hali barcha kanallarga obuna bo'lmagansiz!",
-                show_alert=True,
-            )
-
-        return
-
-    # --------------------------------------------------------
-    # OBUNA TEKSHIRISH
-    # --------------------------------------------------------
-
-    sub_res = check_sub(user_id)
-
-    if sub_res != True:
-        try:
-            bot.edit_message_text(
-                "⚠️ Botdan foydalanish uchun quyidagi kanallarga "
-                "obuna bo'lishingiz kerak:",
-                chat_id,
-                call.message.message_id,
-                reply_markup=get_sub_keyboard(sub_res),
-            )
-        except Exception:
-            pass
-
-        return
-
-    # --------------------------------------------------------
-    # ASOSIY MENYU
-    # --------------------------------------------------------
-
-    if data == "back_to_main":
-        user_states.pop(user_id, None)
-        temp_data.pop(user_id, None)
-
-        bot.answer_callback_query(call.id)
-
-        try:
-            bot.delete_message(
-                chat_id,
-                call.message.message_id,
-            )
-        except Exception:
-            pass
-
-        bot.send_message(
-            chat_id,
-            "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
-            reply_markup=get_main_inline_menu(user_id),
-            parse_mode="Markdown",
-        )
-
-    # --------------------------------------------------------
-    # ADMIN MENYU
-    # --------------------------------------------------------
-
-    elif data == "back_to_admin_menu":
-        user_states.pop(user_id, None)
-        temp_data.pop(user_id, None)
-
-        bot.answer_callback_query(call.id)
-
-        try:
-            bot.edit_message_text(
-                "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
-                chat_id,
-                call.message.message_id,
-                reply_markup=get_main_inline_menu(user_id),
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-    # --------------------------------------------------------
-    # QIDIRUV MENYUSI
-    # --------------------------------------------------------
-
-    elif data == "menu_search":
-        bot.answer_callback_query(call.id)
-
-        try:
-            bot.edit_message_text(
-                "🔍 **Anime qidirish usulini tanlang:**",
-                chat_id,
-                call.message.message_id,
-                reply_markup=get_search_inline_keyboard(),
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-    # --------------------------------------------------------
-    # TAVSIYA
-    # --------------------------------------------------------
-
-    elif data == "menu_recommended":
-        bot.answer_callback_query(call.id)
-
-        try:
-            bot.edit_message_text(
-                "🔥 **Tavsiya etiladigan top animelar jadvali:**",
-                chat_id,
-                call.message.message_id,
-                reply_markup=get_recommended_animes_keyboard(),
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-    # --------------------------------------------------------
-    # MAVJUD ANIMELAR
-    # --------------------------------------------------------
-
-    elif data.startswith("menu_available_page_"):
-        try:
-            page = int(data.split("_")[3])
-        except Exception:
-            page = 1
-
-        bot.answer_callback_query(call.id)
-
-        markup = get_available_animes_keyboard(
-            page,
-            action_type="show",
-        )
-
-        try:
-            bot.edit_message_text(
-                "📁 **Mavjud animelar ro'yxati:**",
-                chat_id,
-                call.message.message_id,
-                reply_markup=markup,
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-    # --------------------------------------------------------
-    # ANIME KO'RISH
-    # --------------------------------------------------------
-
-    elif data.startswith("show_anime_"):
-        try:
-            anime_id = int(data.split("_")[2])
-        except Exception:
-            bot.answer_callback_query(call.id)
+    
+    if call.data == "check_sub":
+        is_sub, unsubs = check_subscription(user_id)
+        if not is_sub:
+            bot.answer_callback_query(call.id, "❌ Siz hali hamma kanallarga obuna bo'lmadingiz!", show_alert=True)
             return
-
-        bot.answer_callback_query(call.id)
-
-        anime = execute_query(
-            "SELECT id, name, sub_name, hidden_name, info, views, code, "
-            "episodes_count, status, quality, genre, channel_name, photo "
-            "FROM animes WHERE id = ?",
-            (anime_id,),
-            fetchone=True,
-        )
-
-        if anime:
-            execute_query(
-                "UPDATE animes SET views = views + 1 WHERE id = ?",
-                (anime_id,),
-                commit=True,
-            )
-
-            markup = types.InlineKeyboardMarkup(row_width=1)
-
-            markup.add(
-                types.InlineKeyboardButton(
-                    "✨ TOMOSHA QILISH ✨",
-                    callback_data=f"watch_anime_{anime_id}",
-                )
-            )
-
-            bot_username = bot.get_me().username
-
-            text = format_anime_text(
-                anime[1:12],
-                bot_username,
-            )
-
-            photo = anime[12]
-
-            try:
-                bot.delete_message(
-                    chat_id,
-                    call.message.message_id,
-                )
-            except Exception:
-                pass
-
-            if photo:
-                bot.send_photo(
-                    chat_id,
-                    photo,
-                    caption=text,
-                    reply_markup=markup,
-                    parse_mode="HTML",
-                    protect_content=True,
-                )
-            else:
-                bot.send_message(
-                    chat_id,
-                    text,
-                    reply_markup=markup,
-                    parse_mode="HTML",
-                    protect_content=True,
-                )
-
-    # --------------------------------------------------------
-    # QISMLAR
-    # --------------------------------------------------------
-
-    elif data.startswith("watch_anime_"):
-        try:
-            anime_id = int(data.split("_")[2])
-        except Exception:
-            bot.answer_callback_query(call.id)
-            return
-
-        bot.answer_callback_query(call.id)
-
-        try:
-            bot.edit_message_reply_markup(
-                chat_id,
-                call.message.message_id,
-                reply_markup=get_anime_folder_keyboard(
-                    anime_id,
-                    page=1,
-                ),
-            )
-        except Exception:
-            pass
-
-    # --------------------------------------------------------
-    # QISM SAHIFASI
-    # --------------------------------------------------------
-
-    elif data.startswith("page_"):
-        parts = data.split("_")
-
-        try:
-            anime_id = int(parts[1])
-            page = int(parts[2])
-        except Exception:
-            bot.answer_callback_query(call.id)
-            return
-
-        bot.answer_callback_query(call.id)
-
-        try:
-            bot.edit_message_reply_markup(
-                chat_id,
-                call.message.message_id,
-                reply_markup=get_anime_folder_keyboard(
-                    anime_id,
-                    page=page,
-                ),
-            )
-        except Exception:
-            pass
-
-    # --------------------------------------------------------
-    # QISMNI OLISH
-    # --------------------------------------------------------
-
-    elif data.startswith("get_part_"):
-        parts = data.split("_")
-
-        try:
-            anime_id = int(parts[2])
-            part_num = int(parts[3])
-        except Exception:
-            bot.answer_callback_query(call.id)
-            return
-
-        bot.answer_callback_query(call.id)
-
-        part = execute_query(
-            "SELECT video_id FROM parts "
-            "WHERE anime_id = ? AND part_num = ?",
-            (anime_id, part_num),
-            fetchone=True,
-        )
-
-        if part and part[0]:
-            try:
-                bot.send_video(
-                    chat_id,
-                    part[0],
-                    caption=f"{part_num}-qism",
-                    protect_content=True,
-                )
-            except Exception as e:
-                print(f"Video yuborish xatoligi: {e}")
-
-                bot.send_message(
-                    chat_id,
-                    f"❌ {part_num}-qism videosini yuborishda "
-                    "xatolik yuz berdi.",
-                )
-        else:
-            bot.answer_callback_query(
-                call.id,
-                "❌ Bu qism topilmadi!",
-                show_alert=True,
-            )
-
-    # --------------------------------------------------------
-    # NOM BO'YICHA QIDIRUV
-    # --------------------------------------------------------
-
-    elif data == "search_by_name":
-        bot.answer_callback_query(call.id)
-
-        user_states[user_id] = "WAITING_SEARCH_NAME"
-
-        markup = types.InlineKeyboardMarkup()
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="menu_search",
-            )
-        )
-
-        try:
-            bot.edit_message_text(
-                "🔤 Qidirilayotgan anime nomini "
-                "(yoki kalit so'zni) kiriting:",
-                chat_id,
-                call.message.message_id,
-                reply_markup=markup,
-            )
-        except Exception:
-            pass
-
-    # --------------------------------------------------------
-    # KOD BO'YICHA QIDIRUV
-    # --------------------------------------------------------
-
-    elif data == "search_by_code":
-        bot.answer_callback_query(call.id)
-
-        user_states[user_id] = "WAITING_SEARCH_CODE"
-
-        markup = types.InlineKeyboardMarkup()
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="menu_search",
-            )
-        )
-
-        try:
-            bot.edit_message_text(
-                "🔢 Qidirilayotgan anime kodini kiriting:",
-                chat_id,
-                call.message.message_id,
-                reply_markup=markup,
-            )
-        except Exception:
-            pass
-
-    # ========================================================
-    # ADMIN - ANIME QO'SHISH
-    # ========================================================
-
-    elif data == "admin_add_folder" and user_id == ADMIN_ID:
-        bot.answer_callback_query(call.id)
-
-        user_states[user_id] = "ADD_NAME"
-        temp_data[user_id] = {}
-
-        try:
-            bot.delete_message(
-                chat_id,
-                call.message.message_id,
-            )
-        except Exception:
-            pass
-
-        markup = types.InlineKeyboardMarkup()
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="back_to_admin_menu",
-            )
-        )
+        bot.answer_callback_query(call.id, "✅ Muvaffaqiyatli obuna bo'ldingiz!")
         
-        bot.send_message(
-        chat_id,
-        "🎬 **Animening asosiy nomini kiriting:**",
-        reply_markup=markup,
-        parse_mode='Markdown',
-    )
-
-    elif data == "admin_add_part" and user_id == ADMIN_ID:
-    bot.answer_callback_query(call.id)
-    bot.edit_message_text(
-        "📁 **Qaysi animega qism qo'shmoqchisiz?**\nAnimeni tanlang:",
-        chat_id,
-        call.message.message_id,
-        reply_markup=get_available_animes_keyboard(
-            page=1,
-            action_type="add_part",
-        ),
-    )
-
-elif data.startswith('select_anime_for_part_') and user_id == ADMIN_ID:
-    try:
-        anime_id = int(data.split("_")[4])
-    except Exception:
-        bot.answer_callback_query(call.id)
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        btn_search = types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu")
+        btn_list = types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list")
+        btn_hot = types.InlineKeyboardButton("🔥 Qaynoq / Yangi", callback_data="hot_animes")
+        btn_recent = types.InlineKeyboardButton("⏰ Oxirgi qo'shilganlar", callback_data="recent_animes")
+        btn_top = types.InlineKeyboardButton("⭐ Top animelar", callback_data="top_animes")
+        markup.add(btn_search, btn_list, btn_hot, btn_recent, btn_top)
+        bot.edit_message_text("✨ Rahmat! Endi botdan to'liq foydalanishingiz mumkin:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         return
 
-    bot.answer_callback_query(call.id)
-
-        last_part_res = execute_query(
-            "SELECT MAX(part_num) FROM parts WHERE anime_id = ?",
-            (anime_id,),
-            fetchone=True,
-        )
-
-        max_part = (
-            last_part_res[0]
-            if last_part_res and last_part_res[0] is not None
-            else 0
-        )
-
-        next_part_num = max_part + 1
-
-        user_states[user_id] = "ADD_PART_VIDEO"
-
-        temp_data[user_id] = {
-            "anime_id": anime_id,
-            "next_part_num": next_part_num,
-        }
-
-        try:
-            bot.delete_message(
-                chat_id,
-                call.message.message_id,
-            )
-        except Exception:
-            pass
-
+    if user_id not in ADMIN_IDS:
+        is_sub, unsubs = check_subscription(user_id)
+        if not is_sub:
+            bot.answer_callback_query(call.id, "⚠️ Avval kanalga obuna bo'ling!", show_alert=True)
+            return
+            if call.data == "search_menu":
+        bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            types.InlineKeyboardButton(
-                "✅ Tamom",
-                callback_data="finish_adding_parts",
-            ),
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="admin_add_part",
-            ),
-        )
+        btn_code = types.InlineKeyboardButton("🔢 Kod orqali izlash", callback_data="search_by_code")
+        btn_name = types.InlineKeyboardButton("🔤 Nomi orqali izlash", callback_data="search_by_name")
+        btn_back = types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main")
+        markup.add(btn_code, btn_name, btn_back)
+        bot.edit_message_text("🔍 Qidirish usulini tanlang:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
-        bot.send_message(
-            chat_id,
-            (
-                f"🎥 Tanlangan anime uchun navbatdagi qism: "
-                f"**{next_part_num}-qism**.\n\n"
-                "Videoni yuboring:"
-            ),
-            reply_markup=markup,
-            parse_mode="Markdown",
-        )
+    elif call.data == "search_by_code":
+        bot.answer_callback_query(call.id)
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="search_menu"))
+        bot.edit_message_text("🔢 Marhamat, anime kodini yuboring (masalan: 101):", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        user_states[user_id] = "waiting_for_code_search"
 
-    # ============================================================
-    # QISMLARNI QO'SHISHNI TUGATISH
-    # ============================================================
+    elif call.data == "search_by_name":
+        bot.answer_callback_query(call.id)
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="search_menu"))
+        bot.edit_message_text("🔤 Animening to'liq yoki yashirin nomini yuboring:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        user_states[user_id] = "waiting_for_name_search"
+        
+    elif call.data == "anime_list":
+        bot.answer_callback_query(call.id)
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT title, code FROM animes ORDER BY id DESC LIMIT 15")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        if not rows:
+            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+            bot.edit_message_text("📂 Hozircha bazada animelar mavjud emas.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            return
+            
+        text = "📂 Mavjud animelar katalogi:\n"
+        for title, code in rows:
+            markup.add(types.InlineKeyboardButton(f"🎬 {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
-    elif data == "finish_adding_parts" and user_id == ADMIN_ID:
-        bot.answer_callback_query(
-            call.id,
-            "✅ Qismlarni qo'shish yakunlandi!",
-        )
+    elif call.data.startswith("show_anime_"):
+        bot.answer_callback_query(call.id)
+        code = call.data.split("_")[2]
+        
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT channel_name, channel_link, title, code, photo_id, episodes, genre, description FROM animes WHERE code = ?", (code,))
+        row = cursor.fetchone()
+        
+        if row:
+            ch_name, ch_link, title, code, photo_id, episodes, genre, description = row
+            cursor.execute("UPDATE animes SET views = views + 1 WHERE code = ?", (code,))
+            conn.commit()
+            conn.close()
+            
+            caption = f"🎬 Anime: {title}\n" \
+                      f"🔢 Kod: {code}\n" \
+                      f"📢 Kanal: {ch_name}\n" \
+                      f"🧩 Qismlari: {episodes}\n" \
+                      f"🎭 Janri: {genre}\n\n" \
+                      f"📖 Ma'lumot:\n{description}"
+            
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton(f"📺 {ch_name} kanaliga o'tish", url=ch_link))
+            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="anime_list"))
+            
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            if photo_id:
+                bot.send_photo(call.message.chat.id, photo_id, caption=caption, reply_markup=markup, parse_mode="Markdown")
+            else:
+                bot.send_message(call.message.chat.id, caption, reply_markup=markup, parse_mode="Markdown")
+        else:
+            conn.close()
+            bot.answer_callback_query(call.id, "Anime topilmadi!", show_alert=True)
 
+    elif call.data == "hot_animes":
+        bot.answer_callback_query(call.id)
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT title, code FROM animes ORDER BY views DESC LIMIT 5")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        if not rows:
+            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+            bot.edit_message_text("🔥 Hozircha qaynoq animelar yo'q.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            return
+            
+        text = "🔥 Eng qaynoq va ko'p ko'rilgan animelar:\n"
+        for title, code in rows:
+            markup.add(types.InlineKeyboardButton(f"🔥 {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+
+    elif call.data == "recent_animes":
+        bot.answer_callback_query(call.id)
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT title, code FROM animes ORDER BY id DESC LIMIT 5")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        if not rows:
+            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+            bot.edit_message_text("⏰ Hozircha yangi animelar qo'shilmagan.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            return
+            
+        text = "⏰ Oxirgi qo'shilgan animelar:\n"
+        for title, code in rows:
+            markup.add(types.InlineKeyboardButton(f"⏰ {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+
+    elif call.data == "top_animes":
+        bot.answer_callback_query(call.id)
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT title, code FROM animes ORDER BY views DESC LIMIT 5")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        if not rows:
+            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+            bot.edit_message_text("⭐ Hozircha top animelar ro'yxati bo'sh.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            return
+            
+        text = "⭐ Reytingi eng baland Top animelar:\n"
+        for title, code in rows:
+            markup.add(types.InlineKeyboardButton(f"⭐ {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        elif call.data == "back_to_main":
+        bot.answer_callback_query(call.id)
         user_states.pop(user_id, None)
-        temp_data.pop(user_id, None)
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        
+        if user_id in ADMIN_IDS:
+            btn_add_force = types.InlineKeyboardButton("📢 Majburiy kanal qo'shish", callback_data="add_force_channel")
+            btn_del_force = types.InlineKeyboardButton("🗑 Majburiy kanalni o'chirish", callback_data="del_force_channel")
+            btn_add_anime = types.InlineKeyboardButton("🎬 Anime qo'shish", callback_data="add_anime")
+            btn_del_anime = types.InlineKeyboardButton("🗑 Animeni o'chirish", callback_data="del_anime_menu")
+            btn_broadcast = types.InlineKeyboardButton("📤 Xabar yuborish", callback_data="admin_broadcast")
+            btn_stats = types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
+            
+            markup.add(btn_add_force, btn_del_force)
+            markup.add(btn_add_anime, btn_del_anime)
+            markup.add(btn_broadcast, btn_stats)
+            bot.edit_message_text("👑 Admin boshqaruv paneli:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        else:
+            btn_search = types.InlineKeyboardButton("🔍 Anime izlash", callback_data="search_menu")
+            btn_list = types.InlineKeyboardButton("📂 Mavjud animelar", callback_data="anime_list")
+            btn_hot = types.InlineKeyboardButton("🔥 Qaynoq / Yangi", callback_data="hot_animes")
+            btn_recent = types.InlineKeyboardButton("⏰ Oxirgi qo'shilganlar", callback_data="recent_animes")
+            btn_top = types.InlineKeyboardButton("⭐ Top animelar", callback_data="top_animes")
+            markup.add(btn_search, btn_list, btn_hot, btn_recent, btn_top)
+            bot.edit_message_text("✨ Kerakli bo'limni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
-        try:
-            bot.delete_message(
-                chat_id,
-                call.message.message_id,
-            )
-        except Exception:
-            pass
-
-        bot.send_message(
-            chat_id,
-            "🏠 **Asosiy menyu**\n\nKerakli bo'limni tanlang:",
-            reply_markup=get_main_inline_menu(user_id),
-            parse_mode="Markdown",
-        )
-
-    # ============================================================
-    # ADMIN - TAHRIRLASH
-    # ============================================================
-
-    elif data == "admin_edit_menu" and user_id == ADMIN_ID:
+    # Admin boshqaruv bo'limlari
+    elif call.data == "add_force_channel" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
-
-        try:
-            bot.edit_message_text(
-                "✏️ Tahrirlash uchun animeni tanlang:",
-                chat_id,
-                call.message.message_id,
-                reply_markup=get_available_animes_keyboard(
-                    page=1,
-                    action_type="edit_folder",
-                ),
-            )
-        except Exception:
-            pass
-
-    elif data.startswith("select_edit_folder_") and user_id == ADMIN_ID:
-        anime_id = int(data.split("_")[3])
-
-        bot.answer_callback_query(call.id)
-
-        anime = execute_query(
-            "SELECT name FROM animes WHERE id = ?",
-            (anime_id,),
-            fetchone=True,
-        )
-
-        anime_name = anime[0] if anime else "Anime"
-
         markup = types.InlineKeyboardMarkup()
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="admin_edit_menu",
-            )
-        )
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        bot.edit_message_text("📢 Majburiy obuna uchun kanal usernamesini yuboring (masalan: @kanal_nomi):", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        user_states[user_id] = "waiting_force_username"
 
-        try:
-            bot.edit_message_text(
-                f"✏️ **{anime_name}** tanlandi.",
-                chat_id,
-                call.message.message_id,
-                reply_markup=markup,
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-    # ============================================================
-    # ADMIN - KANALLAR
-    # ============================================================
-
-    elif data == "admin_channels" and user_id == ADMIN_ID:
+    elif call.data == "del_force_channel" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
-
-        rows = execute_query(
-            "SELECT username FROM channels",
-            fetchall=True,
-        )
-
-        ch_list = (
-            "\n".join([r[0] for r in rows])
-            if rows
-            else "Hozircha kanallar yo'q."
-        )
-
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, channel_username FROM force_channels")
+        channels = cursor.fetchall()
+        conn.close()
+        
         markup = types.InlineKeyboardMarkup(row_width=1)
+        if not channels:
+            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+            bot.edit_message_text("📂 Majburiy obuna kanallari mavjud emas.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            return
+            
+        for ch_id, ch_uname in channels:
+            markup.add(types.InlineKeyboardButton(f"❌ O'chirish: {ch_uname}", callback_data=f"remove_force_{ch_id}"))
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        bot.edit_message_text("🗑 O'chirmoqchi bo'lgan majburiy kanalni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
-        markup.add(
-            types.InlineKeyboardButton(
-                "➕ Kanal qo'shish",
-                callback_data="admin_add_channel",
-            ),
-            types.InlineKeyboardButton(
-                "🗑 Kanalni o'chirish",
-                callback_data="admin_del_channel",
-            ),
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="back_to_admin_menu",
-            ),
-        )
-
-        try:
-            bot.edit_message_text(
-                f"📢 **Majburiy obuna kanallari:**\n\n{ch_list}",
-                chat_id,
-                call.message.message_id,
-                reply_markup=markup,
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-    elif data == "admin_add_channel" and user_id == ADMIN_ID:
+    elif call.data.startswith("remove_force_") and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
-
-        user_states[user_id] = "ADD_CHANNEL_NAME"
-
-        try:
-            bot.delete_message(
-                chat_id,
-                call.message.message_id,
-            )
-        except Exception:
-            pass
-
+        ch_id = call.data.split("_")[2]
+conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM force_channels WHERE id = ?", (ch_id,))
+        conn.commit()
+        conn.close()
+        
         markup = types.InlineKeyboardMarkup()
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="admin_channels",
-            )
-        )
-
-        bot.send_message(
-            chat_id,
-            (
-                "📢 Qo'shiladigan kanal username'ini yuboring\n"
-                "(Masalan: @AnimeKanal):"
-            ),
-            reply_markup=markup,
-        )
-
-    elif data == "admin_del_channel" and user_id == ADMIN_ID:
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        bot.edit_message_text("✅ Majburiy kanal muvaffaqiyatli o'chirildi!", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+elif call.data == "add_anime" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
-
-        user_states[user_id] = "DEL_CHANNEL_NAME"
-
-        try:
-            bot.delete_message(
-                chat_id,
-                call.message.message_id,
-            )
-        except Exception:
-            pass
-
         markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        bot.edit_message_text("📢 1-qadam: Anime joylanadigan kanal nomini kiriting:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        user_states[user_id] = "waiting_anime_channel_name"
 
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="admin_channels",
-            )
-        )
-
-        bot.send_message(
-            chat_id,
-            (
-                "🗑 O'chiriladigan kanal username'ini yuboring\n"
-                "(Masalan: @AnimeKanal):"
-            ),
-            reply_markup=markup,
-        )
-
-    # ============================================================
-    # ADMIN - STATISTIKA
-    # ============================================================
-
-    elif data == "admin_stats" and user_id == ADMIN_ID:
+    elif call.data == "del_anime_menu" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
-
-        users_row = execute_query(
-            "SELECT COUNT(*) FROM users",
-            fetchone=True,
-        )
-
-        animes_row = execute_query(
-            "SELECT COUNT(*) FROM animes",
-            fetchone=True,
-        )
-
-        parts_row = execute_query(
-            "SELECT COUNT(*) FROM parts",
-            fetchone=True,
-        )
-
-        users_count = users_row[0] if users_row else 0
-        animes_count = animes_row[0] if animes_row else 0
-        parts_count = parts_row[0] if parts_row else 0
-
-        top_viewed = execute_query(
-            """
-            SELECT name, views
-            FROM animes
-            ORDER BY views DESC
-            LIMIT 3
-            """,
-            fetchall=True,
-        ) or []
-
-        top_viewed_text = (
-            "\n".join(
-                [
-                    f"• {row[0]} — {row[1]} marta"
-                    for row in top_viewed
-                ]
-            )
-            or "Ma'lumot yo'q"
-        )
-
-        oldest_animes = execute_query(
-            """
-            SELECT name
-            FROM animes
-            ORDER BY id ASC
-            LIMIT 3
-            """,
-            fetchall=True,
-        ) or []
-
-        oldest_text = (
-            "\n".join(
-                [
-                    f"• {row[0]}"
-                    for row in oldest_animes
-                ]
-            )
-            or "Ma'lumot yo'q"
-        )
-
-        text = (
-            "📊 **Botning statistikasi:**\n\n"
-            f"👥 **Foydalanuvchilar:** {users_count} ta\n"
-            f"🎬 **Animelar:** {animes_count} ta\n"
-            f"📁 **Qismlar:** {parts_count} ta\n\n"
-            f"🔥 **Top 3 anime:**\n{top_viewed_text}\n\n"
-            f"📌 **Birinchilar:**\n{oldest_text}"
-        )
-
-        markup = types.InlineKeyboardMarkup()
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="back_to_admin_menu",
-            )
-        )
-
-        try:
-            bot.edit_message_text(
-                text,
-                chat_id,
-                call.message.message_id,
-                reply_markup=markup,
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-    # ============================================================
-    # ADMIN - BOSHQARISH
-    # ============================================================
-
-    elif data == "admin_manage" and user_id == ADMIN_ID:
-        bot.answer_callback_query(call.id)
-
-        try:
-            bot.edit_message_text(
-                (
-                    "🗑 Boshqarish yoki qismini o'chirish "
-                    "uchun animeni tanlang:"
-                ),
-                chat_id,
-                call.message.message_id,
-                reply_markup=get_available_animes_keyboard(
-                    page=1,
-                    action_type="admin_opt",
-                ),
-            )
-        except Exception:
-            pass
-
-    elif data.startswith("admin_anime_opt_") and user_id == ADMIN_ID:
-        anime_id = int(data.split("_")[3])
-
-        bot.answer_callback_query(call.id)
-
-        parts_res = execute_query(
-            """
-            SELECT part_num
-            FROM parts
-            WHERE anime_id = ?
-            ORDER BY part_num ASC
-            """,
-            (anime_id,),
-            fetchall=True,
-        ) or []
-
-        parts = [row[0] for row in parts_res]
-
-        markup = types.InlineKeyboardMarkup(row_width=6)
-
-        buttons = [
-            types.InlineKeyboardButton(
-                f"❌ {p}",
-                callback_data=f"del_part_{anime_id}_{p}",
-            )
-            for p in parts
-        ]
-
-        if buttons:
-            markup.add(*buttons)
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🗑 Animeni to'liq o'chirish",
-                callback_data=f"confirm_del_anime_{anime_id}",
-            ),
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="admin_manage",
-            ),
-        )
-
-        anime = execute_query(
-            "SELECT name FROM animes WHERE id = ?",
-            (anime_id,),
-            fetchone=True,
-        )
-
-        anime_name = anime[0] if anime else "Anime"
-
-        try:
-            bot.edit_message_text(
-                (
-                    f"⚙ **{anime_name}** bo'yicha qismni o'chiring "
-                    "yoki animeni to'liq o'chiring:"
-                ),
-                chat_id,
-                call.message.message_id,
-                reply_markup=markup,
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-    # ============================================================
-    # QISMNI O'CHIRISH
-    # ============================================================
-
-    elif data.startswith("del_part_") and user_id == ADMIN_ID:
-        parts_data = data.split("_")
-
-        anime_id = int(parts_data[2])
-        part_num = int(parts_data[3])
-
-        bot.answer_callback_query(call.id)
-
-        execute_query(
-            """
-            DELETE FROM parts
-            WHERE anime_id = ? AND part_num = ?
-            """,
-            (anime_id, part_num),
-            commit=True,
-        )
-
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title, code FROM animes ORDER BY id DESC LIMIT 15")
+        rows = cursor.fetchall()
+        conn.close()
+        
         markup = types.InlineKeyboardMarkup(row_width=1)
+        if not rows:
+            markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+            bot.edit_message_text("📂 O'chirish uchun animelar mavjud emas.", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+            return
+            
+        for a_id, title, code in rows:
+            markup.add(types.InlineKeyboardButton(f"❌ O'chirish: {title} (Kod: {code})", callback_data=f"remove_anime_{a_id}"))
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        bot.edit_message_text("🗑 O'chirmoqchi bo'lgan animeni tanlang:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
-        markup.add(
-            types.InlineKeyboardButton(
-                "➕ O'rniga video qo'shish",
-                callback_data=f"replace_part_{anime_id}_{part_num}",
-            ),
-            types.InlineKeyboardButton(
-                "📭 Orqaga",
-                callback_data="admin_manage",
-            ),
-        )
-
-        try:
-            bot.edit_message_text(
-                f"✅ **{part_num}-qism** o'chirildi.",
-                chat_id,
-                call.message.message_id,
-                reply_markup=markup,
-                parse_mode="Markdown",
-            )
-        except Exception:
-            pass
-
-    # ============================================================
-    # QISMNI ALMASHTIRISH
-    # ============================================================
-
-    elif data.startswith("replace_part_") and user_id == ADMIN_ID:
-        parts_data = data.split("_")
-
-        anime_id = int(parts_data[2])
-        part_num = int(parts_data[3])
-
+    elif call.data.startswith("remove_anime_") and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
-
-        user_states[user_id] = "REPLACE_PART_VIDEO"
-
-        temp_data[user_id] = {
-            "anime_id": anime_id,
-            "part_num": part_num,
-        }
-
-        try:
-            bot.delete_message(
-                chat_id,
-                call.message.message_id,
-            )
-        except Exception:
-            pass
-
-        bot.send_message(
-            chat_id,
-            f"🎥 **{part_num}-qism** o'rniga yangi videoni yuboring:",
-            parse_mode="Markdown",
-        )
-
-    # ============================================================
-    # ANIMENI TO'LIQ O'CHIRISH
-    # ============================================================
-
-    elif data.startswith("confirm_del_anime_") and user_id == ADMIN_ID:
-        anime_id = int(data.split("_")[3])
-
-        bot.answer_callback_query(call.id)
-
-        execute_query(
-            "DELETE FROM parts WHERE anime_id = ?",
-            (anime_id,),
-            commit=True,
-        )
-
-        execute_query(
-            "DELETE FROM animes WHERE id = ?",
-            (anime_id,),
-            commit=True,
-        )
-
+        a_id = call.data.split("_")[2]
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM animes WHERE id = ?", (a_id,))
+        conn.commit()
+        conn.close()
+        
         markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        bot.edit_message_text("✅ Anime bazadan muvaffaqiyatli o'chirildi!", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Orqaga",
-                callback_data="admin_manage",
-            )
-        )
+    elif call.data == "admin_broadcast" and user_id in ADMIN_IDS:
+        bot.answer_callback_query(call.id)
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        bot.edit_message_text("📤 Obunachilarga yubormoqchi bo'lgan xabaringizni (matn, rasm yoki video) yuboring:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        user_states[user_id] = "waiting_broadcast_message"
 
-        try:
-            bot.edit_message_text(
-                "✅ Anime va uning qismlari o'chirib yuborildi!",
-                chat_id,
-                call.message.message_id,
-                reply_markup=markup,
-            )
-        except Exception:
-            pass
-
-
-# ================================================================
-# BARCHA XABARLARNI QABUL QILISH
-# ================================================================
-#
-# MUHIM:
-# Oldingi koddagi 2 ta alohida message_handler o'rniga
-# BITTA handler ishlatiladi.
-#
-# Shu sababli ADD_NAME -> ADD_SUB_NAME -> ADD_HIDDEN_NAME
-# -> ADD_CODE -> ADD_EPISODES -> ADD_STATUS -> ADD_CHANNEL
-# -> ADD_INFO -> ADD_PHOTO ketma-ketligi qotib qolmaydi.
-#
-# ================================================================
-
-@bot.message_handler(
-    content_types=["text", "photo", "video"]
-)
-def handle_all_messages(message):
-
-    if message.chat.type != "private":
-        return
-
+    elif call.data == "admin_stats" and user_id in ADMIN_IDS:
+        bot.answer_callback_query(call.id)
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM animes")
+        anime_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM force_channels")
+        force_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0]
+        conn.close()
+        
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
+        text = f"📊 Bot statistikasi:\n\n- Jami animelar: {anime_count} ta\n- Majburiy kanallar: {force_count} ta\n- Obunachilar: {user_count} ta"
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+# Oddiy xabarlarni va bosqichlarni uzluksiz boshqarish
+@bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'video', 'document'])
+def handle_messages(message):
     user_id = message.from_user.id
-    chat_id = message.chat.id
+    
+    # Bazaga foydalanuvchini qo'shish
+    conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    conn.commit()
+    conn.close()
+
+    if user_id not in ADMIN_IDS:
+        is_sub, unsubs = check_subscription(user_id)
+        if not is_sub:
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            for ch_username, ch_link in unsubs:
+                markup.add(types.InlineKeyboardButton(f"📢 Kanalga obuna bo'lish", url=ch_link))
+            markup.add(types.InlineKeyboardButton("🔄 Obunani tekshirish", callback_data="check_sub"))
+            bot.reply_to(message, "⚠️ Diqqat! Botdan foydalanish uchun avval ko'rsatilgan kanalga obuna bo'lishingiz kerak!", reply_markup=markup, parse_mode="Markdown")
+            return
 
     state = user_states.get(user_id)
-
-    # ============================================================
-    # COMMANDLARNI BU HANDLERDA QAYTA ISHLAMASLIK
-    # ============================================================
-
-    if message.text and message.text.startswith("/"):
-        return
-
-    # ============================================================
-    # STATE YO'Q
-    # ============================================================
-
-    if not state:
-        return
-
-    # ============================================================
-    # QIDIRUV - NOMI ORQALI
-    # ============================================================
-
-    if state == "WAITING_SEARCH_NAME":
-
-        query = (message.text or "").strip().lower()
-
-        if not query:
-            bot.send_message(
-                chat_id,
-                "⚠️ Qidiruv so'zini kiriting.",
-            )
-            return
-
-        animes = execute_query(
-            """
-            SELECT id, name
-            FROM animes
-            WHERE LOWER(name) LIKE ?
-               OR LOWER(sub_name) LIKE ?
-               OR LOWER(hidden_name) LIKE ?
-            ORDER BY id DESC
-            """,
-            (
-                f"%{query}%",
-                f"%{query}%",
-                f"%{query}%",
-            ),
-            fetchall=True,
-        ) or []
-
-        if not animes:
-            bot.send_message(
-                chat_id,
-                "❌ Hech qanday anime topilmadi.",
-            )
-            return
-
-        markup = types.InlineKeyboardMarkup(row_width=1)
-
-        for anime_id, name in animes:
-            markup.add(
-                types.InlineKeyboardButton(
-                    f"🎬 {name}",
-                    callback_data=f"show_anime_{anime_id}",
-                )
-            )
-
-        bot.send_message(
-            chat_id,
-            "🔍 **Topilgan animelar:**",
-            reply_markup=markup,
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # QIDIRUV - KOD ORQALI
-    # ============================================================
-
-    if state == "WAITING_SEARCH_CODE":
-
-        code = (message.text or "").strip()
-
-        if not code:
-            bot.send_message(
-                chat_id,
-                "⚠️ Anime kodini kiriting.",
-            )
-            return
-
+    markup_back = types.InlineKeyboardMarkup()
+    markup_back.add(types.InlineKeyboardButton("🔙 Asosiy menyuga qaytish", callback_data="back_to_main"))
+    
+    # Broadcast xabar tarqatish
+    if state == "waiting_broadcast_message":
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users")
+        all_users = cursor.fetchall()
+        conn.close()
+        
+        success = 0
+        failed = 0
+        for (u_id,) in all_users:
+            try:
+                bot.copy_message(chat_id=u_id, from_chat_id=message.chat.id, message_id=message.message_id)
+                success += 1
+                time.sleep(0.04)
+            except Exception:
+                failed += 1
+                
+        bot.reply_to(message, f"✅ Xabar muvaffaqiyatli tarqatildi!\n\n- Yetib bordi: {success} ta\n- Xatolik: {failed} ta", reply_markup=markup_back, parse_mode="Markdown")
         user_states.pop(user_id, None)
 
-        anime = execute_query(
-            """
-            SELECT
-                id,
-                name,
-                sub_name,
-                hidden_name,
-                info,
-                views,
-                code,
-                episodes_count,
-                status,
-                quality,
-                genre,
-                channel_name,
-                photo
-            FROM animes
-            WHERE code = ?
-            """,
-            (code,),
-            fetchone=True,
-        )
-
-        if not anime:
-            bot.send_message(
-                chat_id,
-                "❌ Bu kod bo'yicha hech qanday anime topilmadi.",
-            )
+    # Majburiy kanal qo'shish
+    elif state == "waiting_force_username":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, kanal username'ini yuboring.")
             return
+        user_states[f"force_uname_{user_id}"] = message.text.strip()
+        bot.reply_to(message, "🔗 Endi o'sha kanalning havolasini (linkini) yuboring:", reply_markup=markup_back)
+        user_states[user_id] = "waiting_force_link"
+        
+    elif state == "waiting_force_link":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, havolani yuboring.")
+            return
+        ch_uname = user_states.get(f"force_uname_{user_id}")
+        ch_link = message.text.strip()
+        
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO force_channels (channel_username, channel_link) VALUES (?, ?)", (ch_uname, ch_link))
+        conn.commit()
+        conn.close()
+        
+        bot.reply_to(message, f"✅ Muvaffaqiyatli! Majburiy obuna uchun '{ch_uname}' kanali qo'shildi.", reply_markup=markup_back)
+        user_states.pop(user_id, None)
 
-        anime_id = anime[0]
+    # Anime qo'shish bosqichlari
+    elif state == "waiting_anime_channel_name":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, kanal nomini yuboring.")
+            return
+        user_states[f"anime_ch_name_{user_id}"] = message.text
+        bot.reply_to(message, "🔗 2-qadam: O'sha kanalning linkini yuboring:", reply_markup=markup_back, parse_mode="Markdown")
+        user_states[user_id] = "waiting_anime_channel_link"
 
-        execute_query(
-            "UPDATE animes SET views = views + 1 WHERE id = ?",
-            (anime_id,),
-            commit=True,
-        )
+    elif state == "waiting_anime_channel_link":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, kanal linkini yuboring.")
+            return
+        user_states[f"anime_ch_link_{user_id}"] = message.text
+        bot.reply_to(message, "🎬 3-qadam: Animening to'liq nomini kiriting:", reply_markup=markup_back, parse_mode="Markdown")
+        user_states[user_id] = "waiting_anime_title"
 
-        markup = types.InlineKeyboardMarkup(row_width=1)
+    elif state == "waiting_anime_title":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, anime nomini yuboring.")
+            return
+        user_states[f"anime_title_{user_id}"] = message.text
+        bot.reply_to(message, "🔤 4-qadam: Animening yashirin yoki muqobil nomlarini yuboring (vergul bilan):", reply_markup=markup_back, parse_mode="Markdown")
+        user_states[user_id] = "waiting_anime_hidden"
 
-        markup.add(
-            types.InlineKeyboardButton(
-                "✨ TOMOSHA QILISH ✨",
-                callback_data=f"watch_anime_{anime_id}",
-            )
-        )
+    elif state == "waiting_anime_hidden":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, yashirin nomlarni yuboring.")
+            return
+        user_states[f"anime_hidden_{user_id}"] = message.text
+        bot.reply_to(message, "🔢 5-qadam: Anime uchun maxsus kod (raqam) yuboring (masalan: 101):", reply_markup=markup_back, parse_mode="Markdown")
+        user_states[user_id] = "waiting_anime_code"
 
+    elif state == "waiting_anime_code":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, raqamli kod yuboring.")
+            return
+        user_states[f"anime_code_{user_id}"] = message.text
+        bot.reply_to(message, "🖼 6-qadam: Animening rasmini (posterini) yuboring:", reply_markup=markup_back, parse_mode="Markdown")
+        user_states[user_id] = "waiting_anime_photo"
+
+    elif state == "waiting_anime_photo":
+        if not message.photo:
+            bot.reply_to(message, "❌ Iltimos, rasm (foto) yuboring!")
+            return
+        user_states[f"anime_photo_{user_id}"] = message.photo[-1].file_id
+        bot.reply_to(message, "🧩 7-qadam: Animening qismlarini yuboring (masalan: 1-12 qism):", reply_markup=markup_back, parse_mode="Markdown")
+        user_states[user_id] = "waiting_anime_episodes"
+
+    elif state == "waiting_anime_episodes":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, qismlarini yuboring.")
+            return
+        user_states[f"anime_episodes_{user_id}"] = message.text
+        bot.reply_to(message, "🎭 8-qadam: Animening janrini yuboring (masalan: Jangari, Romantika):", reply_markup=markup_back, parse_mode="Markdown")
+        user_states[user_id] = "waiting_anime_genre"
+
+    elif state == "waiting_anime_genre":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, janrni yuboring.")
+            return
+        user_states[f"anime_genre_{user_id}"] = message.text
+        bot.reply_to(message, "📖 9-qadam: Anime haqida qisqacha ma'lumot (tavsif) yuboring:", reply_markup=markup_back, parse_mode="Markdown")
+        user_states[user_id] = "waiting_anime_description"
+
+    elif state == "waiting_anime_description":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, tavsifni yuboring.")
+            return
+        
+        ch_name = user_states.get(f"anime_ch_name_{user_id}")
+        ch_link = user_states.get(f"anime_ch_link_{user_id}")
+        title = user_states.get(f"anime_title_{user_id}")
+        hidden = user_states.get(f"anime_hidden_{user_id}")
+        code = user_states.get(f"anime_code_{user_id}")
+        photo_id = user_states.get(f"anime_photo_{user_id}")
+        episodes = user_states.get(f"anime_episodes_{user_id}")
+        genre = user_states.get(f"anime_genre_{user_id}")
+        desc = message.text
+        
         try:
-            bot_username = bot.get_me().username
-        except Exception:
-            bot_username = ""
-
-        formatted_text = format_anime_text(
-            anime[1:12],
-            bot_username,
-        )
-
-        photo = anime[12]
-
-        if photo:
-            bot.send_photo(
-                chat_id,
-                photo,
-                caption=formatted_text,
-                reply_markup=markup,
-                parse_mode="HTML",
-                protect_content=True,
-            )
-        else:
-            bot.send_message(
-                chat_id,
-                formatted_text,
-                reply_markup=markup,
-                parse_mode="HTML",
-                protect_content=True,
-            )
-
-        return
-
-    # ============================================================
-    # ADMIN - ANIME ASOSIY NOMI
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_NAME":
-
-        text = (message.text or "").strip()
-
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Anime nomini matn ko'rinishida yuboring.",
-            )
-            return
-
-        temp_data.setdefault(user_id, {})
-
-        temp_data[user_id]["name"] = text
-
-        user_states[user_id] = "ADD_SUB_NAME"
-
-        bot.send_message(
-            chat_id,
-            "🏷 **Animening qo'shimcha nomini kiriting:**",
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - QO'SHIMCHA NOM
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_SUB_NAME":
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Qo'shimcha nomni matn ko'rinishida yuboring.",
-            )
-            return
-
-        temp_data.setdefault(user_id, {})
-        temp_data[user_id]["sub_name"] = text
-
-        user_states[user_id] = "ADD_HIDDEN_NAME"
-
-        bot.send_message(
-            chat_id,
-            "🔑 **Yashirin nomlarini (kalit so'zlar) kiriting:**",
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - YASHIRIN NOM
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_HIDDEN_NAME":
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Yashirin nomlarni matn ko'rinishida yuboring.",
-            )
-            return
-
-        temp_data.setdefault(user_id, {})
-        temp_data[user_id]["hidden_name"] = text
-
-        user_states[user_id] = "ADD_CODE"
-
-        bot.send_message(
-            chat_id,
-            "🔢 **Anime kodini kiriting:**",
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - ANIME KODI
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_CODE":
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Anime kodini matn ko'rinishida yuboring.",
-            )
-            return
-
-        code = text.strip()
-
-        if not code:
-            bot.send_message(
-                chat_id,
-                "⚠️ Anime kodini kiriting.",
-            )
-            return
-
-        existing_code = execute_query(
-            "SELECT id FROM animes WHERE code = ?",
-            (code,),
-            fetchone=True,
-        )
-
-        if existing_code:
-            bot.send_message(
-                chat_id,
-                "❌ Bu kod allaqachon boshqa animega berilgan.\n\n"
-                "Boshqa kod kiriting:",
-            )
-            return
-
-        temp_data.setdefault(user_id, {})
-        temp_data[user_id]["code"] = code
-
-        user_states[user_id] = "ADD_EPISODES"
-
-        bot.send_message(
-            chat_id,
-            "🎬 **Qism sonini kiriting**\n\n"
-            "Masalan: `12` yoki `Noma'lum`",
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - QISM SONI
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_EPISODES":
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Qism sonini matn ko'rinishida yuboring.",
-            )
-            return
-
-        temp_data.setdefault(user_id, {})
-        temp_data[user_id]["episodes_count"] = text.strip()
-
-        user_states[user_id] = "ADD_STATUS"
-
-        bot.send_message(
-            chat_id,
-            "🌐 **Anime statusini kiriting:**\n\n"
-            "Masalan: `Davom etmoqda` yoki `Tugallangan`",
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - STATUS
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_STATUS":
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Anime statusini matn ko'rinishida yuboring.",
-            )
-            return
-
-        temp_data.setdefault(user_id, {})
-        temp_data[user_id]["status"] = text.strip()
-
-        user_states[user_id] = "ADD_CHANNEL"
-
-        bot.send_message(
-            chat_id,
-            "📢 **Kanal nomini kiriting:**\n\n"
-            "Masalan: `@AniRem_Org`\n"
-            "Agar standart kanal ishlatilsa: `/skip`",
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - KANAL NOMI
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_CHANNEL":
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Kanal nomini matn ko'rinishida yuboring.",
-            )
-            return
-
-        ch_username = text.strip()
-
-        if ch_username.lower() == "/skip":
-            ch_username = "@AniRem_Org"
-        else:
-            if not ch_username.startswith("@"):
-                ch_username = "@" + ch_username
-
-        temp_data.setdefault(user_id, {})
-        temp_data[user_id]["channel_name"] = ch_username
-
-        user_states[user_id] = "ADD_INFO"
-
-        bot.send_message(
-            chat_id,
-            "📖 **Anime haqida ma'lumot kiriting.**\n\n"
-            "O'tkazib yuborish uchun `/skip` yuboring.",
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - MA'LUMOT
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_INFO":
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Ma'lumotni matn ko'rinishida yuboring yoki `/skip` bosing.",
-            )
-            return
-
-        info_text = (
-            "Ma'lumot mavjud emas"
-            if text.strip().lower() == "/skip"
-            else text.strip()
-        )
-
-        temp_data.setdefault(user_id, {})
-        temp_data[user_id]["info"] = info_text
-
-        user_states[user_id] = "ADD_PHOTO"
-
-        bot.send_message(
-            chat_id,
-            "🖼 **Anime rasmini yuboring.**\n\n"
-            "Rasmni Telegram orqali yuborishingiz yoki "
-            "rasm havolasini matn qilib yuborishingiz mumkin.",
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - MAJBURIY KANAL QO'SHISH
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_CHANNEL_NAME":
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Kanal username'ini yuboring.",
-            )
-            return
-
-        ch_username = text.strip()
-
-        if not ch_username.startswith("@"):
-            ch_username = "@" + ch_username
-
-        execute_query(
-            (
-                "INSERT INTO channels (username) VALUES (?) "
-                "ON CONFLICT (username) DO NOTHING"
-            )
-            if (DATABASE_URL and psycopg2)
-            else
-            "INSERT OR IGNORE INTO channels (username) VALUES (?)",
-            (ch_username,),
-            commit=True,
-        )
-
+            conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO animes (channel_name, channel_link, title, hidden_names, code, photo_id, episodes, genre, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (ch_name, ch_link, title, hidden, code, photo_id, episodes, genre, desc))
+            conn.commit()
+            conn.close()
+            bot.reply_to(message, f"🎉 Tabriklayman! '{title}' animasi (Kod: {code}, Kanal: {ch_name}) muvaffaqiyatli saqlandi.", reply_markup=markup_back)
+        except sqlite3.IntegrityError:
+            bot.reply_to(message, "❌ Xatolik: Bu kod allaqachon band qilingan. Iltimos, boshqa raqam kiriting.", reply_markup=markup_back)
+            
         user_states.pop(user_id, None)
-        temp_data.pop(user_id, None)
 
-        bot.send_message(
-            chat_id,
-            f"✅ Kanal qo'shildi: {ch_username}",
-            reply_markup=get_main_inline_menu(user_id),
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - MAJBURIY KANAL O'CHIRISH
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "DEL_CHANNEL_NAME":
-        if not text:
-            bot.send_message(
-                chat_id,
-                "⚠️ Kanal username'ini yuboring.",
-            )
+    # Kod orqali izlash
+    elif state == "waiting_for_code_search":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, kodni yuboring.")
             return
-
-        ch_username = text.strip()
-
-        if not ch_username.startswith("@"):
-            ch_username = "@" + ch_username
-
-        execute_query(
-            "DELETE FROM channels WHERE username = ?",
-            (ch_username,),
-            commit=True,
-        )
-
-        user_states.pop(user_id, None)
-        temp_data.pop(user_id, None)
-
-        bot.send_message(
-            chat_id,
-            f"🗑 Kanal o'chirildi: {ch_username}",
-            reply_markup=get_main_inline_menu(user_id),
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - ANIME RASMI
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_PHOTO":
-        photo_id = ""
-
-        if message.photo:
-            photo_id = message.photo[-1].file_id
-
-        elif message.text:
-            photo_id = message.text.strip()
-
+        code_input = message.text.strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT channel_name, channel_link, title, code, photo_id, episodes, genre, description FROM animes WHERE code = ?", (code_input,))
+        row = cursor.fetchone()
+        
+        markup = types.InlineKeyboardMarkup()
+        if row:
+            ch_name, ch_link, title, code, photo_id, episodes, genre, description = row
+            cursor.execute("UPDATE animes SET views = views + 1 WHERE code = ?", (code_input,))
+            conn.commit()
+            conn.close()
+            
+            caption = f"🎬 Anime: {title}\n" \
+                      f"🔢 Kod: {code}\n" \
+                      f"📢 Kanal: {ch_name}\n" \
+                      f"🧩 Qismlari: {episodes}\n" \
+                      f"🎭 Janri: {genre}\n\n" \
+                      f"📖 Ma'lumot:\n{description}"
+            
+            markup.add(types.InlineKeyboardButton(f"📺 {ch_name} kanaliga o'tish", url=ch_link))
+            markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
+            
+            if photo_id:
+                bot.send_photo(message.chat.id, photo_id, caption=caption, reply_markup=markup, parse_mode="Markdown")
+            else:
+                bot.send_message(message.chat.id, caption, reply_markup=markup, parse_mode="Markdown")
         else:
-            bot.send_message(
-                chat_id,
-                "⚠️ Iltimos, rasm yuboring yoki rasm havolasini matn qilib yuboring.",
-            )
-            return
-
-        if not photo_id:
-            bot.send_message(
-                chat_id,
-                "⚠️ Rasm ma'lumoti topilmadi. Qaytadan yuboring.",
-            )
-            return
-
-        d = temp_data.get(user_id, {})
-
-        required_name = d.get("name")
-        required_code = d.get("code")
-
-        if not required_name or not required_code:
-            bot.send_message(
-                chat_id,
-                "❌ Anime ma'lumotlari to'liq saqlanmagan.\n"
-                "Iltimos, anime qo'shishni boshidan boshlang.",
-                reply_markup=get_main_inline_menu(user_id),
-            )
-
-            user_states.pop(user_id, None)
-            temp_data.pop(user_id, None)
-            return
-
-        insert_result = execute_query(
-            """
-            INSERT INTO animes (
-                name,
-                sub_name,
-                hidden_name,
-                code,
-                info,
-                photo,
-                episodes_count,
-                status,
-                quality,
-                genre,
-                channel_name,
-                views
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                d.get("name", ""),
-                d.get("sub_name", ""),
-                d.get("hidden_name", ""),
-                d.get("code", ""),
-                d.get("info", "Ma'lumot mavjud emas"),
-                photo_id,
-                d.get("episodes_count", "Noma'lum"),
-                d.get("status", "Tugallangan"),
-                d.get("quality", "720p, 1080p"),
-                d.get("genre", "Drama, Isekai, fantastik"),
-                d.get("channel_name", "@AniRem_Org"),
-                0,
-            ),
-            commit=True,
-        )
-
-        if insert_result is None:
-            bot.send_message(
-                chat_id,
-                "❌ Anime bazaga saqlanmadi.\n"
-                "Database xatosini loglardan tekshiring.",
-            )
-            return
-
-        last_anime = execute_query(
-            "SELECT id FROM animes ORDER BY id DESC LIMIT 1",
-            fetchone=True,
-        )
-
-        if not last_anime:
-            bot.send_message(
-                chat_id,
-                "❌ Anime saqlandi, lekin uning ID raqamini olishda xatolik yuz berdi.",
-            )
-            return
-
-        anime_id = last_anime[0]
-
-        user_states[user_id] = "ADD_PART_VIDEO"
-
-        temp_data[user_id] = {
-            "anime_id": anime_id,
-            "next_part_num": 1,
-        }
-
-        markup = types.InlineKeyboardMarkup(row_width=1)
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "✅ Tamom",
-                callback_data="finish_adding_parts",
-            )
-        )
-
-        bot.send_message(
-            chat_id,
-            "✅ **Anime bazaga qo'shildi!**\n\n"
-            "🎬 Endi **1-qismni** yuboring:\n\n"
-            "Video yubormasdan tugatish uchun `Tamom` tugmasini bosing.",
-            reply_markup=markup,
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - YANGI QISM QO'SHISH
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "ADD_PART_VIDEO":
-        if not message.video:
-            bot.send_message(
-                chat_id,
-                "⚠️ Iltimos, yangi qism videosini Telegram orqali yuboring.",
-            )
-            return
-
-        video_id = message.video.file_id
-
-        d = temp_data.get(user_id, {})
-
-        anime_id = d.get("anime_id")
-        part_num = d.get("next_part_num", 1)
-
-        if not anime_id:
-            bot.send_message(
-                chat_id,
-                "❌ Anime ma'lumoti topilmadi.\n"
-                "Qism qo'shishni qaytadan boshlang.",
-            )
-
-            user_states.pop(user_id, None)
-            temp_data.pop(user_id, None)
-            return
-
-        result = execute_query(
-            """
-            INSERT INTO parts (
-                anime_id,
-                part_num,
-                video_id
-            )
-            VALUES (?, ?, ?)
-            """,
-            (
-                anime_id,
-                part_num,
-                video_id,
-            ),
-            commit=True,
-        )
-
-        if result is None:
-            bot.send_message(
-                chat_id,
-                "❌ Video bazaga saqlanmadi. Qaytadan yuboring.",
-            )
-            return
-
-        next_part = part_num + 1
-
-        temp_data[user_id]["next_part_num"] = next_part
-
-        markup = types.InlineKeyboardMarkup(row_width=1)
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "✅ Tamom",
-                callback_data="finish_adding_parts",
-            )
-        )
-
-        bot.send_message(
-            chat_id,
-            f"✅ **{part_num}-qism saqlandi!**\n\n"
-            f"🎥 Endi **{next_part}-qismni** yuboring:",
-            reply_markup=markup,
-            parse_mode="Markdown",
-        )
-
-        return
-
-    # ============================================================
-    # ADMIN - QISM ALMASHTIRISH
-    # ============================================================
-
-    if user_id == ADMIN_ID and state == "REPLACE_PART_VIDEO":
-        if not message.video:
-            bot.send_message(
-                chat_id,
-                "⚠️ Iltimos, yangi videoni Telegram orqali yuboring.",
-            )
-            return
-
-        video_id = message.video.file_id
-
-        d = temp_data.get(user_id, {})
-
-        anime_id = d.get("anime_id")
-        part_num = d.get("part_num")
-
-        if not anime_id or not part_num:
-            bot.send_message(
-                chat_id,
-                "❌ Qism ma'lumotlari topilmadi.\n"
-                "Qismni almashtirishni qaytadan boshlang.",
-            )
-
-            user_states.pop(user_id, None)
-            temp_data.pop(user_id, None)
-            return
-
-        result = execute_query(
-            """
-            INSERT INTO parts (
-                anime_id,
-                part_num,
-                video_id
-            )
-            VALUES (?, ?, ?)
-            """,
-            (
-                anime_id,
-                part_num,
-                video_id,
-            ),
-            commit=True,
-        )
-
-        if result is None:
-            bot.send_message(
-                chat_id,
-                "❌ Yangi video saqlanmadi. Qaytadan yuboring.",
-            )
-            return
-
+            conn.close()
+            markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
+            bot.reply_to(message, "❌ Kechirasiz, bunday kodga ega anime mavjud emas.", reply_markup=markup)
+            
         user_states.pop(user_id, None)
-        temp_data.pop(user_id, None)
 
+    # Nomi orqali izlash
+    elif state == "waiting_for_name_search":
+        if not message.text:
+            bot.reply_to(message, "Iltimos, nomini yuboring.")
+            return
+        query = message.text.lower().strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT title, code FROM animes WHERE LOWER(title) LIKE ? OR LOWER(hidden_names) LIKE ?", 
+                       (f'%{query}%', f'%{query}%'))
+        rows = cursor.fetchall()
+        
         markup = types.InlineKeyboardMarkup(row_width=1)
+        if not rows:
+            markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
+            bot.reply_to(message, "❌ Kechirasiz, bu nomdagi anime topilmadi.", reply_markup=markup)
+        else:
+            text = f"🔍 '{message.text}' bo'yicha qidiruv natijalari:\n"
+            for title, code in rows:
+                markup.add(types.InlineKeyboardButton(f"🎬 {title} (Kod: {code})", callback_data=f"show_anime_{code}"))
+            markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
+            bot.reply_to(message, text, reply_markup=markup, parse_mode="Markdown")
+            
+        conn.close()
+        user_states.pop(user_id, None)
 
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔙 Boshqarishga qaytish",
-                callback_data="admin_manage",
-            )
-        )
-
-        bot.send_message(
-            chat_id,
-            f"✅ **{part_num}-qism** o'rniga yangi video qo'shildi!",
-            reply_markup=markup,
-            parse_mode="Markdown",
-        )
-
-        return
-
-
-# ============================================================
+    else:
+        bot.reply_to(message, "✨ Bot uzluksiz ishlamoqda. Asosiy menyuga qaytish uchun pastdagi tugmadan foydalaning.", reply_markup=markup_back)
+        # ============================================================
 # BOTNI ISHGA TUSHIRISH
 # ============================================================
 
-if __name__ == "__main__":
+if name == "main":
     print("Bot ishga tushmoqda...")
 
     try:
