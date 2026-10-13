@@ -17,20 +17,47 @@ bot = telebot.TeleBot(TOKEN)
 # Adminlarning Telegram ID raqamlari
 ADMIN_IDS = [7637155944,7986354170]
 
-# Foydalanuvchilar holatini saqlash
-user_states = {}
+# ============================================================
+# SOZLAMALAR
+# ============================================================
 
-# Ma'lumotlar bazasini yaratish
+TOKEN = os.environ.get('BOT_TOKEN', 'SIZNING_BOT_TOKENINGIZ')
+bot = telebot.TeleBot(TOKEN)
+
+# Adminlarning Telegram ID raqamlari
+ADMIN_IDS = [123456789]
+
+# ============================================================
+# MA'LUMOTLAR BAZASINI YARATISH VA BOSHQARISH
+# ============================================================
 def init_db():
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
     cursor = conn.cursor()
     
+    # Foydalanuvchilar va ularning state (holat) lari jadvali
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY
+            user_id INTEGER PRIMARY KEY,
+            state TEXT DEFAULT NULL
         )
     ''')
     
+    # Vaqtinchalik wizard (anime qo'shish) ma'lumotlari jadvali
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS temp_anime_data (
+            user_id INTEGER PRIMARY KEY,
+            channel_name TEXT,
+            channel_link TEXT,
+            title TEXT,
+            hidden_names TEXT,
+            code TEXT,
+            photo_id TEXT,
+            episodes TEXT,
+            genre TEXT
+        )
+    ''')
+    
+    # Majburiy obuna kanallari jadvali
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS force_channels (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,6 +66,7 @@ def init_db():
         )
     ''')
     
+    # Animelar jadvali
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS animes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,6 +88,23 @@ def init_db():
 
 init_db()
 
+# Bazadan state olish
+def get_user_state(user_id):
+    conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT state FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+# Bazaga state yozish
+def set_user_state(user_id, state):
+    conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO users (user_id, state) VALUES (?, ?)", (user_id, state))
+    conn.commit()
+    conn.close()
+
 # Render 24/7 keep-alive Flask server
 app = Flask('')
 
@@ -78,7 +123,7 @@ def keep_alive():
 
 
 # ============================================================
-# MAJBURIY OBUNANI TEKSHIRish (XATOSIZ)
+# MAJBURIY OBUNANI TEKSHIRISH
 # ============================================================
 def check_subscription(user_id):
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
@@ -97,7 +142,6 @@ def check_subscription(user_id):
             if member.status not in ['creator', 'administrator', 'member']:
                 not_subscribed.append((ch_username, ch_link))
         except Exception:
-            # Agar bot kanalga qo'shilmagan bo'lsa yoki xatolik bo'lsa, foydalanuvchini bloklab qo'ymaslik uchun o'tkazib yuboramiz
             continue
             
     if not_subscribed:
@@ -106,7 +150,7 @@ def check_subscription(user_id):
 
 
 # ============================================================
-# MENYU TUGMALARI (Admin va Foydalanuvchi uchun)
+# MENYU TUGMALARI
 # ============================================================
 def get_admin_markup():
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -144,11 +188,11 @@ def get_user_markup():
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = message.from_user.id
-    user_states.pop(user_id, None)
+    set_user_state(user_id, None)
     
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
     cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    cursor.execute("INSERT OR IGNORE INTO users (user_id, state) VALUES (?, NULL)", (user_id,))
     conn.commit()
     conn.close()
     
@@ -212,14 +256,14 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="search_menu"))
         bot.edit_message_text("🔢 **Anime kodini yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_for_code_search"
+        set_user_state(user_id, "waiting_for_code_search")
 
     elif call.data == "search_by_name":
         bot.answer_callback_query(call.id)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="search_menu"))
         bot.edit_message_text("🔤 **Anime nomini yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_for_name_search"
+        set_user_state(user_id, "waiting_for_name_search")
         
     elif call.data == "anime_list":
         bot.answer_callback_query(call.id)
@@ -309,7 +353,7 @@ def callback_handler(call):
 
     elif call.data == "back_to_main":
         bot.answer_callback_query(call.id)
-        user_states.pop(user_id, None)
+        set_user_state(user_id, None)
         
         if user_id in ADMIN_IDS:
             bot.edit_message_text("👑 **Admin paneli:**", call.message.chat.id, call.message.message_id, reply_markup=get_admin_markup(), parse_mode="Markdown")
@@ -321,7 +365,7 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
         bot.edit_message_text("📢 **Kanal username'ini yuboring** (masalan: `@kanal`):", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_force_username"
+        set_user_state(user_id, "waiting_force_username")
 
     elif call.data == "del_force_channel" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
@@ -360,7 +404,7 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
         bot.edit_message_text("📢 **1-qadam:** Anime joylanadigan kanal nomini kiriting:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_channel_name"
+        set_user_state(user_id, "waiting_anime_channel_name")
 
     elif call.data == "del_anime_menu" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
@@ -399,7 +443,7 @@ def callback_handler(call):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
         bot.edit_message_text("📤 **Tarqatish uchun xabarni yuboring:**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        user_states[user_id] = "waiting_broadcast_message"
+        set_user_state(user_id, "waiting_broadcast_message")
 
     elif call.data == "admin_stats" and user_id in ADMIN_IDS:
         bot.answer_callback_query(call.id)
@@ -420,7 +464,7 @@ def callback_handler(call):
 
 
 # ============================================================
-# XABARLAR VA BOSQICHLARNI BOSHQARISH (MUKAMMAL)
+# XABARLAR VA WIZARD BOSQICHLARI (BAZA ORQALI)
 # ============================================================
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'video', 'document'])
 def handle_messages(message):
@@ -428,11 +472,10 @@ def handle_messages(message):
     
     conn = sqlite3.connect('bot_database.db', check_same_thread=False)
     cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    cursor.execute("INSERT OR IGNORE INTO users (user_id, state) VALUES (?, NULL)", (user_id,))
     conn.commit()
     conn.close()
 
-    # Majburiy obunani tekshirish
     if user_id not in ADMIN_IDS:
         is_sub, unsubs = check_subscription(user_id)
         if not is_sub:
@@ -443,7 +486,7 @@ def handle_messages(message):
             bot.reply_to(message, "⚠️ **Diqqat!** Botdan foydalanish uchun quyidagi kanalga obuna bo'lishingiz shart:", reply_markup=markup, parse_mode="Markdown")
             return
 
-    state = user_states.get(user_id)
+    state = get_user_state(user_id)
     markup_back = types.InlineKeyboardMarkup()
     markup_back.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
     
@@ -464,126 +507,175 @@ def handle_messages(message):
                 pass
                 
         bot.reply_to(message, f"✅ **Xabar {success} ta foydalanuvchiga yuborildi!**", reply_markup=markup_back, parse_mode="Markdown")
-        user_states.pop(user_id, None)
+        set_user_state(user_id, None)
 
     elif state == "waiting_force_username":
         if not message.text:
             bot.reply_to(message, "Kanal username'ini yuboring.")
             return
-        user_states[f"force_uname_{user_id}"] = message.text.strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO temp_anime_data (user_id, channel_name) VALUES (?, ?)", (user_id, message.text.strip()))
+        conn.commit()
+        conn.close()
+        
         bot.reply_to(message, "🔗 Kanal havolasini yuboring:", reply_markup=markup_back)
-        user_states[user_id] = "waiting_force_link"
+        set_user_state(user_id, "waiting_force_link")
         
     elif state == "waiting_force_link":
         if not message.text:
             bot.reply_to(message, "Havolani yuboring.")
             return
-        ch_uname = user_states.get(f"force_uname_{user_id}")
         ch_link = message.text.strip()
         
         conn = sqlite3.connect('bot_database.db', check_same_thread=False)
         cursor = conn.cursor()
+        cursor.execute("SELECT channel_name FROM temp_anime_data WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        ch_uname = row[0] if row else "@kanal"
+        
         cursor.execute("INSERT INTO force_channels (channel_username, channel_link) VALUES (?, ?)", (ch_uname, ch_link))
+        cursor.execute("DELETE FROM temp_anime_data WHERE user_id = ?", (user_id,))
         conn.commit()
         conn.close()
         
         bot.reply_to(message, f"✅ Kanal muvaffaqiyatli qo'shildi!", reply_markup=markup_back)
-        user_states.pop(user_id, None)
+        set_user_state(user_id, None)
 
-    # --- ANIME QO'SHISH BOSQICHLARI ---
+    # --- ANIME QO'SHISH WIZARD BOSQICHLARI ---
     elif state == "waiting_anime_channel_name":
         if not message.text:
             bot.reply_to(message, "Kanal nomini yuboring.")
             return
-        user_states[f"anime_ch_name_{user_id}"] = message.text.strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO temp_anime_data (user_id, channel_name) VALUES (?, ?)", (user_id, message.text.strip()))
+        conn.commit()
+        conn.close()
+        
         bot.reply_to(message, "🔗 **2-qadam:** Kanal havolasini yuboring:", reply_markup=markup_back, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_channel_link"
+        set_user_state(user_id, "waiting_anime_channel_link")
 
     elif state == "waiting_anime_channel_link":
         if not message.text:
             bot.reply_to(message, "Kanal havolasini yuboring.")
             return
-        user_states[f"anime_ch_link_{user_id}"] = message.text.strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE temp_anime_data SET channel_link = ? WHERE user_id = ?", (message.text.strip(), user_id))
+        conn.commit()
+        conn.close()
+        
         bot.reply_to(message, "🎬 **3-qadam:** Animening to'liq nomini kiriting:", reply_markup=markup_back, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_title"
+        set_user_state(user_id, "waiting_anime_title")
 
     elif state == "waiting_anime_title":
         if not message.text:
             bot.reply_to(message, "Anime nomini yuboring.")
             return
-        user_states[f"anime_title_{user_id}"] = message.text.strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE temp_anime_data SET title = ? WHERE user_id = ?", (message.text.strip(), user_id))
+        conn.commit()
+        conn.close()
+        
         bot.reply_to(message, "🔤 **4-qadam:** Yashirin nomlarni yuboring (vergul bilan):", reply_markup=markup_back, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_hidden"
+        set_user_state(user_id, "waiting_anime_hidden")
 
     elif state == "waiting_anime_hidden":
         if not message.text:
             bot.reply_to(message, "Yashirin nomlarni yuboring.")
             return
-        user_states[f"anime_hidden_{user_id}"] = message.text.strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE temp_anime_data SET hidden_names = ? WHERE user_id = ?", (message.text.strip(), user_id))
+        conn.commit()
+        conn.close()
+        
         bot.reply_to(message, "🔢 **5-qadam:** Anime kodini (raqam) yuboring:", reply_markup=markup_back, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_code"
+        set_user_state(user_id, "waiting_anime_code")
 
     elif state == "waiting_anime_code":
         if not message.text:
             bot.reply_to(message, "Kod yuboring.")
             return
-        user_states[f"anime_code_{user_id}"] = message.text.strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE temp_anime_data SET code = ? WHERE user_id = ?", (message.text.strip(), user_id))
+        conn.commit()
+        conn.close()
+        
         bot.reply_to(message, "🖼 **6-qadam:** Anime rasmini (posterini) yuboring:", reply_markup=markup_back, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_photo"
+        set_user_state(user_id, "waiting_anime_photo")
 
     elif state == "waiting_anime_photo":
         if not message.photo:
             bot.reply_to(message, "❌ Rasm yuborishingiz kerak!")
             return
-        user_states[f"anime_photo_{user_id}"] = message.photo[-1].file_id
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE temp_anime_data SET photo_id = ? WHERE user_id = ?", (message.photo[-1].file_id, user_id))
+        conn.commit()
+        conn.close()
+        
         bot.reply_to(message, "🧩 **7-qadam:** Qismlarini yuboring (masalan: 1-12 qism):", reply_markup=markup_back, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_episodes"
+        set_user_state(user_id, "waiting_anime_episodes")
 
     elif state == "waiting_anime_episodes":
         if not message.text:
             bot.reply_to(message, "Qismlarini yuboring.")
             return
-        user_states[f"anime_episodes_{user_id}"] = message.text.strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE temp_anime_data SET episodes = ? WHERE user_id = ?", (message.text.strip(), user_id))
+        conn.commit()
+        conn.close()
+        
         bot.reply_to(message, "🎭 **8-qadam:** Janrini yuboring:", reply_markup=markup_back, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_genre"
+        set_user_state(user_id, "waiting_anime_genre")
 
     elif state == "waiting_anime_genre":
         if not message.text:
             bot.reply_to(message, "Janrni yuboring.")
             return
-        user_states[f"anime_genre_{user_id}"] = message.text.strip()
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE temp_anime_data SET genre = ? WHERE user_id = ?", (message.text.strip(), user_id))
+        conn.commit()
+        conn.close()
+        
         bot.reply_to(message, "📖 **9-qadam:** Anime haqida qisqacha tavsif yuboring:", reply_markup=markup_back, parse_mode="Markdown")
-        user_states[user_id] = "waiting_anime_description"
+        set_user_state(user_id, "waiting_anime_description")
 
     elif state == "waiting_anime_description":
         if not message.text:
             bot.reply_to(message, "Tavsifni yuboring.")
             return
         
-        ch_name = user_states.get(f"anime_ch_name_{user_id}")
-        ch_link = user_states.get(f"anime_ch_link_{user_id}")
-        title = user_states.get(f"anime_title_{user_id}")
-        hidden = user_states.get(f"anime_hidden_{user_id}")
-        code = user_states.get(f"anime_code_{user_id}")
-        photo_id = user_states.get(f"anime_photo_{user_id}")
-        episodes = user_states.get(f"anime_episodes_{user_id}")
-        genre = user_states.get(f"anime_genre_{user_id}")
         desc = message.text.strip()
         
-        try:
-            conn = sqlite3.connect('bot_database.db', check_same_thread=False)
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO animes (channel_name, channel_link, title, hidden_names, code, photo_id, episodes, genre, description) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (ch_name, ch_link, title, hidden, code, photo_id, episodes, genre, desc))
-            conn.commit()
-            conn.close()
-            bot.reply_to(message, f"🎉 **'{title}' animasi muvaffaqiyatli saqlandi!**", reply_markup=markup_back, parse_mode="Markdown")
-        except sqlite3.IntegrityError:
-            bot.reply_to(message, "❌ Xatolik: Bu kod band qilingan!", reply_markup=markup_back)
+        conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("SELECT channel_name, channel_link, title, hidden_names, code, photo_id, episodes, genre FROM temp_anime_data WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        
+        if row:
+            ch_name, ch_link, title, hidden, code, photo_id, episodes, genre = row
+            try:
+                cursor.execute("""
+                    INSERT INTO animes (channel_name, channel_link, title, hidden_names, code, photo_id, episodes, genre, description) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (ch_name, ch_link, title, hidden, code, photo_id, episodes, genre, desc))
+                conn.commit()
+                bot.reply_to(message, f"🎉 **'{title}' animasi muvaffaqiyatli saqlandi!**", reply_markup=markup_back, parse_mode="Markdown")
+            except sqlite3.IntegrityError:
+                bot.reply_to(message, "❌ Xatolik: Bu kod band qilingan!", reply_markup=markup_back)
             
-        user_states.pop(user_id, None)
+            cursor.execute("DELETE FROM temp_anime_data WHERE user_id = ?", (user_id,))
+            conn.commit()
+        
+        conn.close()
+        set_user_state(user_id, None)
 
     elif state == "waiting_for_code_search":
         if not message.text:
@@ -615,7 +707,7 @@ def handle_messages(message):
             markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
             bot.reply_to(message, "❌ Bunday kodli anime topilmadi.", reply_markup=markup)
             
-        user_states.pop(user_id, None)
+        set_user_state(user_id, None)
 
     elif state == "waiting_for_name_search":
         if not message.text:
@@ -639,10 +731,9 @@ def handle_messages(message):
             markup.add(types.InlineKeyboardButton("🔙 Asosiy menyu", callback_data="back_to_main"))
             bot.reply_to(message, f"🔍 **Topilgan natijalar:**", reply_markup=markup, parse_mode="Markdown")
             
-        user_states.pop(user_id, None)
+        set_user_state(user_id, None)
 
     else:
-        # Agar foydalanuvchida hech qanday state bo'lmasa va u obunadan o'tgan bo'lsa
         if user_id in ADMIN_IDS:
             bot.reply_to(message, "👑 **Admin boshqaruv paneli:**", reply_markup=get_admin_markup(), parse_mode="Markdown")
         else:
