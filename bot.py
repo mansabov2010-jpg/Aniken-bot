@@ -341,7 +341,8 @@ def callback_handler(call):
         markup.add(types.InlineKeyboardButton("🔙 Orqaga", callback_data="back_to_main"))
         
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        elif call.data == "back_to_main":
+        
+    elif call.data == "back_to_main":
         bot.answer_callback_query(call.id)
         user_states.pop(user_id, None)
         markup = types.InlineKeyboardMarkup(row_width=2)
