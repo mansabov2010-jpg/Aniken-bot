@@ -121,7 +121,7 @@ PROMPTS = {
         "Foydalanuvchilar shu kod orqali animeni topadi. Har bir kod noyob bo'lishi kerak."
     ),
 }
- from aiogram.filters import BaseFilter
+from aiogram.filters import BaseFilter
 from aiogram.types import TelegramObject
  
 import config
