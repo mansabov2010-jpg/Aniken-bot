@@ -132,7 +132,7 @@ class IsAdmin(BaseFilter):
     async def __call__(self, event: TelegramObject) -> bool:
         user = getattr(event, "from_user", None)
         return bool(user and user.id in config.ADMIN_IDS)
- """PostgreSQL (asyncpg) bilan ishlash."""
+"""PostgreSQL (asyncpg) bilan ishlash."""
 import logging
 from typing import Optional
  
