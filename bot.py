@@ -404,7 +404,7 @@ async def missing_channels(bot: Bot, channels: list[dict], user_id: int) -> list
         if await is_member(bot, ch["chat_id"], user_id) is False:
             out.append(ch)
     return out
- from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import State, StatesGroup
  
  
 class Search(StatesGroup):
