@@ -439,7 +439,59 @@ class Find(StatesGroup):
  
 class Channel(StatesGroup):
     add = State()
- 
+    
+# --- Majburiy obuna kanallarini boshqarish handlerlari ---
+
+@dp.message(IsAdmin(), F.text == "📢 Kanallar")
+async def channels_menu(message: Message):
+    channels = await db.channels()
+    text = "<b>📢 Majburiy obuna kanallari ro'yxati:</b>\n\n"
+    if not channels:
+        text += "<i>Hozircha kanallar qo'shilmagan.</i>"
+    
+    keyboard = []
+    for ch in channels:
+        keyboard.append([InlineKeyboardButton(text=f"❌ {ch['title']}", callback_data=f"del_chan_{ch['id']}")])
+    
+    keyboard.append([InlineKeyboardButton(text="➕ Kanal qo'shish", callback_data="add_chan")])
+    
+    await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
+
+@dp.callback_query(IsAdmin(), F.data == "add_chan")
+async def add_channel_start(call: CallbackQuery, state: FSMContext):
+    await call.message.answer("<b>➕ Kanal qo'shish uchun kanal havolasini yoki username'ini yuboring:</b>\n\nMasalan: <code>@kanal_username</code> yoki <code>https://t.me/...</code>", parse_mode="HTML")
+    await state.set_state(Channel.add)
+    await call.answer()
+
+@dp.message(IsAdmin(), Channel.add)
+async def add_channel_finish(message: Message, state: FSMContext):
+    link = normalize_link(message.text)
+    if not link:
+        await message.answer("❌ Noto'g'ri havola yoki username kiritildi. Qaytadan urinib ko'ring:")
+        return
+    
+    res = check_link(message.bot, link)
+    if "Kanal topilmadi" in res or "Maxfiy havola" in res:
+        await message.answer(f"❌ Xatolik: {res}\n\nBoshqa havola yuboring:")
+        return
+
+    # Kanal ma'lumotlarini olish
+    chat_ref = parse_chat_ref(link)
+    try:
+        chat = await message.bot.get_chat(chat_ref)
+        await db.add_channel(chat.id, chat.title, link)
+        await message.answer(f"✅ <b>{chat.title}</b> kanali muvaffaqiyatli qo'shildi!", parse_mode="HTML")
+    except Exception as e:
+        await message.answer(f"❌ Xatolik yuz berdi: {e}")
+    
+    await state.clear()
+
+@dp.callback_query(IsAdmin(), F.data.startswith("del_chan_"))
+async def delete_channel_callback(call: CallbackQuery):
+    chan_id = int(call.data.split("_")[-1])
+    await db.delete_channel(chan_id)
+    await call.message.edit_text("✅ Kanal majburiy obunalar ro'yxatidan o'chirib tashlandi!")
+    await call.answer()
  
 class Broadcast(StatesGroup):
     wait = State()
