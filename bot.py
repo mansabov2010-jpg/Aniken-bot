@@ -314,7 +314,7 @@ class Database:
  
  
 db = Database()
- """Yordamchi funksiyalar: havolalar, kanal tekshirish, obuna tekshirish."""
+"""Yordamchi funksiyalar: havolalar, kanal tekshirish, obuna tekshirish."""
 import logging
 import re
 from typing import Optional, Union
