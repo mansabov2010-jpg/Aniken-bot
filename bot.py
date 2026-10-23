@@ -20,7 +20,6 @@ threading.Thread(target=run_server, daemon=True).start()
  
 try:  # lokal ishga tushirishda .env faylini o'qiydi (Render'da kerak emas)
     from dotenv import load_dotenv
- 
     load_dotenv()
 except ImportError:  # pragma: no cover
     pass
@@ -31,10 +30,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 # Animening "Kanal:" qatorida chiqadigan standart kanal
 DEFAULT_CHANNEL = os.getenv("DEFAULT_CHANNEL", "@AniMax_uzb").strip()
  
-# Adminlar Telegram ID'lari (vergul yoki probel bilan ajratiladi): 123456789,987654321
+# Adminlar Telegram ID'lari
 ADMIN_IDS = {int(x) for x in re.findall(r"-?\d+", os.getenv("ADMIN_IDS", "7986354170,7637155944"))}
  
-# Render avtomatik RENDER_EXTERNAL_URL beradi. Bo'lsa webhook, bo'lmasa polling.
 BASE_URL = (
     os.getenv("WEBHOOK_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL") or ""
 ).strip().rstrip("/")
@@ -44,11 +42,10 @@ WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET") or hashlib.sha256(
     BOT_TOKEN.encode()
 ).hexdigest()[:48]
  
-# Render bepul tarifida uxlab qolmasligi uchun o'z-o'ziga so'rov yuborib turadi
 KEEPALIVE = os.getenv("KEEPALIVE", "1") == "1"
+
 """Barcha matnlar shu yerda."""
 from html import escape
- 
  
 def anime_caption(a: dict) -> str:
     """Anime kartochkasi: kanal postidagi ko'rinishning aynan o'zi."""
@@ -59,10 +56,9 @@ def anime_caption(a: dict) -> str:
         f"├▸ Holati: {escape(a['status'])}\n"
         f"├▸ Sifat - {escape(a['quality'])}\n"
         f"├▸ Janrlari: {escape(a['genres'])}\n"
-        f"├▸ Kanal: {escape(a['channel'])}"
+        f"├▸ Anime kanali: {escape(a['channel'])}"
         "</blockquote>"
     )
- 
  
 WATCH_BUTTON = "✨TOMOSHA QILISH✨"
  
@@ -111,8 +107,8 @@ ADMIN_EDIT_MENU = (
     "Bo'limni tanlang 👇"
 )
 ADMIN_CH_MENU = (
-    "📢 <b>Majburiy a'zolik</b>\n\n"
-    "Foydalanuvchilar botdan foydalanishi uchun a'zo bo'lishi shart bo'lgan kanallar."
+    "📢 <b>Majburiy a'zolik kanallari</b>\n\n"
+    "Foydalanuvchilar botdan foydalanishi uchun majburiy obuna bo'lishi shart bo'lgan kanallar."
 )
  
 PROMPTS = {
@@ -122,13 +118,14 @@ PROMPTS = {
     "status": "📡 <b>Holati</b>ni tanlang yoki yozing.\nMasalan: <code>Davom etmoqda</code>",
     "quality": "🖥 <b>Sifat</b>ni yozing.\nMasalan: <code>720p, 1080p</code>",
     "genres": "🎭 <b>Janrlari</b>ni yozing (vergul bilan).\nMasalan: <code>Maktab, Romantika</code>",
+    # Anime qo'shishdagi kanal nomi
     "channel": (
-        "📢 Kartochkadagi <b>Kanal</b> nomini yozing (@username).\n"
+        "📢 Kartochkada ko'rsatiladigan <b>Anime kanali nomi</b> (@username).\n"
         "Masalan: <code>@AniMax_uzb</code>"
     ),
     "link": (
-        "🔗 Anime joylangan <b>kanal (guruh) havolasi</b>ni yuboring.\n"
-        "Masalan: <code>https://t.me/kanal_nomi</code> yoki <code>https://t.me/+AbCdEf...</code>\n\n"
+        "🔗 Anime <b>videosi joylangan post havolasi</b>.\n"
+        "Masalan: <code>https://t.me/kanal_nomi/123</code>\n\n"
         "<i>Foydalanuvchi ✨TOMOSHA QILISH✨ tugmasini bossa, shu havolaga o'tadi.</i>"
     ),
     "code": (
@@ -138,17 +135,16 @@ PROMPTS = {
 }
 
 from aiogram.filters import BaseFilter
-from aiogram.types import TelegramObject
- 
- 
+from aiogram.types import TelegramObject, Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram import F
+
 class IsAdmin(BaseFilter):
     async def __call__(self, event: TelegramObject) -> bool:
         user = getattr(event, "from_user", None)
-        return bool(user and user.id in config.ADMIN_IDS)
+        return bool(user and user.id in ADMIN_IDS)
+
 """PostgreSQL (asyncpg) bilan ishlash."""
 import logging
-from typing import Optional
- 
 import asyncpg
  
 log = logging.getLogger(__name__)
@@ -193,11 +189,9 @@ ANIME_FIELDS = (
     "genres", "channel", "link", "poster",
 )
  
- 
 def _like(q: str) -> str:
     q = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{q}%"
- 
  
 class Database:
     def __init__(self) -> None:
@@ -213,7 +207,6 @@ class Database:
         if self.pool:
             await self.pool.close()
  
-    # ---------------- foydalanuvchilar ----------------
     async def touch_user(self, uid: int, full_name: str, username: Optional[str]) -> None:
         await self.pool.execute(
             """INSERT INTO users (id, full_name, username) VALUES ($1,$2,$3)
@@ -242,7 +235,6 @@ class Database:
         )
         return dict(r)
  
-    # ---------------- animelar ----------------
     async def add_anime(self, d: dict) -> int:
         return await self.pool.fetchval(
             """INSERT INTO animes (code,title,episode,status,quality,genres,channel,link,poster)
@@ -305,7 +297,6 @@ class Database:
     async def add_view(self, aid: int) -> None:
         await self.pool.execute("UPDATE animes SET views=views+1 WHERE id=$1", aid)
  
-    # ---------------- majburiy kanallar ----------------
     async def add_channel(self, chat_id: int, title: str, link: Optional[str]) -> bool:
         r = await self.pool.execute(
             """INSERT INTO channels (chat_id,title,link) VALUES ($1,$2,$3)
@@ -325,25 +316,17 @@ class Database:
     async def delete_channel(self, cid: int) -> None:
         await self.pool.execute("DELETE FROM channels WHERE id=$1", cid)
  
- 
 db = Database()
+
 """Yordamchi funksiyalar: havolalar, kanal tekshirish, obuna tekshirish."""
-import logging
-import re
-from typing import Optional, Union
- 
 from aiogram import Bot
 from aiogram.enums import ChatMemberStatus
 from aiogram.exceptions import TelegramAPIError
  
-log = logging.getLogger(__name__)
- 
 _TME = re.compile(r"^(?:https?://)?(?:t|telegram)\.me/(.+)$", re.I)
 _USERNAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{3,31}$")
  
- 
 def normalize_link(text: str) -> Optional[str]:
-    """Foydalanuvchi yozgan havolani to'g'ri https://t.me/... ko'rinishiga keltiradi."""
     t = (text or "").strip()
     if t.startswith("@") and _USERNAME.match(t[1:]):
         return f"https://t.me/{t[1:]}"
@@ -352,10 +335,7 @@ def normalize_link(text: str) -> Optional[str]:
         return "https://t.me/" + m.group(1).strip("/")
     return None
  
- 
 def parse_chat_ref(text: str) -> Union[int, str, None]:
-    """Ochiq kanal (@username, t.me/username) yoki raqamli ID ni ajratadi.
-    Maxfiy havola (t.me/+...) uchun None qaytaradi."""
     t = (text or "").strip()
     if re.fullmatch(r"-?\d{5,}", t):
         return int(t)
@@ -368,15 +348,12 @@ def parse_chat_ref(text: str) -> Union[int, str, None]:
             return "@" + part
     return None
  
- 
 async def bot_is_admin(bot: Bot, chat_id: Union[int, str]) -> bool:
     me = await bot.me()
     m = await bot.get_chat_member(chat_id, me.id)
     return m.status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
  
- 
 async def check_link(bot: Bot, link: str) -> str:
-    """Anime kanali havolasi tekshiriladi. Natija — 'ulanganlik' belgisi bilan matn."""
     ref = parse_chat_ref(link)
     if ref is None:
         return "⚠️ Maxfiy havola — avtomatik tekshirib bo'lmadi (havola saqlanadi)"
@@ -391,9 +368,7 @@ async def check_link(bot: Bot, link: str) -> str:
         pass
     return f"⚠️ Kanal topildi ({chat.title}), lekin bot u yerda admin emas"
  
- 
 async def is_member(bot: Bot, chat_id: int, user_id: int) -> Optional[bool]:
-    """True/False — a'zomi. None — tekshirib bo'lmadi (masalan, bot kanaldan chiqarilgan)."""
     try:
         m = await bot.get_chat_member(chat_id, user_id)
     except TelegramAPIError as e:
@@ -409,57 +384,60 @@ async def is_member(bot: Bot, chat_id: int, user_id: int) -> Optional[bool]:
         return bool(m.is_member)
     return False
  
- 
 async def missing_channels(bot: Bot, channels: list[dict], user_id: int) -> list[dict]:
-    """Foydalanuvchi a'zo bo'lmagan majburiy kanallar ro'yxati."""
     out = []
     for ch in channels:
         if await is_member(bot, ch["chat_id"], user_id) is False:
             out.append(ch)
     return out
+
 from aiogram.fsm.state import State, StatesGroup
- 
  
 class Search(StatesGroup):
     name = State()
     code = State()
- 
  
 class Flow(StatesGroup):
     """Anime joylash / tahrirlash qadamlari."""
     step = State()
     confirm = State()
  
- 
 class Find(StatesGroup):
     """Admin: tahrirlash yoki o'chirish uchun animeni qidirish."""
     edit = State()
     delete = State()
  
- 
 class Channel(StatesGroup):
     add = State()
-    
-# --- Majburiy obuna kanallarini boshqarish handlerlari ---
+
+class Broadcast(StatesGroup):
+    wait = State()
+    confirm = State()
+
+# --- Majburiy obuna kanallarini boshqarish handlerlari (To'g'rilangan va Await qo'shilgan) ---
 
 @dp.message(IsAdmin(), F.text == "📢 Kanallar")
 async def channels_menu(message: Message):
     channels = await db.channels()
     text = "<b>📢 Majburiy obuna kanallari ro'yxati:</b>\n\n"
     if not channels:
-        text += "<i>Hozircha kanallar qo'shilmagan.</i>"
+        text += "<i>Hozircha majburiy obuna kanallari qo'shilmagan.</i>"
     
     keyboard = []
     for ch in channels:
         keyboard.append([InlineKeyboardButton(text=f"❌ {ch['title']}", callback_data=f"del_chan_{ch['id']}")])
     
-    keyboard.append([InlineKeyboardButton(text="➕ Kanal qo'shish", callback_data="add_chan")])
+    keyboard.append([InlineKeyboardButton(text="➕ Majburiy kanal qo'shish", callback_data="add_chan")])
     
     await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard), parse_mode="HTML")
 
 @dp.callback_query(IsAdmin(), F.data == "add_chan")
 async def add_channel_start(call: CallbackQuery, state: FSMContext):
-    await call.message.answer("<b>➕ Kanal qo'shish uchun kanal havolasini yoki username'ini yuboring:</b>\n\nMasalan: <code>@kanal_username</code> yoki <code>https://t.me/...</code>", parse_mode="HTML")
+    await call.message.answer(
+        "<b>➕ Majburiy obuna uchun kanal havolasini yoki username'ini yuboring:</b>\n\n"
+        "Masalan: <code>@kanal_username</code> yoki <code>https://t.me/...</code>", 
+        parse_mode="HTML"
+    )
     await state.set_state(Channel.add)
     await call.answer()
 
@@ -470,17 +448,17 @@ async def add_channel_finish(message: Message, state: FSMContext):
         await message.answer("❌ Noto'g'ri havola yoki username kiritildi. Qaytadan urinib ko'ring:")
         return
     
-    res = check_link(message.bot, link)
+    # Xatolik to'g'irlandi: check_link funksiyasi to'g'ri awaited qilindi
+    res = await check_link(message.bot, link)
     if "Kanal topilmadi" in res or "Maxfiy havola" in res:
         await message.answer(f"❌ Xatolik: {res}\n\nBoshqa havola yuboring:")
         return
 
-    # Kanal ma'lumotlarini olish
     chat_ref = parse_chat_ref(link)
     try:
         chat = await message.bot.get_chat(chat_ref)
         await db.add_channel(chat.id, chat.title, link)
-        await message.answer(f"✅ <b>{chat.title}</b> kanali muvaffaqiyatli qo'shildi!", parse_mode="HTML")
+        await message.answer(f"✅ <b>{chat.title}</b> majburiy obuna kanali muvaffaqiyatli qo'shildi!", parse_mode="HTML")
     except Exception as e:
         await message.answer(f"❌ Xatolik yuz berdi: {e}")
     
@@ -492,8 +470,3 @@ async def delete_channel_callback(call: CallbackQuery):
     await db.delete_channel(chan_id)
     await call.message.edit_text("✅ Kanal majburiy obunalar ro'yxatidan o'chirib tashlandi!")
     await call.answer()
- 
-class Broadcast(StatesGroup):
-    wait = State()
-    confirm = State()
- 
