@@ -31,7 +31,7 @@ WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET") or hashlib.sha256(
  
 # Render bepul tarifida uxlab qolmasligi uchun o'z-o'ziga so'rov yuborib turadi
 KEEPALIVE = os.getenv("KEEPALIVE", "1") == "1"
- """Barcha matnlar shu yerda."""
+"""Barcha matnlar shu yerda."""
 from html import escape
  
  
