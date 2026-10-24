@@ -24,7 +24,7 @@ try:  # lokal ishga tushirishda .env faylini o'qiydi (Render'da kerak emas)
 except ImportError:  # pragma: no cover
     pass
  
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8987164421:AAHIKjTCtB4781Ns53b3WSHk5xgAWOXTtQ8").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8638595606:AAEORmJaZmTqA5jbA9Kx0lByG_wdSEQnLI4").strip()
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
  
 # Animening "Kanal:" qatorida chiqadigan standart kanal
