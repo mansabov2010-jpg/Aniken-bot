@@ -11,7 +11,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # Bot tokeningiz va Admin ID
 TOKEN = "8987164421:AAGynHKb4lN8jtGNSkCPHmqqeDR7N555DTc"
-ADMIN_ID = 7986354170,7637155944
+ADMIN_IDS = [7986354170,7637155944]
 
 # Havolalar va Bot username
 BOT_USERNAME = "AniREM_bot"  # Botingizning username'ini yozing
