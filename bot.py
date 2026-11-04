@@ -10,13 +10,9 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # Bot tokeningiz va Admin ID
-TOKEN = "8987164421:AAGynHKb4lN8jtGNSkCPHmqqeDR7N555DTc"
+TOKEN = "8987164421:AAGynHKb4lN8jtGNSkCPHmqqeDR7N555DTc" # O'z tokeningiz
 ADMIN_IDS = [7986354170,7637155944]
-
-# Havolalar va Bot username
-BOT_USERNAME = "AniREM_bot"  # Botingizning username'ini yozing
-NEWS_CHANNEL_URL = "https://t.me/GRAB_GARDEN_NEWS"
-GROUP_CHAT_URL = "https://t.me/Grab_Garden"
+BOT_USERNAME = "AniREM_bot"
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
@@ -80,7 +76,7 @@ async def db_start():
                 await db.commit()
 
 # ==========================================
-# 1. /start VA ASOSIY MENYU
+# 1. /start VA ASOSIY MENYU (ANIMEKU USLUBI)
 # ==========================================
 @dp.message(Command("start"), F.chat.type == "private")
 async def cmd_start(message: types.Message):
@@ -94,15 +90,13 @@ async def cmd_start(message: types.Message):
             await db.execute("INSERT INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
             await db.commit()
             
-    # Asosiy menyu (Guruhga qo'shish tugmasi qo'shildi)
     markup_rows = [
         [InlineKeyboardButton(text="➕ Botni guruhga qo'shish", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
         [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
-        [InlineKeyboardButton(text="📢 Yangiliklar kanali", url=NEWS_CHANNEL_URL)],
-        [InlineKeyboardButton(text="👥 Asosiy guruh", url=GROUP_CHAT_URL)]
+        [InlineKeyboardButton(text="📢 Yangiliklar kanali", callback_data="channel_soon")],
+        [InlineKeyboardButton(text="👥 Asosiy guruh", callback_data="group_soon")]
     ]
     
-    # Faqat admin uchun
     if user_id == ADMIN_ID:
         markup_rows.insert(0, [InlineKeyboardButton(text="👑 Admin Panel", callback_data="admin_panel_main")])
 
@@ -110,10 +104,18 @@ async def cmd_start(message: types.Message):
     
     text = (
         f"🌸 Salom, **{message.from_user.first_name}**!\n\n"
-        "Botanika xush kelibsiz! **Grab Garden** — anime qahramonlarini yig'ish, guruhlarda ov qilish va o'z bazangizni boyitish uchun eng yaxshi maskan.\n\n"
+        "✨ **Animeku** olamiga xush kelibsiz! Bu yerda anime qahramonlarini yig'ishingiz, guruhlarda ov qilishingiz va o'z bazangizni boyitishingiz mumkin.\n\n"
         "📌 Botni guruhga qo'shing va 100 ta xabardan so'ng chiqadigan qahramonlarni tutib oling!"
     )
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
+
+@dp.callback_query(F.data == "channel_soon")
+async def channel_soon(call: types.CallbackQuery):
+    await call.answer("🚧 Yangiliklar kanali tez kunda ulanadi!", show_alert=True)
+
+@dp.callback_query(F.data == "group_soon")
+async def group_soon(call: types.CallbackQuery):
+    await call.answer("🚧 Asosiy guruh tez kunda ulanadi!", show_alert=True)
 
 @dp.callback_query(F.data == "my_collection")
 async def process_collection(call: types.CallbackQuery):
@@ -135,7 +137,7 @@ async def process_collection(call: types.CallbackQuery):
         await call.answer()
         return
         
-    collection_text = "🎒 **Sizning Qahramonlar Kolleksiyangiz:**\n\n"
+    collection_text = "🎒 **Sizning Animeku Kolleksiyangiz:**\n\n"
     for idx, (name, rarity) in enumerate(rows, 1):
         collection_text += f"{idx}. {name} — {rarity}\n"
         
@@ -148,14 +150,14 @@ async def process_home(call: types.CallbackQuery):
     markup_rows = [
         [InlineKeyboardButton(text="➕ Botni guruhga qo'shish", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
         [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
-        [InlineKeyboardButton(text="📢 Yangiliklar kanali", url=NEWS_CHANNEL_URL)],
-        [InlineKeyboardButton(text="👥 Asosiy guruh", url=GROUP_CHAT_URL)]
+        [InlineKeyboardButton(text="📢 Yangiliklar kanali", callback_data="channel_soon")],
+        [InlineKeyboardButton(text="👥 Asosiy guruh", callback_data="group_soon")]
     ]
     if user_id == ADMIN_ID:
         markup_rows.insert(0, [InlineKeyboardButton(text="👑 Admin Panel", callback_data="admin_panel_main")])
         
     markup = InlineKeyboardMarkup(inline_keyboard=markup_rows)
-    await call.message.edit_text("🌸 **Asosiy Menyu:**", reply_markup=markup, parse_mode="Markdown")
+    await call.message.edit_text("🌸 **Animeku Bosh Menyu:**", reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
 
@@ -193,7 +195,7 @@ async def group_message_handler(message: types.Message):
                 ])
                 
                 text = (
-                    f"✨ **Grab Garden | Diqqat! Yangi qahramon paydo bo'ldi!**\n\n"
+                    f"⚡ **Animeku | Diqqat! Yangi qahramon paydo bo'ldi!**\n\n"
                     f"👤 **Ismi:** {w_name}\n"
                     f"🌟 **Darajasi:** {w_rarity}\n\n"
                     f"👇 Uni birinchilardan bo'lib o'z kolleksiyangizga qo'shish uchun bosing!"
@@ -237,7 +239,7 @@ async def process_grab(call: types.CallbackQuery):
 
 
 # ==========================================
-# 3. KENGAYTIRILGAN ADMIN PANEL (FAQAT SIZ UCHUN)
+# 3. KENGAYTIRILGAN ADMIN PANEL
 # ==========================================
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
@@ -253,7 +255,7 @@ async def cmd_admin(message: types.Message):
             groups_count = (await cursor.fetchone())[0]
             
     text = (
-        f"👑 **Admin Boshqaruv Paneli:**\n\n"
+        f"👑 **Animeku Admin Boshqaruv Paneli:**\n\n"
         f"👥 Jami foydalanuvchilar: **{users_count}** ta\n"
         f"✨ Bazadagi qahramonlar: **{waifus_count}** ta\n"
         f"💬 Faol guruhlar soni: **{groups_count}** ta\n\n"
@@ -283,7 +285,7 @@ async def admin_panel_callback(call: types.CallbackQuery):
             groups_count = (await cursor.fetchone())[0]
             
     text = (
-        f"👑 **Admin Boshqaruv Paneli:**\n\n"
+        f"👑 **Animeku Admin Boshqaruv Paneli:**\n\n"
         f"👥 Jami foydalanuvchilar: **{users_count}** ta\n"
         f"✨ Bazadagi qahramonlar: **{waifus_count}** ta\n"
         f"💬 Faol guruhlar soni: **{groups_count}** ta\n\n"
@@ -404,4 +406,4 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-    
+            
