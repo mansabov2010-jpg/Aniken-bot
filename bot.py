@@ -1,20 +1,22 @@
+import asyncio
 import logging
 import random
 import aiosqlite
-from aiogram import Bot, Dispatcher, executor, types
+from aiogram import Bot, Dispatcher, F, types
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
-# Bot tokeningizni kiriting
+# Bot tokeningiz va Admin ID
 TOKEN = "8638595606:AAHdvOE6usBtdekTtqbtGjEEYqhFljqK6gM"
-ADMIN_ID = 7986354170  # O'z Telegram ID raqamingizni yozing
+ADMIN_ID = 7986354170
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
+dp = Dispatcher(storage=storage)
 
 DB_NAME = "grab_garden_exact.db"
 
@@ -75,7 +77,7 @@ async def db_start():
 # ==========================================
 # 1. SHAXSIY CHAT VA OBUNACHILAR UCHUN PANEL
 # ==========================================
-@dp.message_handler(commands=['start'], chat_type=[types.ChatType.PRIVATE])
+@dp.message(Command("start"), F.chat.type == "private")
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username
@@ -87,21 +89,20 @@ async def cmd_start(message: types.Message):
             await db.execute("INSERT INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
             await db.commit()
             
-    markup = InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        InlineKeyboardButton("🎒 Mening kolleksiyam (@WAIFUXGRAB_DAT)", callback_data="my_collection"),
-        InlineKeyboardButton("📢 Yangiliklar kanali", url="https://t.me/GRAB_GARDEN_NEWS"),
-        InlineKeyboardButton("👥 Asosiy guruh", url="https://t.me/Grab_Garden")
-    )
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎒 Mening kolleksiyam (@WAIFUXGRAB_DAT)", callback_data="my_collection")],
+        [InlineKeyboardButton(text="📢 Yangiliklar kanali", url="https://t.me/GRAB_GARDEN_NEWS")],
+        [InlineKeyboardButton(text="👥 Asosiy guruh", url="https://t.me/Grab_Garden")]
+    ])
     
     text = (
         f"🌸 Salom, **{message.from_user.first_name}**!\n\n"
-        "Botanika xush kelibsiz! **Grab Garden** — anime qahramonlarini yig'ish, guruhlarda ov qilish va o'z bazangizni boyitish uchun eng yaxshi maskan[span_1](start_span)[span_1](end_span).\n\n"
+        "Botanika xush kelibsiz! **Grab Garden** — anime qahramonlarini yig'ish, guruhlarda ov qilish va o'z bazangizni boyitish uchun eng yaxshi maskan[span_0](start_span)[span_0](end_span).\n\n"
         "📌 Guruhimizga qo'shiling va 100 ta xabardan so'ng chiqadigan waifularni birinchilardan bo'lib tutib oling!"
     )
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
-@dp.callback_query_handler(text="my_collection", chat_type=[types.ChatType.PRIVATE])
+@dp.callback_query(F.data == "my_collection")
 async def process_collection(call: types.CallbackQuery):
     user_id = call.from_user.id
     
@@ -109,31 +110,32 @@ async def process_collection(call: types.CallbackQuery):
         async with db.execute("SELECT waifu_name, rarity FROM user_waifus WHERE user_id = ?", (user_id,)) as cursor:
             rows = await cursor.fetchall()
             
-    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("« Ortga", callback_data="back_home"))
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="« Ortga", callback_data="back_home")]
+    ])
     
     if not rows:
         await call.message.edit_text(
-            "🎒 Kolleksiyangiz (@WAIFUXGRAB_DAT) hozircha bo'sh[span_2](start_span)[span_2](end_span).\nGuruhlarda bot tashlaydigan waifularni tutib oling!", 
+            "🎒 Kolleksiyangiz (@WAIFUXGRAB_DAT) hozircha bo'sh[span_1](start_span)[span_1](end_span).\nGuruhlarda bot tashlaydigan waifularni tutib oling!", 
             reply_markup=markup
         )
         await call.answer()
         return
         
-    collection_text = "🎒 **Sizning Waifular Kolleksiyangiz (@WAIFUXGRAB_DAT):**[span_3](start_span)[span_3](end_span)\n\n"
+    collection_text = "🎒 **Sizning Waifular Kolleksiyangiz (@WAIFUXGRAB_DAT):**[span_2](start_span)[span_2](end_span)\n\n"
     for idx, (name, rarity) in enumerate(rows, 1):
         collection_text += f"{idx}. {name} — {rarity}\n"
         
     await call.message.edit_text(collection_text, reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
-@dp.callback_query_handler(text="back_home", chat_type=[types.ChatType.PRIVATE])
+@dp.callback_query(F.data == "back_home")
 async def process_home(call: types.CallbackQuery):
-    markup = InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        InlineKeyboardButton("🎒 Mening kolleksiyam", callback_data="my_collection"),
-        InlineKeyboardButton("📢 Yangiliklar kanali", url="https://t.me/GRAB_GARDEN_NEWS"),
-        InlineKeyboardButton("👥 Asosiy guruh", url="https://t.me/Grab_Garden")
-    )
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
+        [InlineKeyboardButton(text="📢 Yangiliklar kanali", url="https://t.me/GRAB_GARDEN_NEWS")],
+        [InlineKeyboardButton(text="👥 Asosiy guruh", url="https://t.me/Grab_Garden")]
+    ])
     await call.message.edit_text("🌸 **Grab Garden Bot Menyusi:**", reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
@@ -141,12 +143,11 @@ async def process_home(call: types.CallbackQuery):
 # ==========================================
 # 2. GURUHLARDA 100 TA XABAR QOIDASI VA SPAWN
 # ==========================================
-@dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP])
+@dp.message(F.chat.type.in_({"group", "supergroup"}))
 async def group_message_handler(message: types.Message):
     chat_id = message.chat.id
     
     async with aiosqlite.connect(DB_NAME) as db:
-        # Guruhdagi xabarlar sonini tekshirish va oshirish
         async with db.execute("SELECT msg_count FROM group_messages WHERE chat_id = ?", (chat_id,)) as cursor:
             res = await cursor.fetchone()
             
@@ -160,23 +161,21 @@ async def group_message_handler(message: types.Message):
         
         # HAR 100 TA XABARDA BIR WAIFU CHIQISHI
         if current_count >= 100:
-            # Xabarlar sonini noldan boshlaymiz
             await db.execute("UPDATE group_messages SET msg_count = 0 WHERE chat_id = ?", (chat_id,))
             await db.commit()
             
-            # Bazadan tasodifiy waifu tanlaymiz
             async with db.execute("SELECT name, rarity, image_url FROM waifus") as cursor:
                 waifus = await cursor.fetchall()
                 
             if waifus:
                 w_name, w_rarity, w_image = random.choice(waifus)
                 
-                markup = InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("🎣 Tutib olish", callback_data=f"grab_{w_name}")
-                )
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🎣 Tutib olish", callback_data=f"grab_{w_name}")]
+                ])
                 
                 text = (
-                    f"✨ **Grab Garden | Diqqat! Yangi Waifu paydo bo'ldi!**[span_4](start_span)[span_4](end_span)\n\n"
+                    f"✨ **Grab Garden | Diqqat! Yangi Waifu paydo bo'ldi!**[span_3](start_span)[span_3](end_span)\n\n"
                     f"👤 **Ismi:** {w_name}\n"
                     f"🌟 **Darajasi:** {w_rarity}\n\n"
                     f"👇 Uni birinchilardan bo'lib o'z kolleksiyangizga qo'shish uchun tugmani bosing!"
@@ -185,7 +184,7 @@ async def group_message_handler(message: types.Message):
                 await message.answer_photo(photo=w_image, caption=text, reply_markup=markup, parse_mode="Markdown")
 
 # Waifuni tutib qolish tugmasi
-@dp.callback_query_handler(text_startswith="grab_")
+@dp.callback_query(F.data.startswith("grab_"))
 async def process_grab(call: types.CallbackQuery):
     user_id = call.from_user.id
     waifu_name = call.data.split("_", 1)[1]
@@ -197,13 +196,11 @@ async def process_grab(call: types.CallbackQuery):
             if res:
                 rarity = res[0]
                 
-        # Foydalanuvchini bazaga kiritish
         async with db.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,)) as cursor:
             user = await cursor.fetchone()
         if not user:
             await db.execute("INSERT INTO users (user_id, username) VALUES (?, ?)", (user_id, call.from_user.username))
             
-        # Kolleksiyaga qo'shish
         await db.execute(
             "INSERT INTO user_waifus (user_id, waifu_name, rarity) VALUES (?, ?, ?)",
             (user_id, waifu_name, rarity)
@@ -225,7 +222,7 @@ async def process_grab(call: types.CallbackQuery):
 # ==========================================
 # 3. ADMIN PANEL (WAIFU QO'SHISH VA BOSHQARUV)
 # ==========================================
-@dp.message_handler(commands=['admin'])
+@dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
@@ -242,37 +239,36 @@ async def cmd_admin(message: types.Message):
         f"✨ Bazadagi waifular soni: {waifus_count} ta"
     )
     
-    markup = InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        InlineKeyboardButton("➕ Yangi Waifu qo'shish", callback_data="admin_add_waifu")
-    )
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Yangi Waifu qo'shish", callback_data="admin_add_waifu")]
+    ])
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
-@dp.callback_query_handler(text="admin_add_waifu")
-async def admin_add_waifu_start(call: types.CallbackQuery):
+@dp.callback_query(F.data == "admin_add_waifu")
+async def admin_add_waifu_start(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id != ADMIN_ID:
         return
-    await AddWaifuState.waiting_for_name.set()
+    await state.set_state(AddWaifuState.waiting_for_name)
     await call.message.answer("📝 Yangi waifuning **ismini** kiriting:")
     await call.answer()
 
-@dp.message_handler(state=AddWaifuState.waiting_for_name)
+@dp.message(AddWaifuState.waiting_for_name)
 async def process_waifu_name(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
     await state.update_data(name=message.text)
-    await AddWaifuState.next()
+    await state.set_state(AddWaifuState.waiting_for_rarity)
     await message.answer("✨ Waifuning **darajasini** kiriting (masalan: *🌟 Afsonaviy* yoki *💎 Nodir*):")
 
-@dp.message_handler(state=AddWaifuState.waiting_for_rarity)
+@dp.message(AddWaifuState.waiting_for_rarity)
 async def process_waifu_rarity(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
     await state.update_data(rarity=message.text)
-    await AddWaifuState.next()
+    await state.set_state(AddWaifuState.waiting_for_image)
     await message.answer("🖼 Waifuning **rasm havolasini (URL)** yuboring (masalan: *https://i.imgur.com/...*):")
 
-@dp.message_handler(state=AddWaifuState.waiting_for_image)
+@dp.message(AddWaifuState.waiting_for_image)
 async def process_waifu_image(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
@@ -288,9 +284,13 @@ async def process_waifu_image(message: types.Message, state: FSMContext):
         )
         await db.commit()
         
-    await state.finish()
+    await state.clear()
     await message.answer(f"✅ Muvaffaqiyatli qo'shildi!\n\n👤 Ismi: {name}\n✨ Darajasi: {rarity}\n🖼 Rasm: {image_url}")
 
+async def main():
+    await db_start()
+    await dp.start_polling(bot)
+
 if __name__ == '__main__':
-    executor.start_polling(dp, on_startup=lambda x: db_start())
-            
+    asyncio.run(main())
+        
