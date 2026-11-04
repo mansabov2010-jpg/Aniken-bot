@@ -10,7 +10,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # Bot tokeningiz va Admin ID
-TOKEN = "8638595606:AAHdvOE6usBtdekTtqbtGjEEYqhFljqK6gM"
+TOKEN = "8987164421:AAGynHKb4lN8jtGNSkCPHmqqeDR7N555DTc"
 ADMIN_ID = 7986354170
 
 logging.basicConfig(level=logging.INFO)
