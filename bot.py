@@ -9,9 +9,13 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Bot tokeningiz va Admin ID
-TOKEN = "8987164421:AAGynHKb4lN8jtGNSkCPHmqqeDR7N555DTc"  # Tokenni yangilaganingiz uchun yangisini yozasiz
+# Bot tokeningiz va Admin ID (Faqat siz uchun ishlaydi)
+TOKEN = "8987164421:AAGynHKb4lN8jtGNSkCPHmqqeDR7N555DTc"
 ADMIN_ID = 7986354170
+
+# --- KERAKLI HAVOLALARNI SHU YERGA YOZING ---
+NEWS_CHANNEL_URL = "https://t.me/SIZNING_KANAL_HAVOLASI"  # Kanal havolangiz
+GROUP_CHAT_URL = "https://t.me/SIZNING_GURUH_HAVOLASI"      # Guruh havolangiz
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
@@ -20,13 +24,11 @@ dp = Dispatcher(storage=storage)
 
 DB_NAME = "grab_garden_exact.db"
 
-# Admin waifu qo'shishi uchun holatlar (FSM)
 class AddWaifuState(StatesGroup):
     waiting_for_name = State()
     waiting_for_rarity = State()
     waiting_for_image = State()
 
-# Bazani yaratish
 async def db_start():
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("""
@@ -74,7 +76,7 @@ async def db_start():
                 await db.commit()
 
 # ==========================================
-# 1. SHAXSIY CHAT VA ASOSIY MENYU
+# 1. /start BUYRUQI VA ASOSIY MENYU
 # ==========================================
 @dp.message(Command("start"), F.chat.type == "private")
 async def cmd_start(message: types.Message):
@@ -88,22 +90,24 @@ async def cmd_start(message: types.Message):
             await db.execute("INSERT INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
             await db.commit()
             
+    # Asosiy menyu tugmalari (Matnlarni o'zingiz xohlagancha o'zgartirishingiz mumkin)
     markup_rows = [
         [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
-        [InlineKeyboardButton(text="📢 Yangiliklar kanali", url="https://t.me/GRAB_GARDEN_NEWS")],
-        [InlineKeyboardButton(text="👥 Asosiy guruh", url="https://t.me/Grab_Garden")]
+        [InlineKeyboardButton(text="📢 Yangiliklar kanali", url=NEWS_CHANNEL_URL)],
+        [InlineKeyboardButton(text="👥 Asosiy guruh", url=GROUP_CHAT_URL)]
     ]
     
-    # Agar foydalanuvchi admin bo'lsa, menyuga avtomatik Admin panel tugmasi qo'shiladi
+    # FAQAT SIZNING ID RAQAMINGIZ UCHUN ADMIN PANEL TUGMASI CHIQADI
     if user_id == ADMIN_ID:
         markup_rows.insert(0, [InlineKeyboardButton(text="👑 Admin Panel", callback_data="admin_panel_main")])
 
     markup = InlineKeyboardMarkup(inline_keyboard=markup_rows)
     
+    # Botdagi xush kelibsiz matni (O'zingiz xohlagan so'zlarga o'zgartirishingiz mumkin)
     text = (
         f"🌸 Salom, **{message.from_user.first_name}**!\n\n"
-        "Botanika xush kelibsiz! **Grab Garden** — anime qahramonlarini yig'ish, guruhlarda ov qilish va o'z bazangizni boyitish uchun eng yaxshi maskan.\n\n"
-        "📌 Guruhimizga qo'shiling va 100 ta xabardan so'ng chiqadigan waifularni birinchilardan bo'lib tutib oling!"
+        "Botimizga xush kelibsiz! Bu yerda anime qahramonlarini yig'ishingiz, guruhlarda ov qilishingiz va o'z kolleksiyangizni boyitishingiz mumkin.\n\n"
+        "📌 Guruhimizga qo'shiling va faol bo'lib, eng sara qahramonlarni qo'lga kiriting!"
     )
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
@@ -121,13 +125,13 @@ async def process_collection(call: types.CallbackQuery):
     
     if not rows:
         await call.message.edit_text(
-            "🎒 Kolleksiyangiz hozircha bo'sh.\nGuruhlarda bot tashlaydigan waifularni tutib oling!", 
+            "🎒 Kolleksiyangiz hozircha bo'sh.\nGuruhlarda chiqadigan qahramonlarni tutib oling!", 
             reply_markup=markup
         )
         await call.answer()
         return
         
-    collection_text = "🎒 **Sizning Waifular Kolleksiyangiz:**\n\n"
+    collection_text = "🎒 **Sizning Qahramonlar Kolleksiyangiz:**\n\n"
     for idx, (name, rarity) in enumerate(rows, 1):
         collection_text += f"{idx}. {name} — {rarity}\n"
         
@@ -139,19 +143,19 @@ async def process_home(call: types.CallbackQuery):
     user_id = call.from_user.id
     markup_rows = [
         [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
-        [InlineKeyboardButton(text="📢 Yangiliklar kanali", url="https://t.me/GRAB_GARDEN_NEWS")],
-        [InlineKeyboardButton(text="👥 Asosiy guruh", url="https://t.me/Grab_Garden")]
+        [InlineKeyboardButton(text="📢 Yangiliklar kanali", url=NEWS_CHANNEL_URL)],
+        [InlineKeyboardButton(text="👥 Asosiy guruh", url=GROUP_CHAT_URL)]
     ]
     if user_id == ADMIN_ID:
         markup_rows.insert(0, [InlineKeyboardButton(text="👑 Admin Panel", callback_data="admin_panel_main")])
         
     markup = InlineKeyboardMarkup(inline_keyboard=markup_rows)
-    await call.message.edit_text("🌸 **Grab Garden Bot Menyusi:**", reply_markup=markup, parse_mode="Markdown")
+    await call.message.edit_text("🌸 **Asosiy Menyu:**", reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
 
 # ==========================================
-# 2. GURUHLARDA 100 TA XABAR QOIDASI VA SPAWN
+# 2. GURUHLARDA XABARLAR VA QAHRAMON CHIQISHI
 # ==========================================
 @dp.message(F.chat.type.in_({"group", "supergroup"}))
 async def group_message_handler(message: types.Message):
@@ -169,6 +173,7 @@ async def group_message_handler(message: types.Message):
             await db.execute("UPDATE group_messages SET msg_count = ? WHERE chat_id = ?", (current_count, chat_id))
         await db.commit()
         
+        # Har 100 ta xabarda qahramon chiqishi
         if current_count >= 100:
             await db.execute("UPDATE group_messages SET msg_count = 0 WHERE chat_id = ?", (chat_id,))
             await db.commit()
@@ -184,10 +189,10 @@ async def group_message_handler(message: types.Message):
                 ])
                 
                 text = (
-                    f"✨ **Grab Garden | Diqqat! Yangi Waifu paydo bo'ldi!**\n\n"
+                    f"✨ **Diqqat! Yangi qahramon paydo bo'ldi!**\n\n"
                     f"👤 **Ismi:** {w_name}\n"
                     f"🌟 **Darajasi:** {w_rarity}\n\n"
-                    f"👇 Uni birinchilardan bo'lib o'z kolleksiyangizga qo'shish uchun tugmani bosing!"
+                    f"👇 Uni birinchilardan bo'lib o'z kolleksiyangizga qo'shish uchun bosing!"
                 )
                 
                 await message.answer_photo(photo=w_image, caption=text, reply_markup=markup, parse_mode="Markdown")
@@ -228,7 +233,7 @@ async def process_grab(call: types.CallbackQuery):
 
 
 # ==========================================
-# 3. TO'LAQONLI ADMIN PANEL VA BOSHQARUV
+# 3. ADMIN PANEL (FAQAT SIZ UCHUN)
 # ==========================================
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
@@ -242,15 +247,15 @@ async def cmd_admin(message: types.Message):
             waifus_count = (await cursor.fetchone())[0]
             
     text = (
-        f"👑 **Grab Garden — Admin Boshqaruv Paneli:**\n\n"
+        f"👑 **Admin Boshqaruv Paneli:**\n\n"
         f"👥 Jami foydalanuvchilar: {users_count} ta\n"
-        f"✨ Bazadagi waifular soni: {waifus_count} ta\n\n"
-        f"Kerakli amalni tanlang:"
+        f"✨ Bazadagi qahramonlar soni: {waifus_count} ta\n\n"
+        f"Kerakli bo'limni tanlang:"
     )
     
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Yangi Waifu qo'shish", callback_data="admin_add_waifu")],
-        [InlineKeyboardButton(text="📋 Waifular ro'yxati", callback_data="admin_list_waifus")],
+        [InlineKeyboardButton(text="➕ Yangi qahramon qo'shish", callback_data="admin_add_waifu")],
+        [InlineKeyboardButton(text="📋 Qahramonlar ro'yxati", callback_data="admin_list_waifus")],
         [InlineKeyboardButton(text="« Asosiy menyu", callback_data="back_home")]
     ])
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
@@ -258,7 +263,7 @@ async def cmd_admin(message: types.Message):
 @dp.callback_query(F.data == "admin_panel_main")
 async def admin_panel_callback(call: types.CallbackQuery):
     if call.from_user.id != ADMIN_ID:
-        await call.answer("Siz admin emassiz!", show_alert=True)
+        await call.answer("Sizda bu huquq yo'q!", show_alert=True)
         return
         
     async with aiosqlite.connect(DB_NAME) as db:
@@ -268,15 +273,15 @@ async def admin_panel_callback(call: types.CallbackQuery):
             waifus_count = (await cursor.fetchone())[0]
             
     text = (
-        f"👑 **Grab Garden — Admin Boshqaruv Paneli:**\n\n"
+        f"👑 **Admin Boshqaruv Paneli:**\n\n"
         f"👥 Jami foydalanuvchilar: {users_count} ta\n"
-        f"✨ Bazadagi waifular soni: {waifus_count} ta\n\n"
-        f"Kerakli amalni tanlang:"
+        f"✨ Bazadagi qahramonlar soni: {waifus_count} ta\n\n"
+        f"Kerakli bo'limni tanlang:"
     )
     
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Yangi Waifu qo'shish", callback_data="admin_add_waifu")],
-        [InlineKeyboardButton(text="📋 Waifular ro'yxati", callback_data="admin_list_waifus")],
+        [InlineKeyboardButton(text="➕ Yangi qahramon qo'shish", callback_data="admin_add_waifu")],
+        [InlineKeyboardButton(text="📋 Qahramonlar ro'yxati", callback_data="admin_list_waifus")],
         [InlineKeyboardButton(text="« Asosiy menyu", callback_data="back_home")]
     ])
     await call.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
@@ -288,7 +293,7 @@ async def admin_add_waifu_start(call: types.CallbackQuery, state: FSMContext):
         return
     await state.set_state(AddWaifuState.waiting_for_name)
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel_main")]])
-    await call.message.edit_text("📝 Yangi waifuning **ismini** kiriting:", reply_markup=markup)
+    await call.message.edit_text("📝 Yangi qahramonning **ismini** kiriting:", reply_markup=markup)
     await call.answer()
 
 @dp.message(AddWaifuState.waiting_for_name)
@@ -297,7 +302,7 @@ async def process_waifu_name(message: types.Message, state: FSMContext):
         return
     await state.update_data(name=message.text)
     await state.set_state(AddWaifuState.waiting_for_rarity)
-    await message.answer("✨ Waifuning **darajasini** kiriting (masalan: *🌟 Afsonaviy* yoki *💎 Nodir*):")
+    await message.answer("✨ Qahramonning **darajasini** kiriting (masalan: *🌟 Afsonaviy* yoki *💎 Nodir*):")
 
 @dp.message(AddWaifuState.waiting_for_rarity)
 async def process_waifu_rarity(message: types.Message, state: FSMContext):
@@ -305,7 +310,7 @@ async def process_waifu_rarity(message: types.Message, state: FSMContext):
         return
     await state.update_data(rarity=message.text)
     await state.set_state(AddWaifuState.waiting_for_image)
-    await message.answer("🖼 Waifuning **rasm havolasini (URL)** yuboring (masalan: *https://i.imgur.com/...*):")
+    await message.answer("🖼 Qahramonning **rasm havolasini (URL)** yuboring (masalan: *https://i.imgur.com/...*):")
 
 @dp.message(AddWaifuState.waiting_for_image)
 async def process_waifu_image(message: types.Message, state: FSMContext):
@@ -336,7 +341,7 @@ async def admin_list_waifus(call: types.CallbackQuery):
         async with db.execute("SELECT name, rarity FROM waifus") as cursor:
             waifus = await cursor.fetchall()
             
-    text = "📋 **Bazadagi barcha Waifular:**\n\n"
+    text = "📋 **Bazadagi barcha qahramonlar:**\n\n"
     for idx, (w_name, w_rarity) in enumerate(waifus, 1):
         text += f"{idx}. {w_name} — {w_rarity}\n"
         
@@ -352,4 +357,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-  
