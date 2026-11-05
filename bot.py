@@ -9,9 +9,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Bot tokeningiz va Admin ID
-TOKEN = "8987164421:AAFBaDaWN2RlpobYvpEeULF4PfvV7yHp-6Q" # O'z tokeningiz
-ADMIN_IDS = [7986354170,7637155944]
+# Bot tokeni va Adminlar ro'yxati
+TOKEN = "8987164421:AAFBnDaWN2R1pobYVpEeULF4PfV7yHp-6Q"
+ADMIN_IDS = [7986354170, 7637155944]
 BOT_USERNAME = "AniREM_bot"
 
 logging.basicConfig(level=logging.INFO)
@@ -76,7 +76,7 @@ async def db_start():
                 await db.commit()
 
 # ==========================================
-# 1. /start VA ASOSIY MENYU (ANIMEKU USLUBI)
+# 1. /start VA ASOSIY MENYU (ANIMEKU)
 # ==========================================
 @dp.message(Command("start"), F.chat.type == "private")
 async def cmd_start(message: types.Message):
@@ -97,7 +97,7 @@ async def cmd_start(message: types.Message):
         [InlineKeyboardButton(text="👥 Asosiy guruh", callback_data="group_soon")]
     ]
     
-    if user_id == ADMIN_ID:
+    if user_id in ADMIN_IDS:
         markup_rows.insert(0, [InlineKeyboardButton(text="👑 Admin Panel", callback_data="admin_panel_main")])
 
     markup = InlineKeyboardMarkup(inline_keyboard=markup_rows)
@@ -153,7 +153,7 @@ async def process_home(call: types.CallbackQuery):
         [InlineKeyboardButton(text="📢 Yangiliklar kanali", callback_data="channel_soon")],
         [InlineKeyboardButton(text="👥 Asosiy guruh", callback_data="group_soon")]
     ]
-    if user_id == ADMIN_ID:
+    if user_id in ADMIN_IDS:
         markup_rows.insert(0, [InlineKeyboardButton(text="👑 Admin Panel", callback_data="admin_panel_main")])
         
     markup = InlineKeyboardMarkup(inline_keyboard=markup_rows)
@@ -243,7 +243,7 @@ async def process_grab(call: types.CallbackQuery):
 # ==========================================
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
         
     async with aiosqlite.connect(DB_NAME) as db:
@@ -272,7 +272,7 @@ async def cmd_admin(message: types.Message):
 
 @dp.callback_query(F.data == "admin_panel_main")
 async def admin_panel_callback(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
+    if call.from_user.id not in ADMIN_IDS:
         await call.answer("Sizda bu huquq yo'q!", show_alert=True)
         return
         
@@ -303,7 +303,7 @@ async def admin_panel_callback(call: types.CallbackQuery):
 
 @dp.callback_query(F.data == "admin_add_waifu")
 async def admin_add_waifu_start(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
+    if call.from_user.id not in ADMIN_IDS:
         return
     await state.set_state(AddWaifuState.waiting_for_name)
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel_main")]])
@@ -312,7 +312,7 @@ async def admin_add_waifu_start(call: types.CallbackQuery, state: FSMContext):
 
 @dp.message(AddWaifuState.waiting_for_name)
 async def process_waifu_name(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
     await state.update_data(name=message.text)
     await state.set_state(AddWaifuState.waiting_for_rarity)
@@ -320,7 +320,7 @@ async def process_waifu_name(message: types.Message, state: FSMContext):
 
 @dp.message(AddWaifuState.waiting_for_rarity)
 async def process_waifu_rarity(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
     await state.update_data(rarity=message.text)
     await state.set_state(AddWaifuState.waiting_for_image)
@@ -328,7 +328,7 @@ async def process_waifu_rarity(message: types.Message, state: FSMContext):
 
 @dp.message(AddWaifuState.waiting_for_image)
 async def process_waifu_image(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
     image_url = message.text
     data = await state.get_data()
@@ -348,7 +348,7 @@ async def process_waifu_image(message: types.Message, state: FSMContext):
 
 @dp.callback_query(F.data == "admin_list_waifus")
 async def admin_list_waifus(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
+    if call.from_user.id not in ADMIN_IDS:
         return
         
     async with aiosqlite.connect(DB_NAME) as db:
@@ -367,7 +367,7 @@ async def admin_list_waifus(call: types.CallbackQuery):
 
 @dp.callback_query(F.data == "admin_broadcast")
 async def admin_broadcast_start(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id != ADMIN_ID:
+    if call.from_user.id not in ADMIN_IDS:
         return
     await state.set_state(BroadcastState.waiting_for_message)
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel_main")]])
@@ -376,7 +376,7 @@ async def admin_broadcast_start(call: types.CallbackQuery, state: FSMContext):
 
 @dp.message(BroadcastState.waiting_for_message)
 async def process_broadcast(message: types.Message, state: FSMContext):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
         
     await state.clear()
@@ -402,9 +402,9 @@ async def process_broadcast(message: types.Message, state: FSMContext):
 
 async def main():
     await db_start()
-    await dp.start_polling(bot,
-drop_pending_updates=True)                           
+    # drop_pending_updates=True orqali eski ziddiyatli so'rovlar tozalanadi
+    await dp.start_polling(bot, drop_pending_updates=True)
 
 if __name__ == '__main__':
     asyncio.run(main())
-            
+                             
