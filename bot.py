@@ -444,3 +444,74 @@ async def admin_list_waifus(call: types.CallbackQuery):
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT id, name, rarity FROM waifus") as cursor:
             waifus = await cursor.fetchall()
+            
+    text = "📋 **Bazadagi barcha qahramonlar:**\n\n"
+    for w_id, w_name, w_rarity in waifus:
+        text += f"ID: {w_id} | {w_name} — {w_rarity}\n"
+        
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="« Admin Panelga qaytish", callback_data="admin_panel_main")]
+    ])
+    await call.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
+    await call.answer()
+
+@dp.callback_query(F.data == "admin_broadcast")
+async def admin_broadcast_start(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id not in ADMIN_IDS:
+        return
+    await state.set_state(BroadcastState.waiting_for_message)
+    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel_main")]])
+    await call.message.edit_text("📢 Barcha foydalanuvchilarga yubormoqchi bo'lgan **xabaringizni yuboring**:", reply_markup=markup)
+    await call.answer()
+
+@dp.message(BroadcastState.waiting_for_message)
+async def process_broadcast(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+        
+    await state.clear()
+    sent_count = 0
+    fail_count = 0
+    
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT user_id FROM users") as cursor:
+            users = await cursor.fetchall()
+            
+    status_msg = await message.answer("⏳ Reklama tarqatish boshlandi...")
+    
+    for (uid,) in users:
+        try:
+            await message.send_copy(chat_id=uid)
+            sent_count += 1
+            await asyncio.sleep(0.05)
+        except:
+            fail_count += 1
+            
+    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Admin Panelga qaytish", callback_data="admin_panel_main")]])
+    await status_msg.edit_text(f"✅ **Reklama tarqatish yakunlandi!**\n\n📤 Muvaffaqiyatli: {sent_count} ta\n❌ Xatolik: {fail_count} ta", reply_markup=markup, parse_mode="Markdown")
+
+import os
+from aiohttp import web
+
+async def handle(request):
+    return web.Response(text="Animeku Bot is running!")
+
+async def web_server():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+async def main():
+    await db_start()
+    await asyncio.gather(
+        web_server(),
+        dp.start_polling(bot, drop_pending_updates=True)
+    )
+
+if __name__ == '__main__':
+    asyncio.run(main())
