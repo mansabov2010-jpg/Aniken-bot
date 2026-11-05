@@ -2,6 +2,7 @@ import asyncio
 import logging
 import random
 import aiosqlite
+import os
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -10,7 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiohttp import web
 
-# Bot tokeni va Adminlar ro'yxati
+# To'g'ri bot tokeni va Adminlar ro'yxati
 TOKEN = "8987164421:AAFBaDaWN2R1pobYVpEeULF4PfV7yHp-6Q"
 ADMIN_IDS = [7986354170, 7637155944]
 BOT_USERNAME = "AniREM_bot"
@@ -73,7 +74,6 @@ async def db_start():
         """)
         await db.commit()
         
-        # Standart havolalarni o'rnatish
         async with db.execute("SELECT value FROM bot_settings WHERE key = 'channel_url'") as cursor:
             if not await cursor.fetchone():
                 await db.execute("INSERT INTO bot_settings (key, value) VALUES ('channel_url', 'https://t.me/channel_soon')")
@@ -101,9 +101,6 @@ async def get_setting(key):
             res = await cursor.fetchone()
             return res[0] if res else ""
 
-# ==========================================
-# 1. /start VA ASOSIY MENYU (ANIMEKU)
-# ==========================================
 @dp.message(Command("start"), F.chat.type == "private")
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
@@ -184,10 +181,6 @@ async def process_home(call: types.CallbackQuery):
     await call.message.edit_text("🌸 **Animeku Bosh Menyu:**", reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
-
-# ==========================================
-# 2. GURUHLARDA 100 XABAR VA QAHRAMON CHIQISHI
-# ==========================================
 @dp.message(F.chat.type.in_({"group", "supergroup"}))
 async def group_message_handler(message: types.Message):
     chat_id = message.chat.id
@@ -261,10 +254,6 @@ async def process_grab(call: types.CallbackQuery):
         parse_mode="Markdown"
     )
 
-
-# ==========================================
-# 3. KENGAYTIRILGAN ADMIN PANEL & HAVOLALAR
-# ==========================================
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
@@ -327,7 +316,6 @@ async def admin_panel_callback(call: types.CallbackQuery):
     await call.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
-# Kanal va guruh havolalarini boshqarish menyusi
 @dp.callback_query(F.data == "admin_links")
 async def admin_links_menu(call: types.CallbackQuery):
     if call.from_user.id not in ADMIN_IDS:
@@ -406,7 +394,7 @@ async def process_waifu_name(message: types.Message, state: FSMContext):
         return
     await state.update_data(name=message.text)
     await state.set_state(AddWaifuState.waiting_for_rarity)
-    await message.answer("✨ Qahramonning **darajasini** kiriting (masalan: *🌟 2 Yulduzcha*):")
+    await message.answer("✨ Qahramonning **darajasini** kiriting (masalan: *🌟 Afsonaviy*):")
 
 @dp.message(AddWaifuState.waiting_for_rarity)
 async def process_waifu_rarity(message: types.Message, state: FSMContext):
@@ -414,7 +402,7 @@ async def process_waifu_rarity(message: types.Message, state: FSMContext):
         return
     await state.update_data(rarity=message.text)
     await state.set_state(AddWaifuState.waiting_for_image)
-    await message.answer("🖼 Qahramonning **rasm havolasini (URL)** yuboring (masalan: *https://i.imgur.com/...*):")
+    await message.answer("🖼 Qahramonning **rasm havolasini (URL)** yuboring:")
 
 @dp.message(AddWaifuState.waiting_for_image)
 async def process_waifu_image(message: types.Message, state: FSMContext):
@@ -434,18 +422,17 @@ async def process_waifu_image(message: types.Message, state: FSMContext):
         
     await state.clear()
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Admin Panelga qaytish", callback_data="admin_panel_main")]])
-    await message.answer(f"✅ Qahramon muvaffaqiyatli qo'shildi!\n\n👤 Ismi: {name}\n✨ Darajasi: {rarity}\n🖼 Rasm: {image_url}", reply_markup=markup)
+    await message.answer(f"✅ Qahramon qo'shildi!\n\n👤 Ismi: {name}\n✨ Darajasi: {rarity}", reply_markup=markup)
 
 @dp.callback_query(F.data == "admin_list_waifus")
 async def admin_list_waifus(call: types.CallbackQuery):
     if call.from_user.id not in ADMIN_IDS:
         return
-        
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT id, name, rarity FROM waifus") as cursor:
             waifus = await cursor.fetchall()
             
-    text = "📋 **Bazadagi barcha qahramonlar:**\n\n"
+    text = "📋 **Bazadagi qahramonlar:**\n\n"
     for w_id, w_name, w_rarity in waifus:
         text += f"ID: {w_id} | {w_name} — {w_rarity}\n"
         
@@ -461,14 +448,13 @@ async def admin_broadcast_start(call: types.CallbackQuery, state: FSMContext):
         return
     await state.set_state(BroadcastState.waiting_for_message)
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel_main")]])
-    await call.message.edit_text("📢 Barcha foydalanuvchilarga yubormoqchi bo'lgan **xabaringizni yuboring**:", reply_markup=markup)
+    await call.message.edit_text("📢 Barcha foydalanuvchilarga yubormoqchi bo'lgan **xabaringizni yuboring**:", reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
 @dp.message(BroadcastState.waiting_for_message)
 async def process_broadcast(message: types.Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
         return
-        
     await state.clear()
     sent_count = 0
     fail_count = 0
@@ -489,9 +475,6 @@ async def process_broadcast(message: types.Message, state: FSMContext):
             
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Admin Panelga qaytish", callback_data="admin_panel_main")]])
     await status_msg.edit_text(f"✅ **Reklama tarqatish yakunlandi!**\n\n📤 Muvaffaqiyatli: {sent_count} ta\n❌ Xatolik: {fail_count} ta", reply_markup=markup, parse_mode="Markdown")
-
-import os
-from aiohttp import web
 
 async def handle(request):
     return web.Response(text="Animeku Bot is running!")
