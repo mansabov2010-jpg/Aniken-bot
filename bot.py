@@ -402,7 +402,8 @@ async def process_broadcast(message: types.Message, state: FSMContext):
 
 async def main():
     await db_start()
-    await dp.start_polling(bot)
+    await dp.start_polling(bot,
+drop_pending_updates=True)                           
 
 if __name__ == '__main__':
     asyncio.run(main())
