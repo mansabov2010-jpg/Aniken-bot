@@ -400,11 +400,25 @@ async def process_broadcast(message: types.Message, state: FSMContext):
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Admin Panelga qaytish", callback_data="admin_panel_main")]])
     await status_msg.edit_text(f"✅ **Reklama tarqatish yakunlandi!**\n\n📤 Muvaffaqiyatli: {sent_count} ta\n❌ Xatolik: {fail_count} ta", reply_markup=markup, parse_mode="Markdown")
 
+from aiohttp import web
+
+async def handle(request):
+    return web.Response(text="Animeku Bot is running!")
+
+async def web_server():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 10000)
+    await site.start()
+
 async def main():
     await db_start()
-    # drop_pending_updates=True orqali eski ziddiyatli so'rovlar tozalanadi
-    await dp.start_polling(bot, drop_pending_updates=True)
+    await asyncio.gather(
+        web_server(),
+        dp.start_polling(bot, drop_pending_updates=True)
+    )
 
 if __name__ == '__main__':
     asyncio.run(main())
-                             
