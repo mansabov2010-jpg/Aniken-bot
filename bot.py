@@ -1,18 +1,20 @@
 import asyncio
 import logging
 import random
-import aiosqlite
 import os
+import aiosqlite
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiohttp import web
 
-# To'g'ri bot tokeni va Adminlar ro'yxati
-TOKEN = "8987164421:AAFhQHpi2PLuSLmGEWJ8y2k9fazI3BOC4i8"
+# ==========================================
+# ⚙️ ASOSIY SOZLAMALAR VA KONFIGURATSIYA
+# ==========================================
+TOKEN = "9111857366:AAGYcgVef3m2KTbQgMayoYRcgYcv7V08Foc"
 ADMIN_IDS = [7986354170, 7637155944]
 BOT_USERNAME = "AniREM_bot"
 
@@ -23,6 +25,26 @@ dp = Dispatcher(storage=storage)
 
 DB_NAME = "grab_garden_exact.db"
 
+# ==========================================
+# 📊 O'YIN MEXanikasi SOZLAMALARI
+# ==========================================
+# Guruhda qahramon chiqishi uchun talab qilinadigan xabarlar soni
+MESSAGES_FOR_SPAWN = 100 
+
+# Qahramonlarning chiqish ehtimolligi (Foizlari / Shanslari)
+# Protsentlar yig'indisi 100% bo'lishi kerak
+RARITY_CHANCES = {
+    "🌟 Afsonaviy": 5,    # 5% ehtimollik bilan chiqadi
+    "💎 Nodir": 25,       # 25% ehtimollik bilan chiqadi
+    "⭐ Oddiy": 70        # 70% ehtimollik bilan chiqadi
+}
+
+# Foydalanuvchining kunlik tutish limiti (Kuniga necha marta tuta olishi)
+DAILY_GRAB_LIMIT = 50
+
+# ==========================================
+# 🗂 FSM HOLATLari (STATES)
+# ==========================================
 class AddWaifuState(StatesGroup):
     waiting_for_name = State()
     waiting_for_rarity = State()
@@ -35,15 +57,23 @@ class SettingsState(StatesGroup):
     waiting_for_channel = State()
     waiting_for_group = State()
 
+
+# ==========================================
+# データベース (MA'LUMOTLAR BAZASI) INITSIALIZATSIYASI
+# ==========================================
 async def db_start():
     async with aiosqlite.connect(DB_NAME) as db:
+        # Foydalanuvchilar jadvali (Kunlik limit va balandlik uchun)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 username TEXT,
-                balance INTEGER DEFAULT 100
+                balance INTEGER DEFAULT 100,
+                daily_grabs INTEGER DEFAULT 0,
+                last_grab_date TEXT
             )
         """)
+        # Qahramonlar (Vaifular) bazasi
         await db.execute("""
             CREATE TABLE IF NOT EXISTS waifus (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +82,7 @@ async def db_start():
                 image_url TEXT
             )
         """)
+        # Foydalanuvchi kolleksiyasi
         await db.execute("""
             CREATE TABLE IF NOT EXISTS user_waifus (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,12 +91,14 @@ async def db_start():
                 rarity TEXT
             )
         """)
+        # Guruh xabarlarini sanash uchun
         await db.execute("""
             CREATE TABLE IF NOT EXISTS group_messages (
                 chat_id INTEGER PRIMARY KEY,
                 msg_count INTEGER DEFAULT 0
             )
         """)
+        # Bot sozlamalari (Kanal va guruh havolalari uchun)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS bot_settings (
                 key TEXT PRIMARY KEY,
@@ -74,6 +107,7 @@ async def db_start():
         """)
         await db.commit()
         
+        # Boshlang'ich havolalar
         async with db.execute("SELECT value FROM bot_settings WHERE key = 'channel_url'") as cursor:
             if not await cursor.fetchone():
                 await db.execute("INSERT INTO bot_settings (key, value) VALUES ('channel_url', 'https://t.me/channel_soon')")
@@ -82,6 +116,7 @@ async def db_start():
                 await db.execute("INSERT INTO bot_settings (key, value) VALUES ('group_url', 'https://t.me/group_soon')")
         await db.commit()
         
+        # Standart qahramonlar (Agar baza bo'sh bo'lsa)
         async with db.execute("SELECT COUNT(*) FROM waifus") as cursor:
             count = (await cursor.fetchone())[0]
             if count == 0:
@@ -101,6 +136,10 @@ async def get_setting(key):
             res = await cursor.fetchone()
             return res[0] if res else ""
 
+
+# ==========================================
+# 🌸 1. /start VA ASOSIY MENYU
+# ==========================================
 @dp.message(Command("start"), F.chat.type == "private")
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
@@ -119,6 +158,8 @@ async def cmd_start(message: types.Message):
     markup_rows = [
         [InlineKeyboardButton(text="➕ Botni guruhga qo'shish", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
         [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
+        # 🌐 KELAJAKDAGI MINI ILOVA (WEB APP) UCHUN TUGMA JOYI:
+        # [InlineKeyboardButton(text="🎮 Mini Ilova (O'yin)", web_app=WebAppInfo(url="SIZNING_MINI_ILOVA_URLINGIZ"))],
         [InlineKeyboardButton(text="📢 Yangiliklar kanali", url=channel_url)],
         [InlineKeyboardButton(text="👥 Asosiy guruh", url=group_url)]
     ]
@@ -131,7 +172,8 @@ async def cmd_start(message: types.Message):
     text = (
         f"🌸 Salom, **{message.from_user.first_name}**!\n\n"
         "✨ **Animeku** olamiga xush kelibsiz! Bu yerda anime qahramonlarini yig'ishingiz, guruhlarda ov qilishingiz va o'z bazangizni boyitishingiz mumkin.\n\n"
-        "📌 Botni guruhga qo'shing va 100 ta xabardan so'ng chiqadigan qahramonlarni tutib oling!"
+        f"📊 **Qoidalar:** Guruhda har {MESSAGES_FOR_SPAWN} ta xabardan so'ng tasodifiy qahramon paydo bo'ladi!\n"
+        "🎯 Uni birinchilardan bo'lib tutib qolishga harakat qiling!"
     )
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
@@ -181,6 +223,10 @@ async def process_home(call: types.CallbackQuery):
     await call.message.edit_text("🌸 **Animeku Bosh Menyu:**", reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
+
+# ==========================================
+# ⚡ 2. GURUHLARDA AVTOMATIK QAHRAMON CHIQISHI VA EHTIMOLLIK (PROTSENT) TIZIMI
+# ==========================================
 @dp.message(F.chat.type.in_({"group", "supergroup"}))
 async def group_message_handler(message: types.Message):
     chat_id = message.chat.id
@@ -197,7 +243,8 @@ async def group_message_handler(message: types.Message):
             await db.execute("UPDATE group_messages SET msg_count = ? WHERE chat_id = ?", (current_count, chat_id))
         await db.commit()
         
-        if current_count >= 100:
+        # 100 ta xabar to'lganda qahramon chiqadi
+        if current_count >= MESSAGES_FOR_SPAWN:
             await db.execute("UPDATE group_messages SET msg_count = 0 WHERE chat_id = ?", (chat_id,))
             await db.commit()
             
@@ -205,16 +252,30 @@ async def group_message_handler(message: types.Message):
                 waifus = await cursor.fetchall()
                 
             if waifus:
-                w_name, w_rarity, w_image = random.choice(waifus)
+                # Protsentlar (ehtimollik) bo'yicha qahramon tanlash algoritmi:
+                rand_val = random.randint(1, 100)
+                if rand_val <= RARITY_CHANCES["🌟 Afsonaviy"]:
+                    target_rarity = "🌟 Afsonaviy"
+                elif rand_val <= (RARITY_CHANCES["🌟 Afsonaviy"] + RARITY_CHANCES["💎 Nodir"]):
+                    target_rarity = "💎 Nodir"
+                else:
+                    target_rarity = "⭐ Oddiy"
+                
+                # Shu darajadagi qahramonlardan tanlaymiz, topilmasa istalganini
+                filtered_waifus = [w for w in waifus if w[1] == target_rarity]
+                selected_waifu = random.choice(filtered_waifus) if filtered_waifus else random.choice(waifus)
+                
+                w_name, w_rarity, w_image = selected_waifu
                 
                 markup = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🎣 Tutib olish", callback_data=f"grab_{w_name}")]
                 ])
                 
                 text = (
-                    f"⚡ **Animeku | Diqqat! Yangi qahramon paydo bo'ldi!**\n\n"
+                    f"⚡ **Animeku | Diqqat! Guruhda yangi qahramon paydo bo'ldi!**\n\n"
                     f"👤 **Ismi:** {w_name}\n"
-                    f"🌟 **Darajasi:** {w_rarity}\n\n"
+                    f"🌟 **Darajasi:** {w_rarity}\n"
+                    f"🎲 **Chiqish ehtimolligi:** {RARITY_CHANCES.get(w_rarity, 10)}%\n\n"
                     f"👇 Uni birinchilardan bo'lib o'z kolleksiyangizga qo'shish uchun bosing!"
                 )
                 
@@ -254,6 +315,10 @@ async def process_grab(call: types.CallbackQuery):
         parse_mode="Markdown"
     )
 
+
+# ==========================================
+# 👑 3. ADMIN PANEL VA HAVOLALARNI BOSHQARISH
+# ==========================================
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
@@ -394,7 +459,7 @@ async def process_waifu_name(message: types.Message, state: FSMContext):
         return
     await state.update_data(name=message.text)
     await state.set_state(AddWaifuState.waiting_for_rarity)
-    await message.answer("✨ Qahramonning **darajasini** kiriting (masalan: *🌟 Afsonaviy*):")
+    await message.answer("✨ Qahramonning **darajasini** kiriting (masalan: *🌟 Afsonaviy, 💎 Nodir, ⭐ Oddiy*):")
 
 @dp.message(AddWaifuState.waiting_for_rarity)
 async def process_waifu_rarity(message: types.Message, state: FSMContext):
@@ -422,7 +487,7 @@ async def process_waifu_image(message: types.Message, state: FSMContext):
         
     await state.clear()
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Admin Panelga qaytish", callback_data="admin_panel_main")]])
-    await message.answer(f"✅ Qahramon qo'shildi!\n\n👤 Ismi: {name}\n✨ Darajasi: {rarity}", reply_markup=markup)
+    await message.answer(f"✅ Qahramon muvaffaqiyatli qo'shildi!\n\n👤 Ismi: {name}\n✨ Darajasi: {rarity}", reply_markup=markup)
 
 @dp.callback_query(F.data == "admin_list_waifus")
 async def admin_list_waifus(call: types.CallbackQuery):
@@ -448,7 +513,7 @@ async def admin_broadcast_start(call: types.CallbackQuery, state: FSMContext):
         return
     await state.set_state(BroadcastState.waiting_for_message)
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel_main")]])
-    await call.message.edit_text("📢 Barcha foydalanuvchilarga yubormoqchi bo'lgan **xabaringizni yuboring**:", reply_markup=markup, parse_mode="Markdown")
+    await call.message.edit_text("📢 Barcha foydalanuvchilarga yubormoqchi bo'lgan **xabaringizni yuboring**:", reply_markup=markup)
     await call.answer()
 
 @dp.message(BroadcastState.waiting_for_message)
@@ -456,15 +521,13 @@ async def process_broadcast(message: types.Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
         return
     await state.clear()
-    sent_count = 0
-    fail_count = 0
+    sent_count, fail_count = 0, 0
     
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT user_id FROM users") as cursor:
             users = await cursor.fetchall()
             
     status_msg = await message.answer("⏳ Reklama tarqatish boshlandi...")
-    
     for (uid,) in users:
         try:
             await message.send_copy(chat_id=uid)
@@ -474,14 +537,19 @@ async def process_broadcast(message: types.Message, state: FSMContext):
             fail_count += 1
             
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Admin Panelga qaytish", callback_data="admin_panel_main")]])
-    await status_msg.edit_text(f"✅ **Reklama tarqatish yakunlandi!**\n\n📤 Muvaffaqiyatli: {sent_count} ta\n❌ Xatolik: {fail_count} ta", reply_markup=markup, parse_mode="Markdown")
+    await status_msg.edit_text(f"✅ **Tarqatish yakunlandi!**\n\n📤 Yuborildi: {sent_count} ta\n❌ Xato: {fail_count} ta", reply_markup=markup, parse_mode="Markdown")
 
-async def handle(request):
-    return web.Response(text="Animeku Bot is running!")
+async def handle_home(request):
+    return web.Response(text="Animeku Bot & Mini App Server is running successfully!")
+
+async def handle_webapp_api(request):
+    return web.json_response({"status": "ok", "message": "Mini App API connected!"})
 
 async def web_server():
     app = web.Application()
-    app.router.add_get("/", handle)
+    app.router.add_get("/", handle_home)
+    app.router.add_get("/api/webapp", handle_webapp_api)
+    
     runner = web.AppRunner(app)
     await runner.setup()
     
