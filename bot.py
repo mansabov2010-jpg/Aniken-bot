@@ -12,7 +12,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiohttp import web
 
 # To'g'ri bot tokeni va Adminlar ro'yxati
-TOKEN = "8987164421:AAFBaDaWN2R1pobYVpEeULF4PfV7yHp-6Q"
+TOKEN = "8987164421:AAFhQHpi2PLuSLmGEWJ8y2k9fazI3BOC4i8"
 ADMIN_IDS = [7986354170, 7637155944]
 BOT_USERNAME = "AniREM_bot"
 
