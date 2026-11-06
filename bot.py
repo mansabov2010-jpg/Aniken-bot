@@ -900,6 +900,29 @@ async def main():
             response.headers["Access-Control-Allow-Origin"] = "*"
             return response
 
+async def main():
+    # Event loop xatolari va unclosed connector'larni to'liq bloklash uchun
+        asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    
+    try:
+        await db_start()
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("🤖 Bot va server ishga tushirilmoqda...")
+        
+        asyncio.create_task(dp.start_polling(bot))
+        
+        @web.middleware
+        async def cors_middleware(request, handler):
+            if request.method == "OPTIONS":
+                return web.Response(status=200, headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type"
+                })
+            response = await handler(request)
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            return response
+
         app = web.Application(middlewares=[cors_middleware])
         app.router.add_get("/", handle_home)
         app.router.add_get("/api/settings", handle_api_settings)
@@ -920,7 +943,9 @@ async def main():
             
     except Exception as e:
         logging.error(f"❌ Xatolik yuz berdi: {e}")
-        raise e
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
