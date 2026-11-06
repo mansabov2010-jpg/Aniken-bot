@@ -878,6 +878,8 @@ async def web_server():
     app.router.add_get("/", handle_home)
     app.router.add_get("/api/settings", handle_api_settings)
     app.router.add_get("/api/user", handle_api_user_profile)
+    app.router.add_post("/api/buy", handle_buy_waifu)
+    app.router.add_post("/api/sell", handle_sell_waifu)
     
     runner = web.AppRunner(app)
     await runner.setup()
@@ -894,20 +896,3 @@ async def main():
     
     # Bot pollingni ishga tushiramiz
     await dp.start_polling(bot, drop_pending_updates=True)
-
-# ==========================================
-# 🚀 24/7 XAVFSIZ ISHGA TUSHIRISH BLOKI
-# ==========================================
-if __name__ == '__main__':
-    try:
-        print("==========================================")
-        print("🌟 GRABCHARAKTER BOT & MINI APP STARTING 24/7...")
-        print("⚙️ Loading configuration and database...")
-        print("🚀 Bot is running successfully!")
-        print("==========================================")
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        print("🛑 Bot manually stopped.")
-    except Exception as e:
-        logging.error(f"Critical error occurred while running bot: {e}")
-            
