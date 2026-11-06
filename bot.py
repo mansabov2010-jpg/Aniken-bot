@@ -14,7 +14,7 @@ from aiohttp import web
 # ==========================================
 # ⚙️ ASOSIY SOZLAR VA KONFIGURATSIYA
 # ==========================================
-TOKEN = "9111857366:AAGYcgVef3m2KTbQgMayoYRcgYcv7V08Foc"
+TOKEN = "9111857366:AAEQGnnoeXyve60iMxW2jBTNvcYmU9o5ZVM"
 ADMIN_IDS = [7986354170, 7637155944]
 BOT_USERNAME = "AniREM_bot"
 WEBAPP_URL = "https://aniken-bot-1.onrender.com"
@@ -34,18 +34,30 @@ RARITY_CHANCES = {
 }
 
 # ==========================================
-# 🗂 FSM HOLATLARI (STATES)
+# 🗂 FSM HOLATLARI (6-LEVEL VA MULTI-VIEW UCHUN)
 # ==========================================
 class AddWaifuState(StatesGroup):
     name = State()
+    anime_name = State()
+    description = State()
     rarity = State()
-    image_url = State()
-    front_view = State()
-    back_view = State()
-    side_view = State()
-    animated_view = State()
+    promo_limit = State()
     gc_price = State()
     diamond_price = State()
+    # 6 ta daraja uchun rasm va proyektlar
+    l1_img = State()
+    l1_proj = State()
+    l2_img = State()
+    l2_proj = State()
+    l3_img = State()
+    l3_proj = State()
+    l4_img = State()
+    l4_proj = State()
+    l5_img = State()
+    l5_proj = State()
+    l6_img = State()
+    l6_proj = State()
+    team_view = State()
 
 class BroadcastState(StatesGroup):
     waiting_for_message = State()
@@ -60,11 +72,6 @@ class PromoState(StatesGroup):
     code = State()
     waifu_id = State()
     limit = State()
-
-class ShopItemState(StatesGroup):
-    title = State()
-    diamond_cost = State()
-    amount = State()
 
 class DesignSettingsState(StatesGroup):
     border_radius = State()
@@ -90,19 +97,25 @@ async def db_start():
                 last_tap_time TEXT
             )
         """)
-        # Yangi rakurslar va animatsion vizuallar qo'shilgan waifus jadvali
+        # 6 ta daraja, anime ma'lumotlari va Team View qo'shilgan waifus jadvali
         await db.execute("""
             CREATE TABLE IF NOT EXISTS waifus (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT,
+                anime_name TEXT,
+                description TEXT,
                 rarity TEXT,
-                image_url TEXT,
-                front_view TEXT,
-                back_view TEXT,
-                side_view TEXT,
-                animated_view TEXT,
+                promo_limit INTEGER DEFAULT 10,
                 gc_price INTEGER DEFAULT 0,
-                diamond_price INTEGER DEFAULT 0
+                diamond_price INTEGER DEFAULT 0,
+                l1_img TEXT, l1_proj TEXT,
+                l2_img TEXT, l2_proj TEXT,
+                l3_img TEXT, l3_proj TEXT,
+                l4_img TEXT, l4_proj TEXT,
+                l5_img TEXT, l5_proj TEXT,
+                l6_img TEXT, l6_proj TEXT,
+                team_view TEXT,
+                image_url TEXT
             )
         """)
         await db.execute("""
@@ -110,6 +123,7 @@ async def db_start():
                 user_id INTEGER,
                 waifu_id INTEGER,
                 count INTEGER DEFAULT 1,
+                level INTEGER DEFAULT 1,
                 PRIMARY KEY (user_id, waifu_id)
             )
         """)
@@ -133,24 +147,6 @@ async def db_start():
             )
         """)
         await db.execute("""
-            CREATE TABLE IF NOT EXISTS active_trades (
-                trade_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                owner_id INTEGER,
-                owner_items TEXT,
-                partner_id INTEGER,
-                partner_items TEXT,
-                status TEXT DEFAULT 'pending'
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS shop_packages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT,
-                diamonds INTEGER,
-                price_text TEXT
-            )
-        """)
-        await db.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT,
@@ -163,8 +159,6 @@ async def db_start():
         defaults = [
             ('channel_url', 'https://t.me/channel_soon'),
             ('group_url', 'https://t.me/group_soon'),
-            ('bg_color', '#121212'),
-            ('button_color', '#1E88E5'),
             ('card_number', '8600 0000 0000 0000'),
             ('card_holder', 'Firdavs T.'),
             ('exchange_rate_gc_to_diamond', '100'),
@@ -225,7 +219,7 @@ async def process_collection(call: types.CallbackQuery):
     
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("""
-            SELECT w.name, w.rarity, uw.count, w.id 
+            SELECT w.name, w.rarity, uw.count, uw.level, w.id 
             FROM user_waifus uw 
             JOIN waifus w ON uw.waifu_id = w.id 
             WHERE uw.user_id = ?
@@ -242,8 +236,9 @@ async def process_collection(call: types.CallbackQuery):
         return
         
     collection_text = "🎒 **Sizning Qahramonlar Kolleksiyangiz:**\n\n"
-    for idx, (name, rarity, count, w_id) in enumerate(rows, 1):
-        collection_text += f"{idx}. [ID: {w_id}] {name} ({rarity}) — **x{count}**\n"
+    for idx, (name, rarity, count, level, w_id) in enumerate(rows, 1):
+        stars = "⭐" * level
+        collection_text += f"{idx}. [ID: {w_id}] {name} ({rarity}) | Daraja: {stars} — **x{count}**\n"
         
     await call.message.edit_text(collection_text, reply_markup=markup, parse_mode="Markdown")
     await call.answer()
@@ -304,7 +299,7 @@ async def group_message_handler(message: types.Message):
             await db.execute("UPDATE group_messages SET msg_count = 0 WHERE chat_id = ?", (chat_id,))
             await db.commit()
             
-            async with db.execute("SELECT id, name, rarity, image_url FROM waifus") as cursor:
+            async with db.execute("SELECT id, name, rarity, l1_img FROM waifus") as cursor:
                 waifus = await cursor.fetchall()
                 
             if waifus:
@@ -331,7 +326,7 @@ async def group_message_handler(message: types.Message):
                     f"🌟 **Darajasi:** {w_rarity}\n"
                     f"👇 Uni birinchilardan bo'lib tutib qoling!"
                 )
-                await message.answer_photo(photo=w_image, caption=text, reply_markup=markup, parse_mode="Markdown")
+                await message.answer_photo(photo=w_image if w_image else "https://via.placeholder.com/300", caption=text, reply_markup=markup, parse_mode="Markdown")
 
 @dp.callback_query(F.data.startswith("grab_"))
 async def process_grab(call: types.CallbackQuery):
@@ -346,14 +341,22 @@ async def process_grab(call: types.CallbackQuery):
                 return
             w_name, w_rarity = w_info
             
-        async with db.execute("SELECT count FROM user_waifus WHERE user_id = ? AND waifu_id = ?", (user_id, w_id)) as cursor:
+        async with db.execute("SELECT count, level FROM user_waifus WHERE user_id = ? AND waifu_id = ?", (user_id, w_id)) as cursor:
             row = await cursor.fetchone()
             if row:
-                new_count = row[0] + 1
-                await db.execute("UPDATE user_waifus SET count = ? WHERE user_id = ? AND waifu_id = ?", (new_count, user_id, w_id))
-                msg_suffix = f"(Takroriy! Hozirda jami: **x{new_count}**)"
+                count, level = row
+                new_count = count + 1
+                # Avtomatik merge (daraja ko'tarish) logikasi: Har 2 tadan yig'ilganda level oshishi mumkin
+                if new_count >= 2 and level < 6:
+                    new_count -= 2
+                    level += 1
+                    await db.execute("UPDATE user_waifus SET count = ?, level = ? WHERE user_id = ? AND waifu_id = ?", (new_count, level, user_id, w_id))
+                    msg_suffix = f"(Takroriy! Birlashtirilib **{level}-darajaga (⭐x{level})** ko'tarildi!)"
+                else:
+                    await db.execute("UPDATE user_waifus SET count = ? WHERE user_id = ? AND waifu_id = ?", (new_count, level, user_id, w_id))
+                    msg_suffix = f"(Takroriy! Hozirda jami: **x{new_count}**)"
             else:
-                await db.execute("INSERT INTO user_waifus (user_id, waifu_id, count) VALUES (?, ?, 1)", (user_id, w_id))
+                await db.execute("INSERT INTO user_waifus (user_id, waifu_id, count, level) VALUES (?, ?, 1, 1)", (user_id, w_id))
                 msg_suffix = "(Yangi qahramon kolleksiyaga qo'shildi!)"
         await db.commit()
         
@@ -370,10 +373,10 @@ async def handle_group_trade(message: types.Message):
         "🔄 **Guruhdagi Bitim (Trade):**\n"
         "O'zaro personajlar ayirboshlash uchun to'liq interaktiv oynani ochish uchun Mini Ilovadan foydalaning!",
         parse_mode="Markdown"
-        )
+    )
 
 # ==========================================
-# 👑 3. ADMIN PANEL VA KO'P RAKURSLI QAHRAMONLAR
+# 👑 3. ADMIN PANEL VA 6-DARAJALI QAHRAMON QO'SHISH
 # ==========================================
 @dp.callback_query(F.data == "admin_panel_main")
 async def admin_panel_callback(call: types.CallbackQuery):
@@ -391,7 +394,7 @@ async def admin_panel_callback(call: types.CallbackQuery):
         "Kerakli bo'limni tanlang:"
     )
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Qahramon qo'shish (Multi-View)", callback_data="admin_add_waifu")],
+        [InlineKeyboardButton(text="➕ Qahramon qo'shish (6-Level & Multi-View)", callback_data="admin_add_waifu")],
         [InlineKeyboardButton(text="🎟 Promokod yaratish", callback_data="admin_add_promo")],
         [InlineKeyboardButton(text="💳 Karta va To'lovlar", callback_data="admin_payment_settings")],
         [InlineKeyboardButton(text="🔗 Havolalarni sozlash", callback_data="admin_links")],
@@ -402,7 +405,7 @@ async def admin_panel_callback(call: types.CallbackQuery):
     await call.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
-# Qahramon qo'shish FSM (Multi-View: Old, Orqa, Yonbosh va Animatsion)
+# Qahramon qo'shish FSM (6-Level ketma-ket kiritish jarayoni)
 @dp.callback_query(F.data == "admin_add_waifu")
 async def add_waifu_step1(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
@@ -411,69 +414,174 @@ async def add_waifu_step1(call: types.CallbackQuery, state: FSMContext):
     await call.answer()
 
 @dp.message(AddWaifuState.name)
-async def add_waifu_step2(message: types.Message, state: FSMContext):
+async def add_waifu_step_anime(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text)
+    await state.set_state(AddWaifuState.anime_name)
+    await message.answer("🎬 Qahramon qaysi animedan ekanligini kiriting:")
+
+@dp.message(AddWaifuState.anime_name)
+async def add_waifu_step_desc(message: types.Message, state: FSMContext):
+    await state.update_data(anime_name=message.text)
+    await state.set_state(AddWaifuState.description)
+    await message.answer("📄 Qahramon haqida qisqacha ma'lumot kiriting:")
+
+@dp.message(AddWaifuState.description)
+async def add_waifu_step_rarity(message: types.Message, state: FSMContext):
+    await state.update_data(description=message.text)
     await state.set_state(AddWaifuState.rarity)
     await message.answer("✨ Darajasini kiriting (masalan: 🌟 Afsonaviy, 💎 Nodir, ⭐ Oddiy):")
 
 @dp.message(AddWaifuState.rarity)
-async def add_waifu_step3(message: types.Message, state: FSMContext):
+async def add_waifu_step_limit(message: types.Message, state: FSMContext):
     await state.update_data(rarity=message.text)
-    await state.set_state(AddWaifuState.image_url)
-    await message.answer("🖼 Qahramonning asosiy rasm URL manzilini yuboring:")
+    await state.set_state(AddWaifuState.promo_limit)
+    await message.answer("🔢 Promokod limitini kiriting (masalan: 10):")
 
-@dp.message(AddWaifuState.image_url)
-async def add_waifu_step4(message: types.Message, state: FSMContext):
-    await state.update_data(image_url=message.text)
-    await state.set_state(AddWaifuState.front_view)
-    await message.answer("📸 Qahramonning **old tarafdan** ko'rinish rasmini yuboring (havola):")
-
-@dp.message(AddWaifuState.front_view)
-async def add_waifu_step_front(message: types.Message, state: FSMContext):
-    await state.update_data(front_view=message.text)
-    await state.set_state(AddWaifuState.back_view)
-    await message.answer("🔄 Qahramonning **orqadan** ko'rinish rasmini yuboring (havola):")
-
-@dp.message(AddWaifuState.back_view)
-async def add_waifu_step_back(message: types.Message, state: FSMContext):
-    await state.update_data(back_view=message.text)
-    await state.set_state(AddWaifuState.side_view)
-    await message.answer("📐 Qahramonning **yonboshdan** ko'rinish rasmini yuboring (havola):")
-
-@dp.message(AddWaifuState.side_view)
-async def add_waifu_step_side(message: types.Message, state: FSMContext):
-    await state.update_data(side_view=message.text)
-    await state.set_state(AddWaifuState.animated_view)
-    await message.answer("✨ Qahramonning **sal-sal qimirlaydigan (animatsion/Live2D)** formatdagi rasmini yuboring:")
-
-@dp.message(AddWaifuState.animated_view)
-async def add_waifu_step_animated(message: types.Message, state: FSMContext):
-    await state.update_data(animated_view=message.text)
+@dp.message(AddWaifuState.promo_limit)
+async def add_waifu_step_gc(message: types.Message, state: FSMContext):
+    await state.update_data(promo_limit=int(message.text))
     await state.set_state(AddWaifuState.gc_price)
-    await message.answer("💰 Mini Ilovada sotish uchun GC (tanga) narxini kiriting (faqat raqam):")
+    await message.answer("🪙 Tanga (GC) narxini kiriting (faqat raqam):")
 
 @dp.message(AddWaifuState.gc_price)
-async def add_waifu_step5(message: types.Message, state: FSMContext):
+async def add_waifu_step_diamond(message: types.Message, state: FSMContext):
     await state.update_data(gc_price=int(message.text))
     await state.set_state(AddWaifuState.diamond_price)
-    await message.answer("💎 Olmos narxini kiriting (faqat raqam):")
+    await message.answer("💎 Olmos narxini kiriting (agar olmosga sotilmasa, **0** kiriting):")
 
 @dp.message(AddWaifuState.diamond_price)
-async def add_waifu_save(message: types.Message, state: FSMContext):
+async def add_waifu_step_l1_img(message: types.Message, state: FSMContext):
+    await state.update_data(diamond_price=int(message.text))
+    await state.set_state(AddWaifuState.l1_img)
+    await message.answer("⭐ **1-Daraja:** Profil rasmi uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l1_img)
+async def add_waifu_step_l1_proj(message: types.Message, state: FSMContext):
+    await state.update_data(l1_img=message.text)
+    await state.set_state(AddWaifuState.l1_proj)
+    await message.answer("⭐ **1-Daraja:** Proyekti (to'liq ko'rinishi) uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l1_proj)
+async def add_waifu_step_l2_img(message: types.Message, state: FSMContext):
+    await state.update_data(l1_proj=message.text)
+    await state.set_state(AddWaifuState.l2_img)
+    await message.answer("⭐⭐ **2-Daraja:** Profil rasmi uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l2_img)
+async def add_waifu_step_l2_proj(message: types.Message, state: FSMContext):
+    await state.update_data(l2_img=message.text)
+    await state.set_state(AddWaifuState.l2_proj)
+    await message.answer("⭐⭐ **2-Daraja:** Proyekti uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l2_proj)
+async def add_waifu_step_l3_img(message: types.Message, state: FSMContext):
+    await state.update_data(l2_proj=message.text)
+    await state.set_state(AddWaifuState.l3_img)
+    await message.answer("⭐⭐⭐ **3-Daraja:** Profil rasmi uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l3_img)
+async def add_waifu_step_l3_proj(message: types.Message, state: FSMContext):
+    await state.update_data(l3_img=message.text)
+    await state.set_state(AddWaifuState.l3_proj)
+    await message.answer("⭐⭐⭐ **3-Daraja:** Proyekti uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l3_proj)
+async def add_waifu_step_l4_img(message: types.Message, state: FSMContext):
+    await state.update_data(l3_proj=message.text)
+    await state.set_state(AddWaifuState.l4_img)
+    await message.answer("⭐⭐⭐⭐ **4-Daraja:** Profil rasmi uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l4_img)
+async def add_waifu_step_l4_proj(message: types.Message, state: FSMContext):
+    await state.update_data(l4_img=message.text)
+    await state.set_state(AddWaifuState.l4_proj)
+    await message.answer("⭐⭐⭐⭐ **4-Daraja:** Proyekti uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l4_proj)
+async def add_waifu_step_l5_img(message: types.Message, state: FSMContext):
+    await state.update_data(l4_proj=message.text)
+    await state.set_state(AddWaifuState.l5_img)
+    await message.answer("⭐⭐⭐⭐⭐ **5-Daraja:** Profil rasmi uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l5_img)
+async def add_waifu_step_l5_proj(message: types.Message, state: FSMContext):
+    await state.update_data(l5_img=message.text)
+    await state.set_state(AddWaifuState.l5_proj)
+    await message.answer("⭐⭐⭐⭐⭐ **5-Daraja:** Proyekti uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l5_proj)
+async def add_waifu_step_l6_img(message: types.Message, state: FSMContext):
+    await state.update_data(l5_proj=message.text)
+    await state.set_state(AddWaifuState.l6_img)
+    await message.answer("⭐⭐⭐⭐⭐⭐ **6-Daraja (Eng kuchli):** Profil rasmi uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l6_img)
+async def add_waifu_step_l6_proj(message: types.Message, state: FSMContext):
+    await state.update_data(l6_img=message.text)
+    await state.set_state(AddWaifuState.l6_proj)
+    await message.answer("⭐⭐⭐⭐⭐⭐ **6-Daraja:** Proyekti uchun havola yuboring:")
+
+@dp.message(AddWaifuState.l6_proj)
+async def add_waifu_step_team_view(message: types.Message, state: FSMContext):
+    await state.update_data(l6_proj=message.text)
+    await state.set_state(AddWaifuState.team_view)
+    await message.answer("👥 Jamoaviy proyekt (Team View - bir nechta qahramon jamlangan) rasmi uchun havola yuboring:")
+
+@dp.message(AddWaifuState.team_view)
+async def add_waifu_final_save(message: types.Message, state: FSMContext):
     data = await state.get_data()
+    team_view_link = message.text
+    
     async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            """INSERT INTO waifus (name, rarity, image_url, front_view, back_view, side_view, animated_view, gc_price, diamond_price) 
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        cursor = await db.execute(
+            """INSERT INTO waifus (
+                name, anime_name, description, rarity, promo_limit, gc_price, diamond_price,
+                l1_img, l1_proj, l2_img, l2_proj, l3_img, l3_proj, 
+                l4_img, l4_proj, l5_img, l5_proj, l6_img, l6_proj, team_view, image_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                data['name'], data['rarity'], data['image_url'], 
-                data['front_view'], data['back_view'], data['side_view'], 
-                data['animated_view'], data['gc_price'], int(message.text)
+                data['name'], data['anime_name'], data['description'], data['rarity'], 
+                data['promo_limit'], data['gc_price'], data['diamond_price'],
+                data['l1_img'], data['l1_proj'], data['l2_img'], data['l2_proj'], 
+                data['l3_img'], data['l3_proj'], data['l4_img'], data['l4_proj'], 
+                data['l5_img'], data['l5_proj'], data['l6_img'], data['l6_proj'], 
+                team_view_link, data['l1_img']
             )
         )
+        new_waifu_id = cursor.lastrowid
         await db.commit()
+        
     await state.clear()
-    await message.answer("✅ Qahramon barcha rakurslari va animatsion proyektlari bilan bazaga muvaffaqiyatli qo'shildi!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Panelga qaytish", callback_data="admin_panel_main")]]))
+    
+    # Kanalga 6-darajadagi rasm bilan avtomatik reklama yuborish
+    channel_url = await get_setting("channel_url")
+    # Agar kanal username yoki chat_id bo'lsa, xabar jo'natamiz
+    diamond_text = f"💎 Olmos narxi: **{data['diamond_price']} ta olmos**" if data['diamond_price'] > 0 else "💎 Olmos evaziga sotib olib bo'lmaydi"
+    gc_text = f"🪙 Tanga narxi: **{data['gc_price']} ta GC**"
+    
+    broadcast_text = (
+        f"📢 **Diqqat! Yangi qahramon qo'shildi!**\n\n"
+        f"👤 **Ismi:** {data['name']}\n"
+        f"🎬 **Anime:** {data['anime_name']}\n"
+        f"✨ **Daraja:** {data['rarity']} (6-Level tayyor)\n"
+        f"📄 **Ma'lumot:** {data['description']}\n\n"
+        f"{gc_text}\n"
+        f"{diamond_text}\n"
+        f"🔢 **Limit:** {data['promo_limit']} ta\n"
+        f"🆔 **ID Raqami:** `{new_waifu_id}`\n\n"
+        f"🎮 Uni qo'lga kiritish uchun Mini Ilovaga o'ting!"
+    )
+    
+    try:
+        # Agar kanal havolasi to'g'ri sozlangan bo'lsa
+        # Masalan, t.me/channel_name ni @channel_name ga o'tkazib yuborish mumkin
+        if "t.me/" in channel_url:
+            ch_username = "@" + channel_url.split("/")[-1]
+            await bot.send_photo(chat_id=ch_username, photo=data['l6_img'], caption=broadcast_text, parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"Kanalga reklama yuborishda xatolik: {e}")
+
+    await message.answer("✅ Qahramon 6 ta darajasi, jamoaviy proyekti va narxlari bilan mukammal qo'shildi va kanalga avtomatik reklama yuborildi!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Panelga qaytish", callback_data="admin_panel_main")]]))
 
 # Promokod qo'shish FSM
 @dp.callback_query(F.data == "admin_add_promo")
@@ -527,7 +635,7 @@ async def payment_settings_menu(call: types.CallbackQuery):
 @dp.callback_query(F.data == "set_card_num")
 async def set_card_num_start(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(SettingsState.card_number)
-    await call.message.edit_text("Yangi karta raqamini kiriting (masalan: 8600 ...):")
+    await call.message.edit_text("Yangi karta raqamini kiriting:")
     await call.answer()
 
 @dp.message(SettingsState.card_number)
@@ -612,7 +720,7 @@ async def admin_design_menu(call: types.CallbackQuery):
 async def set_border_start(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
     await state.set_state(DesignSettingsState.border_radius)
-    await call.message.edit_text("🔲 Elementlar qirraliligini foizda kiriting (0% dan 100% gacha, masalan: `15`):", parse_mode="Markdown")
+    await call.message.edit_text("🔲 Elementlar qirraliligini foizda kiriting (masalan: `15`):", parse_mode="Markdown")
     await call.answer()
 
 @dp.message(DesignSettingsState.border_radius)
@@ -628,7 +736,7 @@ async def save_border_radius(message: types.Message, state: FSMContext):
 async def set_opacity_start(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
     await state.set_state(DesignSettingsState.glass_opacity)
-    await call.message.edit_text("🪞 Shaffoflik darajasini foizda kiriting (0% dan 100% gacha, masalan: `85`):", parse_mode="Markdown")
+    await call.message.edit_text("🪞 Shaffoflik darajasini foizda kiriting (masalan: `85`):", parse_mode="Markdown")
     await call.answer()
 
 @dp.message(DesignSettingsState.glass_opacity)
@@ -644,14 +752,14 @@ async def save_glass_opacity(message: types.Message, state: FSMContext):
 async def set_bg_start(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
     await state.set_state(DesignSettingsState.bg_image)
-    await call.message.edit_text("🖼 Mini App orqa foni uchun rasm yuboring:", parse_mode="Markdown")
+    await call.message.edit_text("🖼 Mini App orqa foni uchun rasm havolasini yuboring:", parse_mode="Markdown")
     await call.answer()
 
 @dp.message(DesignSettingsState.bg_image)
 async def save_bg_image(message: types.Message, state: FSMContext):
-    photo_id = message.photo[-1].file_id if message.photo else ""
+    link = message.text.strip()
     async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bg_image', ?)", (photo_id,))
+        await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bg_image', ?)", (link,))
         await db.commit()
     await state.clear()
     await message.answer("✅ Orqa fon rasmi muvaffaqiyatli yangilandi!")
@@ -661,7 +769,7 @@ async def save_bg_image(message: types.Message, state: FSMContext):
 async def broadcast_start(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
     await state.set_state(BroadcastState.waiting_for_message)
-    await call.message.edit_text("📢 Barcha foydalanuvchilarga yuboriladigan xabarni (matn, rasm yoki video) yuboring:")
+    await call.message.edit_text("📢 Barcha foydalanuvchilarga yuboriladigan xabarni yuboring:")
     await call.answer()
 
 @dp.message(BroadcastState.waiting_for_message)
@@ -678,7 +786,7 @@ async def broadcast_exec(message: types.Message, state: FSMContext):
             await asyncio.sleep(0.05)
         except:
             failed += 1
-    await message.answer(f"✅ Xabar tarqatildi!\n\nMuvaffaqiyatli: {success}\nXato (bloklagan): {failed}")
+    await message.answer(f"✅ Xabar tarqatildi!\n\nMuvaffaqiyatli: {success}\nXato: {failed}")
 
 # ==========================================
 # 🌐 4. MINI ILOVA API SERVERI VA ISHGA TUSHIRISH
@@ -704,9 +812,12 @@ async def handle_api_user_profile(request):
             if not user:
                 return web.json_response({"status": "error", "message": "User not found"}, status=404)
             
-        # Multi-view va animatsion ko'rinishlar bilan birga ma'lumot olish
+        # 6 ta daraja, proyektlar va Team View ma'lumotlari bilan birga to'liq kolleksiyani olish
         async with db.execute("""
-            SELECT w.id, w.name, w.rarity, w.image_url, w.front_view, w.back_view, w.side_view, w.animated_view, uw.count, w.gc_price, w.diamond_price 
+            SELECT w.id, w.name, w.anime_name, w.description, w.rarity, w.gc_price, w.diamond_price,
+                   w.l1_img, w.l1_proj, w.l2_img, w.l2_proj, w.l3_img, w.l3_proj, 
+                   w.l4_img, w.l4_proj, w.l5_img, w.l5_proj, w.l6_img, w.l6_proj, w.team_view, 
+                   uw.count, uw.level 
             FROM user_waifus uw 
             JOIN waifus w ON uw.waifu_id = w.id 
             WHERE uw.user_id = ?
@@ -718,15 +829,26 @@ async def handle_api_user_profile(request):
         waifus_list.append({
             "id": w[0],
             "name": w[1],
-            "rarity": w[2],
-            "image_url": w[3],
-            "front_view": w[4],
-            "back_view": w[5],
-            "side_view": w[6],
-            "animated_view": w[7],
-            "count": w[8],
-            "gc_price": w[9],
-            "diamond_price": w[10]
+            "anime_name": w[2],
+            "description": w[3],
+            "rarity": w[4],
+            "gc_price": w[5],
+            "diamond_price": w[6],
+            "l1_img": w[7],
+            "l1_proj": w[8],
+            "l2_img": w[9],
+            "l2_proj": w[10],
+            "l3_img": w[11],
+            "l3_proj": w[12],
+            "l4_img": w[13],
+            "l4_proj": w[14],
+            "l5_img": w[15],
+            "l5_proj": w[16],
+            "l6_img": w[17],
+            "l6_proj": w[18],
+            "team_view": w[19],
+            "count": w[20],
+            "level": w[21]
         })
         
     return web.json_response({
@@ -772,33 +894,6 @@ async def main():
     )
 
 # ==========================================
-# 📢 REKLAMA VA VAZIFALAR (REWARDED ADS) TIZIMI
-# ==========================================
-@dp.callback_query(F.data == "admin_add_ad")
-async def admin_add_ad_start(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id not in ADMIN_IDS: return
-    await state.set_state(AddAdState.media)
-    await call.message.edit_text("📢 Reklama uchun video yoki rasm yuboring:")
-    await call.answer()
-
-@dp.message(AddAdState.media)
-async def admin_add_ad_media(message: types.Message, state: FSMContext):
-    media_id = message.video.file_id if message.video else message.photo[-1].file_id
-    await state.update_data(media_id=media_id)
-    await state.set_state(AddAdState.reward)
-    await message.answer("💰 Ushbu reklamani ko'rgani uchun beriladigan GC (tanga) miqdorini kiriting (faqat raqam):")
-
-@dp.message(AddAdState.reward)
-async def admin_add_ad_save(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    reward = int(message.text)
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("INSERT INTO tasks (title, url, reward_gc) VALUES (?, ?, ?)", ("Reklama ko'rish", data['media_id'], reward))
-        await db.commit()
-    await state.clear()
-    await message.answer("✅ Reklama bazaga qo'shildi va foydalanuvchilarga ko'rinishni boshladi!")
-
-# ==========================================
 # 🚀 24/7 XAVFSIZ ISHGA TUSHIRISH BLOKI
 # ==========================================
 if __name__ == '__main__':
@@ -813,4 +908,4 @@ if __name__ == '__main__':
         print("🛑 Bot manually stopped.")
     except Exception as e:
         logging.error(f"Critical error occurred while running bot: {e}")
-        
+            
