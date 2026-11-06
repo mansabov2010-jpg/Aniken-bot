@@ -896,7 +896,7 @@ async def main():
     asyncio.create_task(dp.start_polling(bot))
     
     # Veb-serverni ishga tushiramiz va doimiy ushlab turamiz
-    app = web.Application(middlewares=[cors_middleware])
+    app = web.Application()
     app.router.add_get("/", handle_home)
     app.router.add_get("/api/settings", handle_settings)
     app.router.add_get("/api/user", handle_user)
