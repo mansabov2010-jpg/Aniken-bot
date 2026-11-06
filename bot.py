@@ -887,7 +887,13 @@ async def web_server():
 
 async def main():
     await db_start()
-    await web_server()
+    print("🚀 GrabCharakter Bot va Mini App Server muvaffaqiyatli ishga tushdi!")
+    
+    # Veb-serverni fonda doimiy ishlashi uchun task ochamiz
+    asyncio.create_task(web_server())
+    
+    # Bot pollingni ishga tushiramiz
+    await dp.start_polling(bot, drop_pending_updates=True)
 
 # ==========================================
 # 🚀 24/7 XAVFSIZ ISHGA TUSHIRISH BLOKI
