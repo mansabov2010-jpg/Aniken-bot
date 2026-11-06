@@ -898,7 +898,7 @@ async def main():
                 })
             response = await handler(request)
             response.headers["Access-Control-Allow-Origin"] = "*"
-            return response
+    return response
 
 async def main():
     await db_start()
@@ -939,3 +939,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
