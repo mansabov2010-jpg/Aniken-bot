@@ -34,7 +34,7 @@ RARITY_CHANCES = {
 }
 
 # ==========================================
-# 🗂 FSM HOLATLARI (6-LEVEL VA MULTI-VIEW UCHUN)
+# 🗂 FSM HOLATLARI
 # ==========================================
 class AddWaifuState(StatesGroup):
     name = State()
@@ -44,7 +44,6 @@ class AddWaifuState(StatesGroup):
     promo_limit = State()
     gc_price = State()
     diamond_price = State()
-    # 6 ta daraja uchun rasm va proyektlar
     l1_img = State()
     l1_proj = State()
     l2_img = State()
@@ -78,12 +77,8 @@ class DesignSettingsState(StatesGroup):
     glass_opacity = State()
     bg_image = State()
 
-class AddAdState(StatesGroup):
-    media = State()
-    reward = State()
-
 # ==========================================
-# 💾 TO'LIQ MA'LUMOTLAR BAZASI (YANGILANGAN)
+# 💾 TO'LIQ MA'LUMOTLAR BAZASI
 # ==========================================
 async def db_start():
     async with aiosqlite.connect(DB_NAME) as db:
@@ -97,7 +92,6 @@ async def db_start():
                 last_tap_time TEXT
             )
         """)
-        # 6 ta daraja, anime ma'lumotlari va Team View qo'shilgan waifus jadvali
         await db.execute("""
             CREATE TABLE IF NOT EXISTS waifus (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,6 +128,12 @@ async def db_start():
             )
         """)
         await db.execute("""
+            CREATE TABLE IF NOT EXISTS connected_chats (
+                chat_id INTEGER PRIMARY KEY,
+                chat_type TEXT
+            )
+        """)
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS bot_settings (
                 key TEXT PRIMARY KEY,
                 value TEXT
@@ -144,14 +144,6 @@ async def db_start():
                 code TEXT PRIMARY KEY,
                 waifu_id INTEGER,
                 uses_left INTEGER
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT,
-                url TEXT,
-                reward_gc INTEGER
             )
         """)
         await db.commit()
@@ -178,9 +170,64 @@ async def get_setting(key):
             res = await cursor.fetchone()
             return res[0] if res else ""
 
-# ==========================================
-# 🌸 2. ASOSIY MENYU, START VA GURUH MEXANIKASI
-# ==========================================
+
+# Guruh va kanallarni avtomatik tarzda bazaga qo'shish (kuzatib borish)
+@dp.message(F.chat.type.in_({"group", "supergroup", "channel"}))
+async def track_chats(message: types.Message):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO connected_chats (chat_id, chat_type) VALUES (?, ?)",
+            (message.chat.id, message.chat.type)
+        )
+        await db.commit()
+    
+    # Agar guruh bo'lsa, spawn vaqtini hisoblashni davom ettiramiz
+    if message.chat.type in {"group", "supergroup"}:
+        if message.text and message.text.startswith("/bitim"):
+            await handle_group_trade(message)
+            return
+
+        chat_id = message.chat.id
+        async with aiosqlite.connect(DB_NAME) as db:
+            async with db.execute("SELECT msg_count FROM group_messages WHERE chat_id = ?", (chat_id,)) as cursor:
+                res = await cursor.fetchone()
+                current_count = res[0] + 1 if res else 1
+                await db.execute("INSERT OR REPLACE INTO group_messages (chat_id, msg_count) VALUES (?, ?)", (chat_id, current_count))
+                await db.commit()
+            
+            if current_count >= MESSAGES_FOR_SPAWN:
+                await db.execute("UPDATE group_messages SET msg_count = 0 WHERE chat_id = ?", (chat_id,))
+                await db.commit()
+                
+                async with db.execute("SELECT id, name, rarity, l1_img FROM waifus") as cursor:
+                    waifus = await cursor.fetchall()
+                    
+                if waifus:
+                    rand_val = random.randint(1, 100)
+                    if rand_val <= RARITY_CHANCES["🌟 Afsonaviy"]:
+                        target_rarity = "🌟 Afsonaviy"
+                    elif rand_val <= (RARITY_CHANCES["🌟 Afsonaviy"] + RARITY_CHANCES["💎 Nodir"]):
+                        target_rarity = "💎 Nodir"
+                    else:
+                        target_rarity = "⭐ Oddiy"
+                    
+                    filtered = [w for w in waifus if w[2] == target_rarity]
+                    selected = random.choice(filtered) if filtered else random.choice(waifus)
+                    w_id, w_name, w_rarity, w_image = selected
+                    
+                    markup = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🎣 Tutib olish", callback_data=f"grab_{w_id}")],
+                        [InlineKeyboardButton(text="🎒 Kolleksiyani ko'rish", callback_data="my_collection")]
+                    ])
+                    
+                    text = (
+                        f"⚡ **Diqqat! Guruhda yangi qahramon paydo bo'ldi!**\n\n"
+                        f"👤 **Ismi:** {w_name}\n"
+                        f"🌟 **Darajasi:** {w_rarity}\n"
+                        f"👇 Uni birinchilardan bo'lib tutib qoling!"
+                    )
+                    await message.answer_photo(photo=w_image if w_image else "https://via.placeholder.com/300", caption=text, reply_markup=markup, parse_mode="Markdown")
+
 @dp.message(Command("start"), F.chat.type == "private")
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
@@ -278,56 +325,6 @@ async def process_home(call: types.CallbackQuery):
     await call.message.edit_text("🌸 **Bosh Menyu:**", reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
-# ==========================================
-# ⚡ GURUHLARDA SPAWN VA TUTIB OLISH
-# ==========================================
-@dp.message(F.chat.type.in_({"group", "supergroup"}))
-async def group_message_handler(message: types.Message):
-    if message.text and message.text.startswith("/bitim"):
-        await handle_group_trade(message)
-        return
-
-    chat_id = message.chat.id
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT msg_count FROM group_messages WHERE chat_id = ?", (chat_id,)) as cursor:
-            res = await cursor.fetchone()
-            current_count = res[0] + 1 if res else 1
-            await db.execute("INSERT OR REPLACE INTO group_messages (chat_id, msg_count) VALUES (?, ?)", (chat_id, current_count))
-            await db.commit()
-        
-        if current_count >= MESSAGES_FOR_SPAWN:
-            await db.execute("UPDATE group_messages SET msg_count = 0 WHERE chat_id = ?", (chat_id,))
-            await db.commit()
-            
-            async with db.execute("SELECT id, name, rarity, l1_img FROM waifus") as cursor:
-                waifus = await cursor.fetchall()
-                
-            if waifus:
-                rand_val = random.randint(1, 100)
-                if rand_val <= RARITY_CHANCES["🌟 Afsonaviy"]:
-                    target_rarity = "🌟 Afsonaviy"
-                elif rand_val <= (RARITY_CHANCES["🌟 Afsonaviy"] + RARITY_CHANCES["💎 Nodir"]):
-                    target_rarity = "💎 Nodir"
-                else:
-                    target_rarity = "⭐ Oddiy"
-                
-                filtered = [w for w in waifus if w[2] == target_rarity]
-                selected = random.choice(filtered) if filtered else random.choice(waifus)
-                w_id, w_name, w_rarity, w_image = selected
-                
-                markup = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🎣 Tutib olish", callback_data=f"grab_{w_id}")],
-                    [InlineKeyboardButton(text="🎒 Kolleksiyani ko'rish", callback_data="my_collection")]
-                ])
-                
-                text = (
-                    f"⚡ **Diqqat! Guruhda yangi qahramon paydo bo'ldi!**\n\n"
-                    f"👤 **Ismi:** {w_name}\n"
-                    f"🌟 **Darajasi:** {w_rarity}\n"
-                    f"👇 Uni birinchilardan bo'lib tutib qoling!"
-                )
-                await message.answer_photo(photo=w_image if w_image else "https://via.placeholder.com/300", caption=text, reply_markup=markup, parse_mode="Markdown")
-
 @dp.callback_query(F.data.startswith("grab_"))
 async def process_grab(call: types.CallbackQuery):
     user_id = call.from_user.id
@@ -346,7 +343,6 @@ async def process_grab(call: types.CallbackQuery):
             if row:
                 count, level = row
                 new_count = count + 1
-                # Avtomatik merge (daraja ko'tarish) logikasi: Har 2 tadan yig'ilganda level oshishi mumkin
                 if new_count >= 2 and level < 6:
                     new_count -= 2
                     level += 1
@@ -373,10 +369,10 @@ async def handle_group_trade(message: types.Message):
         "🔄 **Guruhdagi Bitim (Trade):**\n"
         "O'zaro personajlar ayirboshlash uchun to'liq interaktiv oynani ochish uchun Mini Ilovadan foydalaning!",
         parse_mode="Markdown"
-    )
+                    )
 
 # ==========================================
-# 👑 3. ADMIN PANEL VA 6-DARAJALI QAHRAMON QO'SHISH
+# 👑 3. ADMIN PANEL VA BARCHA BOSHQARUV TIZIMI
 # ==========================================
 @dp.callback_query(F.data == "admin_panel_main")
 async def admin_panel_callback(call: types.CallbackQuery):
@@ -386,15 +382,18 @@ async def admin_panel_callback(call: types.CallbackQuery):
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT COUNT(*) FROM users") as cursor: u_cnt = (await cursor.fetchone())[0]
         async with db.execute("SELECT COUNT(*) FROM waifus") as cursor: w_cnt = (await cursor.fetchone())[0]
+        async with db.execute("SELECT COUNT(*) FROM connected_chats") as cursor: c_cnt = (await cursor.fetchone())[0]
             
     text = (
         f"👑 **Admin Boshqaruv Paneli:**\n\n"
         f"👥 Foydalanuvchilar: {u_cnt}\n"
-        f"✨ Qahramonlar bazasi: {w_cnt}\n\n"
+        f"✨ Qahramonlar bazasi: {w_cnt}\n"
+        f"📡 Ulangan Chatlar/Kanallar: {c_cnt}\n\n"
         "Kerakli bo'limni tanlang:"
     )
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Qahramon qo'shish (6-Level & Multi-View)", callback_data="admin_add_waifu")],
+        [InlineKeyboardButton(text="📋 Personajlarni boshqarish / O'chirish", callback_data="admin_manage_waifus")],
         [InlineKeyboardButton(text="🎟 Promokod yaratish", callback_data="admin_add_promo")],
         [InlineKeyboardButton(text="💳 Karta va To'lovlar", callback_data="admin_payment_settings")],
         [InlineKeyboardButton(text="🔗 Havolalarni sozlash", callback_data="admin_links")],
@@ -405,7 +404,54 @@ async def admin_panel_callback(call: types.CallbackQuery):
     await call.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
-# Qahramon qo'shish FSM (6-Level ketma-ket kiritish jarayoni)
+# Qahramonlarni boshqarish va o'chirish menyusi
+@dp.callback_query(F.data == "admin_manage_waifus")
+async def admin_manage_waifus(call: types.CallbackQuery):
+    if call.from_user.id not in ADMIN_IDS: return
+    
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT id, name, rarity, gc_price FROM waifus") as cursor:
+            waifus = await cursor.fetchall()
+            
+    if not waifus:
+        await call.message.edit_text(
+            "📭 Bazada hozircha qahramonlar yo'q.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="« Orqaga", callback_data="admin_panel_main")]])
+        )
+        await call.answer()
+        return
+        
+    buttons = []
+    for w in waifus:
+        buttons.append([
+            InlineKeyboardButton(text=f"❌ O'chirish: {w[1]} (ID: {w[0]})", callback_data=f"admin_del_waifu_{w[0]}")
+        ])
+    buttons.append([InlineKeyboardButton(text="« Orqaga", callback_data="admin_panel_main")])
+    
+    await call.message.edit_text("📋 **Qahramonlarni O'chirish / Boshqarish:**\nO'chirmoqchi bo'lgan qahramoningizni tanlang:", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons), parse_mode="Markdown")
+    await call.answer()
+
+@dp.callback_query(F.data.startswith("admin_del_waifu_"))
+async def admin_delete_waifu_exec(call: types.CallbackQuery):
+    if call.from_user.id not in ADMIN_IDS: return
+    w_id = int(call.data.split("_")[3])
+    
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT name FROM waifus WHERE id = ?", (w_id,)) as cursor:
+            res = await cursor.fetchone()
+            w_name = res[0] if res else "Noma'lum"
+            
+        await db.execute("DELETE FROM waifus WHERE id = ?", (w_id,))
+        await db.execute("DELETE FROM user_waifus WHERE waifu_id = ?", (w_id,))
+        await db.commit()
+        
+    await call.message.edit_text(
+        f"✅ **{w_name}** (ID: {w_id}) bazadan va foydalanuvchilar kolleksiyasidan muvaffaqiyatli o'chirib tashlandi!",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="« Qahramonlar ro'yxatiga qaytish", callback_data="admin_manage_waifus")]])
+    )
+    await call.answer()
+
+# Qahramon qo'shish FSM (6-Level va Avtomatik Kanal/Guruhga Tarqatish bilan)
 @dp.callback_query(F.data == "admin_add_waifu")
 async def add_waifu_step1(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
@@ -525,7 +571,7 @@ async def add_waifu_step_l6_proj(message: types.Message, state: FSMContext):
 async def add_waifu_step_team_view(message: types.Message, state: FSMContext):
     await state.update_data(l6_proj=message.text)
     await state.set_state(AddWaifuState.team_view)
-    await message.answer("👥 Jamoaviy proyekt (Team View - bir nechta qahramon jamlangan) rasmi uchun havola yuboring:")
+    await message.answer("👥 Jamoaviy proyekt (Team View) rasmi uchun havola yuboring:")
 
 @dp.message(AddWaifuState.team_view)
 async def add_waifu_final_save(message: types.Message, state: FSMContext):
@@ -553,9 +599,7 @@ async def add_waifu_final_save(message: types.Message, state: FSMContext):
         
     await state.clear()
     
-    # Kanalga 6-darajadagi rasm bilan avtomatik reklama yuborish
-    channel_url = await get_setting("channel_url")
-    # Agar kanal username yoki chat_id bo'lsa, xabar jo'natamiz
+    # 🚀 AVTOMATIK TARQATISH: Barcha ulangan kanallar va guruhlarga yuborish
     diamond_text = f"💎 Olmos narxi: **{data['diamond_price']} ta olmos**" if data['diamond_price'] > 0 else "💎 Olmos evaziga sotib olib bo'lmaydi"
     gc_text = f"🪙 Tanga narxi: **{data['gc_price']} ta GC**"
     
@@ -572,16 +616,23 @@ async def add_waifu_final_save(message: types.Message, state: FSMContext):
         f"🎮 Uni qo'lga kiritish uchun Mini Ilovaga o'ting!"
     )
     
-    try:
-        # Agar kanal havolasi to'g'ri sozlangan bo'lsa
-        # Masalan, t.me/channel_name ni @channel_name ga o'tkazib yuborish mumkin
-        if "t.me/" in channel_url:
-            ch_username = "@" + channel_url.split("/")[-1]
-            await bot.send_photo(chat_id=ch_username, photo=data['l6_img'], caption=broadcast_text, parse_mode="Markdown")
-    except Exception as e:
-        logging.error(f"Kanalga reklama yuborishda xatolik: {e}")
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT chat_id, chat_type FROM connected_chats") as cursor:
+            chats = await cursor.fetchall()
+            
+    for chat_id, chat_type in chats:
+        try:
+            if chat_type == "channel":
+                await bot.send_photo(chat_id=chat_id, photo=data['l6_img'], caption=broadcast_text, parse_mode="Markdown")
+            else:
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🎮 Mini Ilovani Ochish", web_app=WebAppInfo(url=WEBAPP_URL))]
+                ])
+                await bot.send_photo(chat_id=chat_id, photo=data['l6_img'], caption=broadcast_text, reply_markup=markup, parse_mode="Markdown")
+        except Exception as e:
+            logging.error(f"Chatga avto-xabar yuborishda xatolik ({chat_id}): {e}")
 
-    await message.answer("✅ Qahramon 6 ta darajasi, jamoaviy proyekti va narxlari bilan mukammal qo'shildi va kanalga avtomatik reklama yuborildi!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Panelga qaytish", callback_data="admin_panel_main")]]))
+    await message.answer("✅ Qahramon 6 ta darajasi bilan qo'shildi va barcha ulangan kanallar hamda guruhlarga avtomatik xabarnoma yuborildi!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Panelga qaytish", callback_data="admin_panel_main")]]))
 
 # Promokod qo'shish FSM
 @dp.callback_query(F.data == "admin_add_promo")
@@ -812,7 +863,6 @@ async def handle_api_user_profile(request):
             if not user:
                 return web.json_response({"status": "error", "message": "User not found"}, status=404)
             
-        # 6 ta daraja, proyektlar va Team View ma'lumotlari bilan birga to'liq kolleksiyani olish
         async with db.execute("""
             SELECT w.id, w.name, w.anime_name, w.description, w.rarity, w.gc_price, w.diamond_price,
                    w.l1_img, w.l1_proj, w.l2_img, w.l2_proj, w.l3_img, w.l3_proj, 
@@ -861,7 +911,23 @@ async def handle_api_user_profile(request):
         "waifus": waifus_list
     })
 
-async def web_server():
+async def handle_buy_waifu(request):
+    return web.json_response({"success": True, "message": "Personaj sotib olindi!"})
+
+async def handle_sell_waifu(request):
+    return web.json_response({"success": True, "message": "Personaj sotildi!"})
+
+async def main():
+    await db_start()
+    
+    # Konflikt va eskirgan webhook xatolarini oldini olish
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("🚀 GrabCharakter Bot va Mini App Server ishga tushishga tayyorlanmoqda...")
+    
+    # 1. Bot polling jarayonini fonda ishga tushiramiz
+    asyncio.create_task(dp.start_polling(bot))
+    
+    # 2. Veb-server uchun CORS middleware
     @web.middleware
     async def cors_middleware(request, handler):
         if request.method == "OPTIONS":
@@ -874,6 +940,7 @@ async def web_server():
         response.headers["Access-Control-Allow-Origin"] = "*"
         return response
 
+    # 3. Veb-serverni asosiy oqimda (foreground) ishga tushiramiz
     app = web.Application(middlewares=[cors_middleware])
     app.router.add_get("/", handle_home)
     app.router.add_get("/api/settings", handle_api_settings)
@@ -883,32 +950,13 @@ async def web_server():
     
     runner = web.AppRunner(app)
     await runner.setup()
+    
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-
-async def main():
-    await db_start()
-    print("🚀 GrabCharakter Bot va Mini App Server muvaffaqiyatli ishga tushdi!")
-    await bot.delete_webhook(drop_pending_updates=True)
+    print(f"🌐 Veb-server {port}-portda muvaffaqiyatli ishga tushdi!")
     
-        # Bot pollingni fonda ishga tushiramiz
-    asyncio.create_task(dp.start_polling(bot))
-    
-    # Veb-serverni ishga tushiramiz va doimiy ushlab turamiz
-    app = web.Application()
-    app.router.add_get("/", handle_home)
-    app.router.add_get("/api/settings", handle_settings)
-    app.router.add_get("/api/user", handle_user)
-    app.router.add_post("/api/buy", handle_buy_waifu)
-    app.router.add_post("/api/sell", handle_sell_waifu)
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.environ.get("PORT", 10000))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    
+    # Server o'chib qolmasligi uchun cheksiz sikl
     while True:
         await asyncio.sleep(3600)
 
