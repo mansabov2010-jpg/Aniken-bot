@@ -898,6 +898,7 @@ async def main():
                 })
             response = await handler(request)
             response.headers["Access-Control-Allow-Origin"] = "*"
+            
     return response
 
 async def main():
