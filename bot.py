@@ -888,17 +888,16 @@ async def main():
         # Bot pollingni fonda ishga tushiramiz
         asyncio.create_task(dp.start_polling(bot))
         
-        @web.middleware
-        async def cors_middleware(request, handler):
-            if request.method == "OPTIONS":
-                return web.Response(status=200, headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type"
-                })
-            response = await handler(request)
-            response.headers["Access-Control-Allow-Origin"] = "*"
-            
+@web.middleware
+async def cors_middleware(request, handler):
+    if request.method == "OPTIONS":
+        return web.Response(status=200, headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+        })
+    response = await handler(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
 async def main():
@@ -907,18 +906,6 @@ async def main():
     print("🤖 Bot va server ishga tushirilmoqda...")
     
     asyncio.create_task(dp.start_polling(bot))
-    
-    @web.middleware
-    async def cors_middleware(request, handler):
-        if request.method == "OPTIONS":
-            return web.Response(status=200, headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type"
-            })
-        response = await handler(request)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        return response
 
     app = web.Application(middlewares=[cors_middleware])
     app.router.add_get("/", handle_home)
@@ -940,4 +927,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
