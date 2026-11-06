@@ -858,7 +858,7 @@ async def main():
         await bot.delete_webhook(drop_pending_updates=True)
         print("🤖 Bot va server ishga tushirilmoqda...")
         
-        asyncio.create_task(dp.start_polling(bot, drop_pending_updates=True))
+        asyncio.create_task(dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types()))
 
         app = web.Application(middlewares=[cors_middleware])
         app.router.add_get("/", handle_home)
