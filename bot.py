@@ -14,7 +14,7 @@ from aiohttp import web
 # ==========================================
 # ⚙️ ASOSIY SOZLAR VA KONFIGURATSIYA
 # ==========================================
-TOKEN = "9111857366:AAEQGnnoeXyve60iMxW2jBTNvcYmU9o5ZVM"
+TOKEN = "9111857366:AAHnQHLeKILmYMMhrCEFKrLFlh9cFBmcUjs"
 ADMIN_IDS = [7986354170, 7637155944]
 BOT_USERNAME = "AniREM_bot"
 WEBAPP_URL = "https://aniken-bot-1.onrender.com"
