@@ -856,8 +856,7 @@ async def cors_middleware(request, handler):
 async def main():
     try:
         await db_start()
-        await bot.delete_webhook(drop_pending_updates=True)
-        print("🤖 Bot va server ishga tushirilmoqda...")
+        print("🤖 Bot va server Webhook rejimida ishga tushirilmoqda...")
         
         app = web.Application(middlewares=[cors_middleware])
         app.router.add_get("/", handle_home)
@@ -866,17 +865,34 @@ async def main():
         app.router.add_post("/api/buy", handle_buy_waifu)
         app.router.add_post("/api/sell", handle_sell_waifu)
         
+        # WEBHOOK SOZLAMASI
+        WEBHOOK_PATH = "/webhook"
+        WEBHOOK_URL = f"{WEBAPP_URL}{WEBHOOK_PATH}"
+        
+        from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+        
+        await bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
+        
+        webhook_requests_handler = SimpleRequestHandler(
+            dispatcher=dp,
+            bot=bot,
+        )
+        webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+        setup_application(app, dp, bot=bot)
+        
         runner = web.AppRunner(app)
         await runner.setup()
         
         port = int(os.environ.get("PORT", 10000))
         site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
-        print(f"🌐 Veb-server muvaffaqiyatli {port}-portda ishga tushdi!")
+        print(f"🌐 Webhook server {port}-portda ishga tushdi!")
 
-        await dp.start_polling(bot, drop_pending_updates=True)
+        # Server o'chib qolmasligi uchun ushlab turamiz
+        await asyncio.Event().wait()
         
     finally:
+        await bot.delete_webhook()
         await bot.session.close()
 
 if __name__ == "__main__":
