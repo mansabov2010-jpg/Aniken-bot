@@ -880,27 +880,6 @@ async def main():
         return response
 
 async def main():
-    try:
-        await db_start()
-        await bot.delete_webhook(drop_pending_updates=True)
-        print("🤖 Bot va server ishga tushirilmoqda...")
-        
-        # Bot pollingni fonda ishga tushiramiz
-        asyncio.create_task(dp.start_polling(bot))
-        
-@web.middleware
-async def cors_middleware(request, handler):
-    if request.method == "OPTIONS":
-        return web.Response(status=200, headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type"
-        })
-    response = await handler(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    return response
-
-async def main():
     await db_start()
     await bot.delete_webhook(drop_pending_updates=True)
     print("🤖 Bot va server ishga tushirilmoqda...")
