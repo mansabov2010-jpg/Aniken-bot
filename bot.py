@@ -3,6 +3,7 @@ import logging
 import random
 import os
 import aiosqlite
+import warnings
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -10,6 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiohttp import web
+warnings.filterwarnings("ignore", category=ResourceWarning)
 
 # ==========================================
 # ⚙️ ASOSIY SOZLAR VA KONFIGURATSIYA
