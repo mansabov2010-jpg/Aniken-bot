@@ -24,7 +24,7 @@ bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-DB_NAME = "animeku_ultimate_full.db"
+DB_NAME = "grabcharakter_ultimate_full.db"
 MESSAGES_FOR_SPAWN = 100
 
 RARITY_CHANCES = {
@@ -194,7 +194,7 @@ async def cmd_start(message: types.Message):
     
     text = (
         f"🌸 Salom, **{message.from_user.first_name}**!\n\n"
-        "✨ **Animeku** olamiga xush kelibsiz! Pastdagi tugmalar orqali Mini Ilovaga o'ting yoki guruhlarda qahramonlar ovlang, tanga ishlang va bitimlar tuzing."
+        "✨ **GrabCharakter** olamiga xush kelibsiz! Pastdagi tugmalar orqali Mini Ilovaga o'ting yoki guruhlarda qahramonlar ovlang, tanga ishlang va bitimlar tuzing."
     )
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
@@ -603,7 +603,7 @@ async def broadcast_exec(message: types.Message, state: FSMContext):
 # 🌐 4. MINI ILOVA API SERVERI VA ISHGA TUSHIRISH
 # ==========================================
 async def handle_home(request):
-    return web.Response(text="Animeku & Mini App Ultimate Server is running 24/7!", content_type='text/html')
+    return web.Response(text="GrabCharakter & Mini App Ultimate Server is running 24/7!", content_type='text/html')
 
 async def handle_api_settings(request):
     async with aiosqlite.connect(DB_NAME) as db:
@@ -679,7 +679,7 @@ async def web_server():
 
 async def main():
     await db_start()
-    print("🚀 Animeku Bot va Mini App Server muvaffaqiyatli ishga tushdi!")
+    print("🚀 GrabCharakter Bot va Mini App Server muvaffaqiyatli ishga tushdi!")
     await asyncio.gather(
         web_server(),
         dp.start_polling(bot, drop_pending_updates=True)
