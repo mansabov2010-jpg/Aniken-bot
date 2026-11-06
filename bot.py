@@ -901,51 +901,41 @@ async def main():
             return response
 
 async def main():
-    # Event loop xatolari va unclosed connector'larni to'liq bloklash uchun
-        asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    await db_start()
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("🤖 Bot va server ishga tushirilmoqda...")
     
-    try:
-        await db_start()
-        await bot.delete_webhook(drop_pending_updates=True)
-        print("🤖 Bot va server ishga tushirilmoqda...")
-        
-        asyncio.create_task(dp.start_polling(bot))
-        
-        @web.middleware
-        async def cors_middleware(request, handler):
-            if request.method == "OPTIONS":
-                return web.Response(status=200, headers={
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type"
-                })
-            response = await handler(request)
-            response.headers["Access-Control-Allow-Origin"] = "*"
-            return response
+    asyncio.create_task(dp.start_polling(bot))
+    
+    @web.middleware
+    async def cors_middleware(request, handler):
+        if request.method == "OPTIONS":
+            return web.Response(status=200, headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            })
+        response = await handler(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
 
-        app = web.Application(middlewares=[cors_middleware])
-        app.router.add_get("/", handle_home)
-        app.router.add_get("/api/settings", handle_api_settings)
-        app.router.add_get("/api/user", handle_api_user_profile)
-        app.router.add_post("/api/buy", handle_buy_waifu)
-        app.router.add_post("/api/sell", handle_sell_waifu)
-        
-        runner = web.AppRunner(app)
-        await runner.setup()
-        
-        port = int(os.environ.get("PORT", 10000))
-        site = web.TCPSite(runner, "0.0.0.0", port)
-        await site.start()
-        print(f"🌐 Veb-server muvaffaqiyatli {port}-portda ishga tushdi!")
-        
-        while True:
-            await asyncio.sleep(3600)
-            
-    except Exception as e:
-        logging.error(f"❌ Xatolik yuz berdi: {e}")
+    app = web.Application(middlewares=[cors_middleware])
+    app.router.add_get("/", handle_home)
+    app.router.add_get("/api/settings", handle_api_settings)
+    app.router.add_get("/api/user", handle_api_user_profile)
+    app.router.add_post("/api/buy", handle_buy_waifu)
+    app.router.add_post("/api/sell", handle_sell_waifu)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"🌐 Veb-server muvaffaqiyatli {port}-portda ishga tushdi!")
+    
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    asyncio.run(main())
