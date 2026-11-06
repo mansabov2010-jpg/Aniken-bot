@@ -685,6 +685,38 @@ async def main():
         dp.start_polling(bot, drop_pending_updates=True)
     )
 
+# ==========================================
+# 📢 REKLAMA VA VAZIFALAR (REWARDED ADS) TIZIMI
+# ==========================================
+class AddAdState(StatesGroup):
+    media = State()
+    reward = State()
+
+@dp.callback_query(F.data == "admin_add_ad")
+async def admin_add_ad_start(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id not in ADMIN_IDS: return
+    await state.set_state(AddAdState.media)
+    await call.message.edit_text("📢 Reklama uchun video yoki rasm yuboring:")
+    await call.answer()
+
+@dp.message(AddAdState.media)
+async def admin_add_ad_media(message: types.Message, state: FSMContext):
+    media_id = message.video.file_id if message.video else message.photo[-1].file_id
+    await state.update_data(media_id=media_id)
+    await state.set_state(AddAdState.reward)
+    await message.answer("💰 Ushbu reklamani ko'rgani uchun beriladigan GC (tanga) miqdorini kiriting (faqat raqam):")
+
+@dp.message(AddAdState.reward)
+async def admin_add_ad_save(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    reward = int(message.text)
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("INSERT INTO tasks (title, url, reward_gc) VALUES (?, ?, ?)", ("Reklama ko'rish", data['media_id'], reward))
+        await db.commit()
+    await state.clear()
+    await message.answer("✅ Reklama bazaga qo'shildi va foydalanuvchilarga ko'rinishni boshladi!")
+
+
 if __name__ == '__main__':
     asyncio.run(main())
     
