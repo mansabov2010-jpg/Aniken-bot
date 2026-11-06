@@ -40,6 +40,10 @@ class AddWaifuState(StatesGroup):
     name = State()
     rarity = State()
     image_url = State()
+    front_view = State()
+    back_view = State()
+    side_view = State()
+    animated_view = State()
     gc_price = State()
     diamond_price = State()
 
@@ -62,8 +66,17 @@ class ShopItemState(StatesGroup):
     diamond_cost = State()
     amount = State()
 
+class DesignSettingsState(StatesGroup):
+    border_radius = State()
+    glass_opacity = State()
+    bg_image = State()
+
+class AddAdState(StatesGroup):
+    media = State()
+    reward = State()
+
 # ==========================================
-# 💾 TO'LIQ MA'LUMOTLAR BAZASI (DATABASE INIT)
+# 💾 TO'LIQ MA'LUMOTLAR BAZASI (YANGILANGAN)
 # ==========================================
 async def db_start():
     async with aiosqlite.connect(DB_NAME) as db:
@@ -77,12 +90,17 @@ async def db_start():
                 last_tap_time TEXT
             )
         """)
+        # Yangi rakurslar va animatsion vizuallar qo'shilgan waifus jadvali
         await db.execute("""
             CREATE TABLE IF NOT EXISTS waifus (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT,
                 rarity TEXT,
                 image_url TEXT,
+                front_view TEXT,
+                back_view TEXT,
+                side_view TEXT,
+                animated_view TEXT,
                 gc_price INTEGER DEFAULT 0,
                 diamond_price INTEGER DEFAULT 0
             )
@@ -150,6 +168,9 @@ async def db_start():
             ('card_number', '8600 0000 0000 0000'),
             ('card_holder', 'Firdavs T.'),
             ('exchange_rate_gc_to_diamond', '100'),
+            ('border_radius', '15'),
+            ('glass_opacity', '85'),
+            ('bg_image', '')
         ]
         for key, val in defaults:
             async with db.execute("SELECT value FROM bot_settings WHERE key = ?", (key,)) as cursor:
@@ -262,9 +283,8 @@ async def process_home(call: types.CallbackQuery):
     await call.message.edit_text("🌸 **Bosh Menyu:**", reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
-
 # ==========================================
-# ⚡ GURUHLARDA SPAWN VA X2 TAKRORLANISH
+# ⚡ GURUHLARDA SPAWN VA TUTIB OLISH
 # ==========================================
 @dp.message(F.chat.type.in_({"group", "supergroup"}))
 async def group_message_handler(message: types.Message):
@@ -350,10 +370,10 @@ async def handle_group_trade(message: types.Message):
         "🔄 **Guruhdagi Bitim (Trade):**\n"
         "O'zaro personajlar ayirboshlash uchun to'liq interaktiv oynani ochish uchun Mini Ilovadan foydalaning!",
         parse_mode="Markdown"
-    )
+        )
 
 # ==========================================
-# 👑 3. ADMIN PANEL VA TO'LIQ DINAMIK BOSHQARUV
+# 👑 3. ADMIN PANEL VA KO'P RAKURSLI QAHRAMONLAR
 # ==========================================
 @dp.callback_query(F.data == "admin_panel_main")
 async def admin_panel_callback(call: types.CallbackQuery):
@@ -371,18 +391,18 @@ async def admin_panel_callback(call: types.CallbackQuery):
         "Kerakli bo'limni tanlang:"
     )
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Qahramon qo'shish", callback_data="admin_add_waifu")],
+        [InlineKeyboardButton(text="➕ Qahramon qo'shish (Multi-View)", callback_data="admin_add_waifu")],
         [InlineKeyboardButton(text="🎟 Promokod yaratish", callback_data="admin_add_promo")],
         [InlineKeyboardButton(text="💳 Karta va To'lovlar", callback_data="admin_payment_settings")],
         [InlineKeyboardButton(text="🔗 Havolalarni sozlash", callback_data="admin_links")],
-        [InlineKeyboardButton(text="🎨 Interfeys va Ranglar", callback_data="admin_appearance")],
+        [InlineKeyboardButton(text="🎨 Mini App Dizayni", callback_data="admin_design_menu")],
         [InlineKeyboardButton(text="📢 Barchaga xabar yuborish", callback_data="admin_broadcast")],
         [InlineKeyboardButton(text="« Bosh menyu", callback_data="back_home")]
     ])
     await call.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
-# Qahramon qo'shish FSM
+# Qahramon qo'shish FSM (Multi-View: Old, Orqa, Yonbosh va Animatsion)
 @dp.callback_query(F.data == "admin_add_waifu")
 async def add_waifu_step1(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
@@ -400,11 +420,35 @@ async def add_waifu_step2(message: types.Message, state: FSMContext):
 async def add_waifu_step3(message: types.Message, state: FSMContext):
     await state.update_data(rarity=message.text)
     await state.set_state(AddWaifuState.image_url)
-    await message.answer("🖼 Qahramonning rasm URL manzilini yuboring:")
+    await message.answer("🖼 Qahramonning asosiy rasm URL manzilini yuboring:")
 
 @dp.message(AddWaifuState.image_url)
 async def add_waifu_step4(message: types.Message, state: FSMContext):
     await state.update_data(image_url=message.text)
+    await state.set_state(AddWaifuState.front_view)
+    await message.answer("📸 Qahramonning **old tarafdan** ko'rinish rasmini yuboring (havola):")
+
+@dp.message(AddWaifuState.front_view)
+async def add_waifu_step_front(message: types.Message, state: FSMContext):
+    await state.update_data(front_view=message.text)
+    await state.set_state(AddWaifuState.back_view)
+    await message.answer("🔄 Qahramonning **orqadan** ko'rinish rasmini yuboring (havola):")
+
+@dp.message(AddWaifuState.back_view)
+async def add_waifu_step_back(message: types.Message, state: FSMContext):
+    await state.update_data(back_view=message.text)
+    await state.set_state(AddWaifuState.side_view)
+    await message.answer("📐 Qahramonning **yonboshdan** ko'rinish rasmini yuboring (havola):")
+
+@dp.message(AddWaifuState.side_view)
+async def add_waifu_step_side(message: types.Message, state: FSMContext):
+    await state.update_data(side_view=message.text)
+    await state.set_state(AddWaifuState.animated_view)
+    await message.answer("✨ Qahramonning **sal-sal qimirlaydigan (animatsion/Live2D)** formatdagi rasmini yuboring:")
+
+@dp.message(AddWaifuState.animated_view)
+async def add_waifu_step_animated(message: types.Message, state: FSMContext):
+    await state.update_data(animated_view=message.text)
     await state.set_state(AddWaifuState.gc_price)
     await message.answer("💰 Mini Ilovada sotish uchun GC (tanga) narxini kiriting (faqat raqam):")
 
@@ -419,19 +463,24 @@ async def add_waifu_save(message: types.Message, state: FSMContext):
     data = await state.get_data()
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
-            "INSERT INTO waifus (name, rarity, image_url, gc_price, diamond_price) VALUES (?, ?, ?, ?, ?)",
-            (data['name'], data['rarity'], data['image_url'], data['gc_price'], int(message.text))
+            """INSERT INTO waifus (name, rarity, image_url, front_view, back_view, side_view, animated_view, gc_price, diamond_price) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                data['name'], data['rarity'], data['image_url'], 
+                data['front_view'], data['back_view'], data['side_view'], 
+                data['animated_view'], data['gc_price'], int(message.text)
+            )
         )
         await db.commit()
     await state.clear()
-    await message.answer("✅ Qahramon bazaga muvaffaqiyatli qo'shildi!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Panelga qaytish", callback_data="admin_panel_main")]]))
+    await message.answer("✅ Qahramon barcha rakurslari va animatsion proyektlari bilan bazaga muvaffaqiyatli qo'shildi!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Panelga qaytish", callback_data="admin_panel_main")]]))
 
 # Promokod qo'shish FSM
 @dp.callback_query(F.data == "admin_add_promo")
 async def promo_step1(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
     await state.set_state(PromoState.code)
-    await call.message.edit_text("🎟 Promokod so'zini kiriting (masalan: ANIME2026):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel_main")]]))
+    await call.message.edit_text("🎟 Promokod so'zini kiriting (masalan: GRAB2026):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_panel_main")]]))
     await call.answer()
 
 @dp.message(PromoState.code)
@@ -545,35 +594,67 @@ async def save_gr(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("✅ Guruh havolasi saqlandi!")
 
-# Interfeys ranglari
-@dp.callback_query(F.data == "admin_appearance")
-async def app_menu(call: types.CallbackQuery):
+# Mini App Dizaynini Boshqarish Menu
+@dp.callback_query(F.data == "admin_design_menu")
+async def admin_design_menu(call: types.CallbackQuery):
     if call.from_user.id not in ADMIN_IDS: return
-    bg = await get_setting("bg_color")
-    btn = await get_setting("button_color")
-    text = f"🎨 **Interfeys Dizayni:**\n\nFon rangi: `{bg}`\nTugma rangi: `{btn}`"
-    await call.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🌙 To'q fonni o'rnatish", callback_data="set_bg_dark")],
-        [InlineKeyboardButton(text="☀️ Och rangni o'rnatish", callback_data="set_bg_light")],
+    
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔲 Qirralilikni o'zgartirish (%)", callback_data="set_border")],
+        [InlineKeyboardButton(text="🪞 Shaffoflikni o'zgartirish (%)", callback_data="set_opacity")],
+        [InlineKeyboardButton(text="🖼 Orqa fon rasmini o'rnatish", callback_data="set_bg")],
         [InlineKeyboardButton(text="« Orqaga", callback_data="admin_panel_main")]
-    ]), parse_mode="Markdown")
+    ])
+    await call.message.edit_text("🎨 **Mini App Dizayn Sozlamalari:**\n\nBu yerda barcha elementlarning ko'rinishini foizlar orqali boshqarasiz.", reply_markup=markup, parse_mode="Markdown")
     await call.answer()
 
-@dp.callback_query(F.data == "set_bg_dark")
-async def set_bg_dark(call: types.CallbackQuery):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bg_color', '#121212')")
-        await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('button_color', '#1E88E5')")
-        await db.commit()
-    await call.answer("✅ To'q mavzu sozlandi!", show_alert=True)
+@dp.callback_query(F.data == "set_border")
+async def set_border_start(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id not in ADMIN_IDS: return
+    await state.set_state(DesignSettingsState.border_radius)
+    await call.message.edit_text("🔲 Elementlar qirraliligini foizda kiriting (0% dan 100% gacha, masalan: `15`):", parse_mode="Markdown")
+    await call.answer()
 
-@dp.callback_query(F.data == "set_bg_light")
-async def set_bg_light(call: types.CallbackQuery):
+@dp.message(DesignSettingsState.border_radius)
+async def save_border_radius(message: types.Message, state: FSMContext):
+    val = message.text.strip()
     async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) widgets VALUES ('bg_color', '#F5F5F5')") # (Note: syntax fix internally or clean copy)
-        await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('button_color', '#FF4081')")
+        await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('border_radius', ?)", (val,))
         await db.commit()
-    await call.answer("✅ Och rangli mavzu sozlandi!", show_alert=True)
+    await state.clear()
+    await message.answer(f"✅ Qirralilik muvaffaqiyatli **{val}%** qilib belgilandi!")
+
+@dp.callback_query(F.data == "set_opacity")
+async def set_opacity_start(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id not in ADMIN_IDS: return
+    await state.set_state(DesignSettingsState.glass_opacity)
+    await call.message.edit_text("🪞 Shaffoflik darajasini foizda kiriting (0% dan 100% gacha, masalan: `85`):", parse_mode="Markdown")
+    await call.answer()
+
+@dp.message(DesignSettingsState.glass_opacity)
+async def save_glass_opacity(message: types.Message, state: FSMContext):
+    val = message.text.strip()
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('glass_opacity', ?)", (val,))
+        await db.commit()
+    await state.clear()
+    await message.answer(f"✅ Shaffoflik muvaffaqiyatli **{val}%** qilib belgilandi!")
+
+@dp.callback_query(F.data == "set_bg")
+async def set_bg_start(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id not in ADMIN_IDS: return
+    await state.set_state(DesignSettingsState.bg_image)
+    await call.message.edit_text("🖼 Mini App orqa foni uchun rasm yuboring:", parse_mode="Markdown")
+    await call.answer()
+
+@dp.message(DesignSettingsState.bg_image)
+async def save_bg_image(message: types.Message, state: FSMContext):
+    photo_id = message.photo[-1].file_id if message.photo else ""
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES ('bg_image', ?)", (photo_id,))
+        await db.commit()
+    await state.clear()
+    await message.answer("✅ Orqa fon rasmi muvaffaqiyatli yangilandi!")
 
 # Rassilka
 @dp.callback_query(F.data == "admin_broadcast")
@@ -599,7 +680,7 @@ async def broadcast_exec(message: types.Message, state: FSMContext):
             failed += 1
     await message.answer(f"✅ Xabar tarqatildi!\n\nMuvaffaqiyatli: {success}\nXato (bloklagan): {failed}")
 
-    # ==========================================
+# ==========================================
 # 🌐 4. MINI ILOVA API SERVERI VA ISHGA TUSHIRISH
 # ==========================================
 async def handle_home(request):
@@ -623,8 +704,9 @@ async def handle_api_user_profile(request):
             if not user:
                 return web.json_response({"status": "error", "message": "User not found"}, status=404)
             
+        # Multi-view va animatsion ko'rinishlar bilan birga ma'lumot olish
         async with db.execute("""
-            SELECT w.id, w.name, w.rarity, w.image_url, uw.count, w.gc_price, w.diamond_price 
+            SELECT w.id, w.name, w.rarity, w.image_url, w.front_view, w.back_view, w.side_view, w.animated_view, uw.count, w.gc_price, w.diamond_price 
             FROM user_waifus uw 
             JOIN waifus w ON uw.waifu_id = w.id 
             WHERE uw.user_id = ?
@@ -638,9 +720,13 @@ async def handle_api_user_profile(request):
             "name": w[1],
             "rarity": w[2],
             "image_url": w[3],
-            "count": w[4],
-            "gc_price": w[5],
-            "diamond_price": w[6]
+            "front_view": w[4],
+            "back_view": w[5],
+            "side_view": w[6],
+            "animated_view": w[7],
+            "count": w[8],
+            "gc_price": w[9],
+            "diamond_price": w[10]
         })
         
     return web.json_response({
@@ -688,10 +774,6 @@ async def main():
 # ==========================================
 # 📢 REKLAMA VA VAZIFALAR (REWARDED ADS) TIZIMI
 # ==========================================
-class AddAdState(StatesGroup):
-    media = State()
-    reward = State()
-
 @dp.callback_query(F.data == "admin_add_ad")
 async def admin_add_ad_start(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
@@ -716,7 +798,19 @@ async def admin_add_ad_save(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("✅ Reklama bazaga qo'shildi va foydalanuvchilarga ko'rinishni boshladi!")
 
-
+# ==========================================
+# 🚀 24/7 XAVFSIZ ISHGA TUSHIRISH BLOKI
+# ==========================================
 if __name__ == '__main__':
-    asyncio.run(main())
-    
+    try:
+        print("==========================================")
+        print("🌟 GRABCHARAKTER BOT & MINI APP STARTING 24/7...")
+        print("⚙️ Loading configuration and database...")
+        print("🚀 Bot is running successfully!")
+        print("==========================================")
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("🛑 Bot manually stopped.")
+    except Exception as e:
+        logging.error(f"Critical error occurred while running bot: {e}")
+        
