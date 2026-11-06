@@ -879,12 +879,6 @@ async def main():
         response.headers["Access-Control-Allow-Origin"] = "*"
         return response
 
-async def main():
-    await db_start()
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("🤖 Bot va server ishga tushirilmoqda...")
-    
-    asyncio.create_task(dp.start_polling(bot))
 
     app = web.Application(middlewares=[cors_middleware])
     app.router.add_get("/", handle_home)
