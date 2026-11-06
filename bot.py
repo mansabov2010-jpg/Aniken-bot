@@ -896,3 +896,7 @@ async def main():
     
     # Bot pollingni ishga tushiramiz
     await dp.start_polling(bot, drop_pending_updates=True)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+    
