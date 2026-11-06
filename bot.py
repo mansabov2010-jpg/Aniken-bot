@@ -343,6 +343,7 @@ async def process_grab(call: types.CallbackQuery):
     await call.answer(f"🎉 Tabriklaymiz! Siz {w_name} ni qo'lga kiritdingiz!", show_alert=True)
     await call.message.reply(f"🏆 **{call.from_user.first_name}** — {w_name} ({w_rarity}) qahramonini tutdi! {msg_suffix}", parse_mode="Markdown")
 
+
 @dp.callback_query(F.data == "admin_panel_main")
 async def admin_panel_callback(call: types.CallbackQuery):
     if call.from_user.id not in ADMIN_IDS:
@@ -858,8 +859,6 @@ async def main():
         await bot.delete_webhook(drop_pending_updates=True)
         print("🤖 Bot va server ishga tushirilmoqda...")
         
-        asyncio.create_task(dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types()))
-
         app = web.Application(middlewares=[cors_middleware])
         app.router.add_get("/", handle_home)
         app.router.add_get("/api/settings", handle_api_settings)
@@ -874,9 +873,9 @@ async def main():
         site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
         print(f"🌐 Veb-server muvaffaqiyatli {port}-portda ishga tushdi!")
+
+        await dp.start_polling(bot, drop_pending_updates=True)
         
-        while True:
-            await asyncio.sleep(3600)
     finally:
         await bot.session.close()
 
@@ -885,4 +884,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print("Bot to'xtatildi.")
-        
