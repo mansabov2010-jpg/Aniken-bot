@@ -892,11 +892,25 @@ async def main():
     print("🚀 GrabCharakter Bot va Mini App Server muvaffaqiyatli ishga tushdi!")
     await bot.delete_webhook(drop_pending_updates=True)
     
-    # Veb-serverni fonda doimiy ishlashi uchun task ochamiz
-    asyncio.create_task(web_server())
+        # Bot pollingni fonda ishga tushiramiz
+    asyncio.create_task(dp.start_polling(bot))
     
-    # Bot pollingni ishga tushiramiz
-    await dp.start_polling(bot, drop_pending_updates=True)
+    # Veb-serverni ishga tushiramiz va doimiy ushlab turamiz
+    app = web.Application(middlewares=[cors_middleware])
+    app.router.add_get("/", handle_home)
+    app.router.add_get("/api/settings", handle_settings)
+    app.router.add_get("/api/user", handle_user)
+    app.router.add_post("/api/buy", handle_buy_waifu)
+    app.router.add_post("/api/sell", handle_sell_waifu)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     asyncio.run(main())
