@@ -574,7 +574,6 @@ async def add_waifu_final_save(message: types.Message, state: FSMContext):
         await db.commit()
     await state.clear()
     
-    # 🚀 Kanallar va guruhlarga avtomatik xabar tarqatish
     broadcast_text = (
         f"📢 **Diqqat! Yangi qahramon qo'shildi!**\n\n"
         f"👤 **Ismi:** {data['name']}\n"
@@ -897,4 +896,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
- INTO bot_settings (key, value) VALUES ('glass_opacity', ?)", (v
