@@ -890,6 +890,7 @@ async def web_server():
 async def main():
     await db_start()
     print("🚀 GrabCharakter Bot va Mini App Server muvaffaqiyatli ishga tushdi!")
+    await bot.delete_webhook(drop_pending_updates=True)
     
     # Veb-serverni fonda doimiy ishlashi uchun task ochamiz
     asyncio.create_task(web_server())
