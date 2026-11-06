@@ -13,7 +13,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiohttp import web
 warnings.filterwarnings("ignore", category=ResourceWarning)
 
-TOKEN = "9111857366:AAHG8ltxTyW9O9rzUhOGCYr-nU2lYsr2wUo"
+TOKEN = "9111857366:AAFwGLEkXzTvaFzLB01aHtDeM4JzoEsDO_4"
 ADMIN_IDS = [7986354170, 7637155944]
 BOT_USERNAME = "AniREM_bot"
 WEBAPP_URL = "https://aniken-bot-1.onrender.com"
