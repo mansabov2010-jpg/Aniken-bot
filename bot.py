@@ -13,9 +13,6 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiohttp import web
 warnings.filterwarnings("ignore", category=ResourceWarning)
 
-# ==========================================
-# ⚙️ ASOSIY SOZLAR VA KONFIGURATSIYA
-# ==========================================
 TOKEN = "9111857366:AAEQGnnoeXyve60iMxW2jBTNvcYmU9o5ZVM"
 ADMIN_IDS = [7986354170, 7637155944]
 BOT_USERNAME = "AniREM_bot"
@@ -35,9 +32,6 @@ RARITY_CHANCES = {
     "⭐ Oddiy": 70
 }
 
-# ==========================================
-# 🗂 FSM HOLATLARI
-# ==========================================
 class AddWaifuState(StatesGroup):
     name = State()
     anime_name = State()
@@ -79,9 +73,6 @@ class DesignSettingsState(StatesGroup):
     glass_opacity = State()
     bg_image = State()
 
-# ==========================================
-# 💾 TO'LIQ MA'LUMOTLAR BAZASI
-# ==========================================
 async def db_start():
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("""
@@ -172,9 +163,6 @@ async def get_setting(key):
             res = await cursor.fetchone()
             return res[0] if res else ""
 
-# ==========================================
-# 🌸 GURUH VA MENYU MEXANIKASI
-# ==========================================
 @dp.message(F.chat.type.in_({"group", "supergroup", "channel"}))
 async def track_chats(message: types.Message):
     async with aiosqlite.connect(DB_NAME) as db:
@@ -186,7 +174,7 @@ async def track_chats(message: types.Message):
     
     if message.chat.type in {"group", "supergroup"}:
         if message.text and message.text.startswith("/bitim"):
-            await handle_group_trade(message)
+            await message.answer("🔄 **Guruhdagi Bitim (Trade):** Mini Ilovadan foydalaning!", parse_mode="Markdown")
             return
 
         chat_id = message.chat.id
@@ -355,12 +343,6 @@ async def process_grab(call: types.CallbackQuery):
     await call.answer(f"🎉 Tabriklaymiz! Siz {w_name} ni qo'lga kiritdingiz!", show_alert=True)
     await call.message.reply(f"🏆 **{call.from_user.first_name}** — {w_name} ({w_rarity}) qahramonini tutdi! {msg_suffix}", parse_mode="Markdown")
 
-async def handle_group_trade(message: types.Message):
-    await message.answer("🔄 **Guruhdagi Bitim (Trade):** Mini Ilovadan foydalaning!", parse_mode="Markdown")
-
-# ==========================================
-# 👑 ADMIN PANEL VA BARCHA BOSHQARUV TIZIMI
-# ==========================================
 @dp.callback_query(F.data == "admin_panel_main")
 async def admin_panel_callback(call: types.CallbackQuery):
     if call.from_user.id not in ADMIN_IDS:
@@ -790,9 +772,6 @@ async def broadcast_exec(message: types.Message, state: FSMContext):
             failed += 1
     await message.answer(f"✅ Tarqatildi! Muvaffaqiyatli: {success}, Xato: {failed}")
 
-# ==========================================
-# 🌐 MINI ILOVA API SERVERI VA ISHGA TUSHIRISH
-# ==========================================
 async def handle_home(request):
     html_content = """
     <!DOCTYPE html>
@@ -861,42 +840,49 @@ async def handle_buy_waifu(request):
 async def handle_sell_waifu(request):
     return web.json_response({"success": True, "message": "Sotildi!"})
 
+@web.middleware
+async def cors_middleware(request, handler):
+    if request.method == "OPTIONS":
+        return web.Response(status=200, headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+        })
+    response = await handler(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
 async def main():
-    await db_start()
-    await bot.delete_webhook(drop_pending_updates=True)
-    
-    asyncio.create_task(dp.start_polling(bot))
-    
-    @web.middleware
-    async def cors_middleware(request, handler):
-        if request.method == "OPTIONS":
-            return web.Response(status=200, headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type"
-            })
-        response = await handler(request)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        return response
+    try:
+        await db_start()
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("🤖 Bot va server ishga tushirilmoqda...")
+        
+        asyncio.create_task(dp.start_polling(bot))
 
-
-    app = web.Application(middlewares=[cors_middleware])
-    app.router.add_get("/", handle_home)
-    app.router.add_get("/api/settings", handle_api_settings)
-    app.router.add_get("/api/user", handle_api_user_profile)
-    app.router.add_post("/api/buy", handle_buy_waifu)
-    app.router.add_post("/api/sell", handle_sell_waifu)
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    
-    port = int(os.environ.get("PORT", 10000))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    print(f"🌐 Veb-server muvaffaqiyatli {port}-portda ishga tushdi!")
-    
-    while True:
-        await asyncio.sleep(3600)
+        app = web.Application(middlewares=[cors_middleware])
+        app.router.add_get("/", handle_home)
+        app.router.add_get("/api/settings", handle_api_settings)
+        app.router.add_get("/api/user", handle_api_user_profile)
+        app.router.add_post("/api/buy", handle_buy_waifu)
+        app.router.add_post("/api/sell", handle_sell_waifu)
+        
+        runner = web.AppRunner(app)
+        await runner.setup()
+        
+        port = int(os.environ.get("PORT", 10000))
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+        print(f"🌐 Veb-server muvaffaqiyatli {port}-portda ishga tushdi!")
+        
+        while True:
+            await asyncio.sleep(3600)
+    finally:
+        await bot.session.close()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("Bot to'xtatildi.")
+        
