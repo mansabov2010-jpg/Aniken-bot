@@ -1,1 +1,60 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grab Garden</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url('/static/bg.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .app-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .bottom-nav {
+            display: flex;
+            justify-content: space-around;
+            background: rgba(15, 15, 25, 0.95);
+            padding: 12px 0;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .nav-item {
+            color: #a0a0c0;
+            text-align: center;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .nav-item.active {
+            color: #ff69b4;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <h2>🌸 Grab Garden Kolleksiyasi</h2>
+        <p>Xush kelibsiz! Bu yerda sizning xarakterlaringiz va bozor joylashadi.</p>
+    </div>
+
+    <!-- Pastki navigatsiya paneli (Global Chat qo'shilgan holda) -->
+    <div class="bottom-nav">
+        <div class="nav-item active">🏠 Asosiy</div>
+        <div class="nav-item">💎 Bozor</div>
+        <div class="nav-item">💬 Chat</div>
+        <div class="nav-item">👤 Profil</div>
+    </div>
+
+</body>
+</html>
 
