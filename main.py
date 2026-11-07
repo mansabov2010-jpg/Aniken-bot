@@ -1,100 +1,77 @@
-import asyncio
-import logging
 import sqlite3
 from aiogram import Bot, Dispatcher, types
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+from flask import Flask, render_template, request, redirect, g
 
-# Logging sozlamalari
-logging.basicConfig(level=logging.INFO)
+API_TOKEN = 'TOKEN_SHU_YERGA'
+ADMIN_ID = 123456789  # Telegram ID ingiz
 
-# Token va Admin ID (o'zingizning ma'lumotlaringizni kiriting)
-TOKEN = "YOUR_BOT_TOKEN_HERE"
-ADMIN_IDS = [123456789]  # Adminlar ID ro'yxati
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
 
-bot = Bot(token=TOKEN)
-storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
+app = Flask(__name__)
+app.secret_key = 'secret_key'
+DATABASE = 'bot_database.db'
 
-# Ma'lumotlar bazasini yaratish va sozlash
-def init_db():
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
+def get_db():
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DATABASE)
+        db.row_factory = sqlite3.Row
+    return db
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, '_database', None)
+    if db is not None:
+        db.close()
+
+@dp.message_handler(commands=['start'])
+async def send_welcome(message: types.Message):
+    user_id = message.from_user.id
+    username = message.from_user.username
+    full_name = message.from_user.full_name
     
-    # Foydalanuvchilar jadvali
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            full_name TEXT,
-            age INTEGER,
-            location TEXT,
-            bio TEXT,
-            coins INTEGER DEFAULT 0,
-            stars INTEGER DEFAULT 0,
-            message_count INTEGER DEFAULT 0,
-            last_bonus_date TEXT,
-            bonus_streak INTEGER DEFAULT 0
-        )
-    ''')
+    db = sqlite3.connect(DATABASE)
+    cursor = db.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (user_id, username, full_name, diamonds) VALUES (?, ?, ?, ?)",
+                   (user_id, username, full_name, 100))
+    db.commit()
+    db.close()
     
-    # Xarakterlar jadvali
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS characters (
-            char_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            level INTEGER,
-            image_url TEXT,
-            price INTEGER,
-            is_new INTEGER DEFAULT 1
-        )
-    ''')
+    keyboard = InlineKeyboardMarkup()
+    web_app = WebAppInfo(url="https://domen.uz/app")
+    keyboard.add(InlineKeyboardButton("🌸 Grab Garden'ni ochish", web_app=web_app))
     
-    # Foydalanuvchiga tegishli xarakterlar
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_characters (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            char_id INTEGER,
-            count INTEGER DEFAULT 1,
-            equipped_slot INTEGER DEFAULT 0
-        )
-    ''')
-    
-    # Do'stlar / Bog'langan profillar
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS friendships (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id_1 INTEGER,
-            user_id_2 INTEGER,
-            status TEXT DEFAULT 'pending', -- pending, accepted
-            relation_type TEXT DEFAULT 'friend' -- friend, couple, best_friend
-        )
-    ''')
+    await message.answer("Xush kelibsiz!", reply_markup=keyboard)
 
-    # Admin vazifalari va kanallar/guruhlar jadvali
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tasks (
-            task_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            url TEXT,
-            reward INTEGER,
-            task_type TEXT -- channel, group, video
-        )
-    ''')
+@app.route('/app')
+def web_app():
+    return render_template('index.html')
 
-    conn.commit()
-    conn.close()
-
-async def main():
-    init_db()
-    logging.info("Ma'lumotlar bazasi muvaffaqiyatli ishga tushdi.")
+@app.route('/admin', methods=['GET', 'POST'])
+def admin_panel():
+    db = get_db()
+    cursor = db.cursor()
     
-    # Routerni ulash va ishga tushirish
-    from handlers import register_handlers
-    register_handlers(dp)
+    if request.method == 'POST':
+        for key, value in request.form.items():
+            cursor.execute("INSERT OR REPLACE INTO admin_settings (key, value) VALUES (?, ?)", (key, value))
+        db.commit()
+        return redirect('/admin')
+        
+    cursor.execute("SELECT * FROM admin_settings")
+    settings = {row['key']: row['value'] for row in cursor.fetchall()}
     
-    await dp.start_polling(bot)
+    return f"""
+    <h2>👑 Admin Sozlamalar Paneli</h2>
+    <form method='POST'>
+        E'lon berish narxi (Stars): <input type='text' name='listing_fee_stars' value='{settings.get('listing_fee_stars', 1)}'><br><br>
+        Bot holati: <input type='text' name='bot_status' value='{settings.get('bot_status', 'active')}''><br><br>
+        <button type='submit'>Saqlash</button>
+    </form>
+    """
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    app.run(host='0.0.0.0', port=5000)
     
