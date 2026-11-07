@@ -1,3 +1,2 @@
-aiogram
-aiosqlite
-aiohttp
+aiogram==2.25.1
+Flask==3.0.2
