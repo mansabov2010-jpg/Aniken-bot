@@ -1,9 +1,11 @@
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, types
 from flask import Flask, render_template, request, redirect, g
 import sqlite3
 from handlers.user_handlers import register_handlers
 
-API_TOKEN = 'TOKEN_SHU_YERGA'
+API_TOKEN = '9111857366:AAFwGLEkXzTvaFzLB01aHtDeM4JzoEsDO_4'
+ADMIN_IDS = [7986354170, 7637155944]  # Boshlang'ich adminlar
+
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
@@ -22,9 +24,54 @@ def get_db():
 
 @app.teardown_appcontext
 def close_connection(exception):
-    db = getattr(g, '_database', None)
+    db = getattr(g._database, None)
     if db is not None:
         db.close()
+
+# Bazada adminlar jadvali yo'q bo'lsa yaratish va bosh adminlarni qo'shish
+def init_admins_db():
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS admins (
+            user_id INTEGER PRIMARY KEY
+        )
+    ''')
+    for admin_id in ADMIN_IDS:
+        cursor.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (admin_id,))
+    conn.commit()
+    conn.close()
+
+init_admins_db()
+
+# Telegram orqali yangi admin qo'shish buyrug'i: /addadmin <user_id>
+@dp.message_handler(commands=['addadmin'])
+async def add_admin_command(message: types.Message):
+    user_id = message.from_user.id
+    
+    # Faqat mavjud adminlar yangi admin qo'sha oladi
+    db = sqlite3.connect(DATABASE)
+    cursor = db.cursor()
+    cursor.execute("SELECT user_id FROM admins WHERE user_id = ?", (user_id,))
+    is_admin = cursor.fetchone()
+    
+    if not is_admin:
+        db.close()
+        await message.answer("Kechirasiz, bu buyruqni faqat adminlar ishlata oladi.")
+        return
+        
+    args = message.get_args()
+    if not args.isdigit():
+        db.close()
+        await message.answer("Noto'g'ri format! Ishlatish: /addadmin <Telegram_User_ID>")
+        return
+        
+    new_admin_id = int(args)
+    cursor.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (new_admin_id,))
+    db.commit()
+    db.close()
+    
+    await message.answer(f"Muvaffaqiyatli! {new_admin_id} ID raqamli foydalanuvchi admin qilindi.")
 
 @app.route('/app')
 def web_app():
@@ -101,4 +148,4 @@ def admin_panel():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-    
+            
