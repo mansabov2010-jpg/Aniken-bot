@@ -9,7 +9,7 @@
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
-            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url('/static/bg.jpg') no-repeat center center fixed;
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('/static/bg.jpg') no-repeat center center fixed;
             background-size: cover;
             color: #fff;
             height: 100vh;
@@ -21,6 +21,10 @@
             flex: 1;
             padding: 20px;
             overflow-y: auto;
+            display: none;
+        }
+        .app-container.active {
+            display: block;
         }
         .bottom-nav {
             display: flex;
@@ -38,23 +42,90 @@
         .nav-item.active {
             color: #ff69b4;
         }
+        .chat-box {
+            height: 65vh;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.4);
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        .chat-message {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .chat-message span {
+            color: #ff69b4;
+            cursor: pointer;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
 
-    <div class="app-container">
+    <!-- Asosiy Sahifa -->
+    <div id="tab-home" class="app-container active">
         <h2>🌸 Grab Garden Kolleksiyasi</h2>
-        <p>Xush kelibsiz! Bu yerda sizning xarakterlaringiz va bozor joylashadi.</p>
+        <p>Xush kelibsiz! Bu yerda sizning xarakterlaringiz joylashadi.</p>
     </div>
 
-    <!-- Pastki navigatsiya paneli (Global Chat qo'shilgan holda) -->
+    <!-- Bozor -->
+    <div id="tab-market" class="app-container">
+        <h2>💎 Bozor va Savdo</h2>
+        <p>Bu yerda xarakterlarni sotib olishingiz va e'lon berishingiz mumkin.</p>
+    </div>
+
+    <!-- Global Chat -->
+    <div id="tab-chat" class="app-container">
+        <h2>💬 Global Chat</h2>
+        <div class="chat-box" id="chatMessages">
+            <div class="chat-message"><span onclick="openProfile('Firdavs')">Firdavs</span>: Salom hammaga!</div>
+        </div>
+        <div style="display: flex; gap: 5px;">
+            <input type="text" id="chatInput" placeholder="Xabar yozing..." style="flex:1; padding: 10px; border-radius: 5px; border: none;">
+            <button onclick="sendMessage()" style="padding: 10px; background: #ff69b4; border: none; color: white; border-radius: 5px;">Yuborish</button>
+        </div>
+    </div>
+
+    <!-- Profil -->
+    <div id="tab-profile" class="app-container">
+        <h2>👤 Foydalanuvchi Profili</h2>
+        <p id="profileInfo">Ism: Firdavs</p>
+        <h3>Kolleksiya:</h3>
+        <div id="userCharacters">Xarakterlar yuklanmoqda...</div>
+    </div>
+
+    <!-- Pastki Navigatsiya -->
     <div class="bottom-nav">
-        <div class="nav-item active">🏠 Asosiy</div>
-        <div class="nav-item">💎 Bozor</div>
-        <div class="nav-item">💬 Chat</div>
-        <div class="nav-item">👤 Profil</div>
+        <div class="nav-item active" onclick="switchTab('home', this)">🏠 Asosiy</div>
+        <div class="nav-item" onclick="switchTab('market', this)">💎 Bozor</div>
+        <div class="nav-item" onclick="switchTab('chat', this)">💬 Chat</div>
+        <div class="nav-item" onclick="switchTab('profile', this)">👤 Profil</div>
     </div>
 
+    <script>
+        function switchTab(tabName, element) {
+            document.querySelectorAll('.app-container').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById('tab-' + tabName).classList.add('active');
+            element.classList.add('active');
+        }
+
+        function openProfile(username) {
+            switchTab('profile', document.querySelectorAll('.nav-item')[3]);
+            document.getElementById('profileInfo').innerText = "Profil egasi: " + username;
+        }
+
+        function sendMessage() {
+            let input = document.getElementById('chatInput');
+            if(input.value.trim() !== '') {
+                let box = document.getElementById('chatMessages');
+                box.innerHTML += `<div class="chat-message"><span onclick="openProfile('Siz')">Siz</span>: ${input.value}</div>`;
+                input.value = '';
+                box.scrollTop = box.scrollHeight;
+            }
+        }
+    </script>
 </body>
 </html>
-
