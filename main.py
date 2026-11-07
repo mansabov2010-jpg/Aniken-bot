@@ -1,4 +1,3 @@
-# --- GRABCHARAKTER ULTIMATE BOT & MINI APP ---
 import asyncio
 import logging
 import random
@@ -10,7 +9,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, MenuButtonWebApp
 from aiohttp import web
 warnings.filterwarnings("ignore", category=ResourceWarning)
 
@@ -32,50 +31,6 @@ RARITY_CHANCES = {
     "💎 Nodir": 25,
     "⭐ Oddiy": 70
 }
-
-class AddWaifuState(StatesGroup):
-    name = State()
-    anime_name = State()
-    description = State()
-    rarity = State()
-    promo_limit = State()
-    gc_price = State()
-    diamond_price = State()
-    l1_img = State()
-    l1_proj = State()
-    l2_img = State()
-    l2_proj = State()
-    l3_img = State()
-    l3_proj = State()
-    l4_img = State()
-    l4_proj = State()
-    l5_img = State()
-    l5_proj = State()
-    l6_img = State()
-    l6_proj = State()
-    team_view = State()
-
-class BroadcastState(StatesGroup):
-    waiting_for_message = State()
-
-class SettingsState(StatesGroup):
-    channel_url = State()
-    group_url = State()
-    card_number = State()
-    card_holder = State()
-
-class PromoState(StatesGroup):
-    code = State()
-    waifu_id = State()
-    limit = State()
-
-class DesignSettingsState(StatesGroup):
-    border_radius = State()
-    glass_opacity = State()
-    bg_image = State()
-
-class SoundSettingsState(StatesGroup):
-    waiting_for_sound = State()
 
 async def db_start():
     async with aiosqlite.connect(DB_NAME) as db:
@@ -141,12 +96,6 @@ async def db_start():
                 code TEXT PRIMARY KEY,
                 waifu_id INTEGER,
                 uses_left INTEGER
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS sound_settings (
-                action TEXT PRIMARY KEY,
-                file_id TEXT
             )
         """)
         await db.commit()
@@ -241,8 +190,6 @@ async def cmd_start(message: types.Message):
     group_url = await get_setting("group_url")
             
     markup_rows = [
-        [InlineKeyboardButton(text="🎮 Mini Ilovani Ochish", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton(text="👤 Profil va Ilova", web_app=WebAppInfo(url=f"{WEBAPP_URL}#profile"))],
         [InlineKeyboardButton(text="➕ Botni guruhga qo'shish", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
         [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
         [InlineKeyboardButton(text="🔄 Bitimlar bo'limi", callback_data="trade_info")],
@@ -256,7 +203,9 @@ async def cmd_start(message: types.Message):
     markup = InlineKeyboardMarkup(inline_keyboard=markup_rows)
     text = (
         f"🌸 Salom, **{message.from_user.first_name}**!\n\n"
-        "✨ **GrabCharakter** olamiga xush kelibsiz! Pastdagi tugmalar yoki profil bo'limi orqali Mini Ilovaga o'ting."
+        "✨ **GrabCharakter** olamiga xush kelibsiz!\n"
+        "Pastdagi chap tarafda joylashgan **'GrabCharakter'** maxsus tugmasi orqali Mini Ilovaga kiring, "
+        "yoki guruhlarda qahramonlar ovlang."
     )
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
 
@@ -305,8 +254,6 @@ async def process_home(call: types.CallbackQuery):
     channel_url = await get_setting("channel_url")
     group_url = await get_setting("group_url")
     markup_rows = [
-        [InlineKeyboardButton(text="🎮 Mini Ilovani Ochish", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton(text="👤 Profil va Ilova", web_app=WebAppInfo(url=f"{WEBAPP_URL}#profile"))],
         [InlineKeyboardButton(text="➕ Botni guruhga qo'shish", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
         [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
         [InlineKeyboardButton(text="🔄 Bitimlar bo'limi", callback_data="trade_info")],
@@ -354,6 +301,48 @@ async def process_grab(call: types.CallbackQuery):
         pass
     await call.answer(f"🎉 Tabriklaymiz! Siz {w_name} ni qo'lga kiritdingiz!", show_alert=True)
     await call.message.reply(f"🏆 **{call.from_user.first_name}** — {w_name} ({w_rarity}) qahramonini tutdi! {msg_suffix}", parse_mode="Markdown")
+
+
+class AddWaifuState(StatesGroup):
+    name = State()
+    anime_name = State()
+    description = State()
+    rarity = State()
+    promo_limit = State()
+    gc_price = State()
+    diamond_price = State()
+    l1_img = State()
+    l1_proj = State()
+    l2_img = State()
+    l2_proj = State()
+    l3_img = State()
+    l3_proj = State()
+    l4_img = State()
+    l4_proj = State()
+    l5_img = State()
+    l5_proj = State()
+    l6_img = State()
+    l6_proj = State()
+    team_view = State()
+
+class BroadcastState(StatesGroup):
+    waiting_for_message = State()
+
+class SettingsState(StatesGroup):
+    channel_url = State()
+    group_url = State()
+    card_number = State()
+    card_holder = State()
+
+class PromoState(StatesGroup):
+    code = State()
+    waifu_id = State()
+    limit = State()
+
+class DesignSettingsState(StatesGroup):
+    border_radius = State()
+    glass_opacity = State()
+    bg_image = State()
 
 @dp.callback_query(F.data == "admin_panel_main")
 async def admin_panel_callback(call: types.CallbackQuery):
@@ -784,8 +773,6 @@ async def broadcast_exec(message: types.Message, state: FSMContext):
             failed += 1
     await message.answer(f"✅ Tarqatildi! Muvaffaqiyatli: {success}, Xato: {failed}")
 
-
-# --- MINI APP FRONTEND VA SERVER ---
 async def handle_home(request):
     html_content = """
     <!DOCTYPE html>
@@ -845,9 +832,8 @@ async def handle_home(request):
                 grid-template-columns: 1fr 1fr;
                 gap: 10px;
             }
-            /* Pastdagi 5 ta ikonkali bo'lim tugmalari */
             .bottom-nav {
-                position: absolute;
+                position: fixed;
                 bottom: 0;
                 left: 0;
                 width: 100%;
@@ -887,7 +873,6 @@ async def handle_home(request):
             .nav-item.active span.icon {
                 filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.8));
             }
-            /* Onboarding / O'rgatish Modal Oynasi */
             #onboarding-modal {
                 position: fixed;
                 top: 0; left: 0; width: 100%; height: 100%;
@@ -923,7 +908,6 @@ async def handle_home(request):
     </head>
     <body>
 
-        <!-- Mini App ichidagi interaktiv O'rgatish (Onboarding) Tizimi -->
         <div id="onboarding-modal">
             <div class="onboard-box">
                 <h2>🌸 Xush kelibsiz!</h2>
@@ -933,7 +917,6 @@ async def handle_home(request):
         </div>
 
         <div class="content-area">
-            <!-- 1-BO'LIM: ASOSIY VA PROEKSIYA -->
             <div id="section-1" class="section active">
                 <h2>Proeksiya Markazi</h2>
                 <div class="glass-card" style="text-align: center; min-height: 220px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
@@ -943,7 +926,6 @@ async def handle_home(request):
                 </div>
             </div>
 
-            <!-- 2-BO'LIM: KOLLEKSIYA (6 Darajali) -->
             <div id="section-2" class="section">
                 <h2>Mening Kolleksiyam</h2>
                 <div id="collection-list">
@@ -951,7 +933,6 @@ async def handle_home(request):
                 </div>
             </div>
 
-            <!-- 3-BO'LIM: MARKET -->
             <div id="section-3" class="section">
                 <h2>Market va Savdo</h2>
                 <div class="grid-2">
@@ -960,7 +941,6 @@ async def handle_home(request):
                 </div>
             </div>
 
-            <!-- 4-BO'LIM: BITIM -->
             <div id="section-4" class="section">
                 <h2>Bitimlar (Trade)</h2>
                 <div class="glass-card">
@@ -968,16 +948,14 @@ async def handle_home(request):
                 </div>
             </div>
 
-            <!-- 5-BO'LIM: PROFIL -->
             <div id="section-5" class="section">
-                <h2>Profil va Sozlamalar</h2>
+                <h2>Profil va Sozlamari</h2>
                 <div class="glass-card" id="user-profile-card">
                     <p>Foydalanuvchi ma'lumotlari yuklanmoqda...</p>
                 </div>
             </div>
         </div>
 
-        <!-- Pastdagi 5 ta ixcham ikonkali navigatsiya menyusi -->
         <nav class="bottom-nav">
             <button class="nav-item active" onclick="switchSection(1, this)">
                 <span class="icon">🏠</span>
@@ -1007,7 +985,6 @@ async def handle_home(request):
 
             const userId = tg.initDataUnsafe?.user?.id || 7986354170;
 
-            // Onboarding bosqichlari
             let onboardStep = 1;
             function nextOnboardStep() {
                 playClickSound();
@@ -1045,11 +1022,6 @@ async def handle_home(request):
                 }
             }
 
-            // Agar bot profilida #profile orqali kelsa avtomatik profilga o'tish
-            if(window.location.hash === '#profile') {
-                switchSection(5, document.querySelectorAll('.nav-item')[4]);
-            }
-
             async function loadUserData() {
                 try {
                     let res = await fetch(`/api/user?user_id=${userId}`);
@@ -1060,8 +1032,6 @@ async def handle_home(request):
                             <p><b>Foydalanuvchi:</b> @${profile.username || 'Noma\'lum'}</p>
                             <p>🪙 GC Balans: <b>${profile.balance_gc}</b></p>
                             <p>💎 Olmoslar: <b>${profile.diamonds}</b></p>
-                            <br>
-                            <button class="onboard-btn" onclick="tg.close()">Botga qaytish</button>
                         `;
 
                         let colList = document.getElementById('collection-list');
@@ -1070,7 +1040,6 @@ async def handle_home(request):
                         } else {
                             let html = '';
                             data.waifus.forEach(w => {
-                                // 6 ta darajali rasmlar va proyeksiyalarni dinamik olish
                                 let currentImg = w[`l${w.level}_img`] || w.l1_img;
                                 html += `
                                     <div class="glass-card" style="display: flex; align-items: center; gap: 15px;">
@@ -1088,7 +1057,7 @@ async def handle_home(request):
                 } catch(e) {
                     console.log("Xatolik:", e);
                 }
-    }
+            }
 
             loadUserData();
         </script>
@@ -1158,6 +1127,9 @@ async def main():
         await db_start()
         print("🤖 Bot va server Webhook rejimida ishga tushirilmoqda...")
         
+        webapp_button = MenuButtonWebApp(text="GrabCharakter", web_app=WebAppInfo(url=WEBAPP_URL))
+        await bot.set_chat_menu_button(menu_button=webapp_button)
+        
         app = web.Application(middlewares=[cors_middleware])
         app.router.add_get("/", handle_home)
         app.router.add_get("/api/settings", handle_api_settings)
@@ -1198,3 +1170,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print("Bot to'xtatildi.")
+        
