@@ -1,11 +1,10 @@
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 from flask import Flask, render_template, request, redirect, g
-@app.route('/')
-def home():
-    return redirect('/app')
 import sqlite3
 from handlers.user_handlers import register_handlers
+import threading
+import os
 
 API_TOKEN = '9111857366:AAFwGLEkXzTvaFzLB01aHtDeM4JzoEsDO_4'
 ADMIN_IDS = [7986354170, 7637155944]  # Boshlang'ich adminlar
@@ -18,6 +17,10 @@ register_handlers(dp)
 app = Flask(__name__)
 app.secret_key = 'secret_key'
 DATABASE = 'bot_database.db'
+
+@app.route('/')
+def home():
+    return redirect('/app')
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -142,16 +145,13 @@ def admin_panel():
     <form method='POST'>
         <input type='hidden' name='action' value='update_settings'>
         E'lon berish narxi (Stars): <input type='text' name='listing_fee_stars' value='{settings.get('listing_fee_stars', 1)}'><br><br>
-        Bot holati: <input type='text' name='bot_status' value='{settings.get('bot_status', 'active')}''><br><br>
+        Bot holati: <input type='text' name='bot_status' value='{settings.get('bot_status', 'active')}'><br><br>
         <button type='submit'>Sozlamalarni Saqlash</button>
     </form>
     <hr>
     <h3>Kutilayotgan E'lonlar (Moderatsiya)</h3>
     {pending_html}
     """
-
-import threading
-import os
 
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
