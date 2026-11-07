@@ -1,13 +1,15 @@
-import sqlite3
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Bot, Dispatcher
+from aiogram.utils import executor
 from flask import Flask, render_template, request, redirect, g
+import sqlite3
+from handlers.user_handlers import register_handlers
 
 API_TOKEN = 'TOKEN_SHU_YERGA'
-ADMIN_ID = 123456789  # Telegram ID ingiz
-
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
+
+# Handlerlarni ulash
+register_handlers(dp)
 
 app = Flask(__name__)
 app.secret_key = 'secret_key'
@@ -25,25 +27,6 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
-
-@dp.message_handler(commands=['start'])
-async def send_welcome(message: types.Message):
-    user_id = message.from_user.id
-    username = message.from_user.username
-    full_name = message.from_user.full_name
-    
-    db = sqlite3.connect(DATABASE)
-    cursor = db.cursor()
-    cursor.execute("INSERT OR IGNORE INTO users (user_id, username, full_name, diamonds) VALUES (?, ?, ?, ?)",
-                   (user_id, username, full_name, 100))
-    db.commit()
-    db.close()
-    
-    keyboard = InlineKeyboardMarkup()
-    web_app = WebAppInfo(url="https://domen.uz/app")
-    keyboard.add(InlineKeyboardButton("🌸 Grab Garden'ni ochish", web_app=web_app))
-    
-    await message.answer("Xush kelibsiz!", reply_markup=keyboard)
 
 @app.route('/app')
 def web_app():
