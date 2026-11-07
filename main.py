@@ -1,83 +1,100 @@
 import asyncio
 import logging
-import os
-import aiosqlite
-import warnings
-from aiogram import Bot, Dispatcher
-from aiogram.types import WebAppInfo, MenuButtonWebApp
-from aiohttp import web
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+import sqlite3
+from aiogram import Bot, Dispatcher, types
+from aiogram.fsm.storage.memory import MemoryStorage
 
-from handlers.user_handlers import router as user_router, db_start, WEBAPP_URL, TOKEN
-
-warnings.filterwarnings("ignore", category=ResourceWarning)
-
+# Logging sozlamalari
 logging.basicConfig(level=logging.INFO)
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
 
-@web.middleware
-async def cors_middleware(request, handler):
-    if request.method == "OPTIONS":
-        return web.Response(status=200, headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type"
-        })
-    response = await handler(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    return response
+# Token va Admin ID (o'zingizning ma'lumotlaringizni kiriting)
+TOKEN = "YOUR_BOT_TOKEN_HERE"
+ADMIN_IDS = [123456789]  # Adminlar ID ro'yxati
+
+bot = Bot(token=TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+
+# Ma'lumotlar bazasini yaratish va sozlash
+def init_db():
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    
+    # Foydalanuvchilar jadvali
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            full_name TEXT,
+            age INTEGER,
+            location TEXT,
+            bio TEXT,
+            coins INTEGER DEFAULT 0,
+            stars INTEGER DEFAULT 0,
+            message_count INTEGER DEFAULT 0,
+            last_bonus_date TEXT,
+            bonus_streak INTEGER DEFAULT 0
+        )
+    ''')
+    
+    # Xarakterlar jadvali
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS characters (
+            char_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            level INTEGER,
+            image_url TEXT,
+            price INTEGER,
+            is_new INTEGER DEFAULT 1
+        )
+    ''')
+    
+    # Foydalanuvchiga tegishli xarakterlar
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_characters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            char_id INTEGER,
+            count INTEGER DEFAULT 1,
+            equipped_slot INTEGER DEFAULT 0
+        )
+    ''')
+    
+    # Do'stlar / Bog'langan profillar
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS friendships (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id_1 INTEGER,
+            user_id_2 INTEGER,
+            status TEXT DEFAULT 'pending', -- pending, accepted
+            relation_type TEXT DEFAULT 'friend' -- friend, couple, best_friend
+        )
+    ''')
+
+    # Admin vazifalari va kanallar/guruhlar jadvali
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tasks (
+            task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            url TEXT,
+            reward INTEGER,
+            task_type TEXT -- channel, group, video
+        )
+    ''')
+
+    conn.commit()
+    conn.close()
 
 async def main():
-    try:
-        await db_start()
-        print("🤖 Bot va server Webhook rejimida ishga tushirilmoqda...")
-        
-        webapp_button = MenuButtonWebApp(text="GrabCharakter", web_app=WebAppInfo(url=WEBAPP_URL))
-        await bot.set_chat_menu_button(menu_button=webapp_button)
-        
-        # Routerni ulaymiz
-        dp.include_router(user_router)
-        
-        app = web.Application(middlewares=[cors_middleware])
-        
-        # Veb-server marshrutlari (routes) user_handlers dan olinadi yoki shu yerda ulanadi
-        from handlers.user_handlers import handle_home, handle_api_settings, handle_api_user_profile, handle_buy_waifu, handle_sell_waifu
-        app.router.add_get("/", handle_home)
-        app.router.add_get("/api/settings", handle_api_settings)
-        app.router.add_get("/api/user", handle_api_user_profile)
-        app.router.add_post("/api/buy", handle_buy_waifu)
-        app.router.add_post("/api/sell", handle_sell_waifu)
-        
-        WEBHOOK_PATH = "/webhook"
-        WEBHOOK_URL = f"{WEBAPP_URL}{WEBHOOK_PATH}"
-        
-        await bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
-        
-        webhook_requests_handler = SimpleRequestHandler(
-            dispatcher=dp,
-            bot=bot,
-        )
-        webhook_requests_handler.register(app, path=WEBHOOK_PATH)
-        setup_application(app, dp, bot=bot)
-        
-        runner = web.AppRunner(app)
-        await runner.setup()
-        
-        port = int(os.environ.get("PORT", 10000))
-        site = web.TCPSite(runner, "0.0.0.0", port)
-        await site.start()
-        print(f"🌐 Webhook server {port}-portda ishga tushdi!")
+    init_db()
+    logging.info("Ma'lumotlar bazasi muvaffaqiyatli ishga tushdi.")
+    
+    # Routerni ulash va ishga tushirish
+    from handlers import register_handlers
+    register_handlers(dp)
+    
+    await dp.start_polling(bot)
 
-        await asyncio.Event().wait()
-        
-    finally:
-        await bot.delete_webhook()
-        await bot.session.close()
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        print("Bot to'xtatildi.")
-        
+if __name__ == '__main__':
+    asyncio.run(main())
+    
