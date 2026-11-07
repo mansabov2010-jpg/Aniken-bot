@@ -1,4 +1,5 @@
 from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
 from flask import Flask, render_template, request, redirect, g
 import sqlite3
 from handlers.user_handlers import register_handlers
