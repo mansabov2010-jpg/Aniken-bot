@@ -146,6 +146,18 @@ def admin_panel():
     {pending_html}
     """
 
+import threading
+import os
+
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-            
+    # Flask serverni alohida oqimda ishga tushiramiz
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+
+    # Telegram botni ishga tushiramiz
+    executor.start_polling(dp, skip_updates=True)
