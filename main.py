@@ -1,4 +1,4 @@
-# --- 1-QISM: KUTUBXONALAR, SOZLAMALAR, FSM VA BAZA SXEMASI ---
+# --- GRABCHARAKTER ULTIMATE BOT & MINI APP ---
 import asyncio
 import logging
 import random
@@ -173,8 +173,6 @@ async def get_setting(key):
             res = await cursor.fetchone()
             return res[0] if res else ""
 
-# --- 2-QISM: GURUHDAGI OVLASH, KOLLEKSIYA VA OVOZ SOZLAMALari ---
-
 @dp.message(F.chat.type.in_({"group", "supergroup", "channel"}))
 async def track_chats(message: types.Message):
     async with aiosqlite.connect(DB_NAME) as db:
@@ -236,30 +234,15 @@ async def cmd_start(message: types.Message):
     username = message.from_user.username
     
     async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,)) as cursor:
-            existing = await cursor.fetchone()
-        
-        if not existing:
-            await db.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
-            await db.commit()
-            
-            # Yangi foydalanuvchi uchun onboarding / o'qitish boshlanishi
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="➡️ Profilni ko'rish (Boshlash)", callback_data="onboard_profile")]
-            ])
-            await message.answer(
-                f"🌸 Salom, **{message.from_user.first_name}**!\n\n"
-                "💡 **O'qitish (Onboarding)**:\n"
-                "GrabCharakter olamiga xush kelibsiz! Avval profilingiz bilan tanishamiz:",
-                reply_markup=keyboard, parse_mode="Markdown"
-            )
-            return
+        await db.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
+        await db.commit()
             
     channel_url = await get_setting("channel_url")
     group_url = await get_setting("group_url")
             
     markup_rows = [
         [InlineKeyboardButton(text="🎮 Mini Ilovani Ochish", web_app=WebAppInfo(url=WEBAPP_URL))],
+        [InlineKeyboardButton(text="👤 Profil va Ilova", web_app=WebAppInfo(url=f"{WEBAPP_URL}#profile"))],
         [InlineKeyboardButton(text="➕ Botni guruhga qo'shish", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
         [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
         [InlineKeyboardButton(text="🔄 Bitimlar bo'limi", callback_data="trade_info")],
@@ -273,75 +256,9 @@ async def cmd_start(message: types.Message):
     markup = InlineKeyboardMarkup(inline_keyboard=markup_rows)
     text = (
         f"🌸 Salom, **{message.from_user.first_name}**!\n\n"
-        "✨ **GrabCharakter** olamiga xush kelibsiz! Pastdagi tugmalar orqali Mini Ilovaga o'ting yoki guruhlarda qahramonlar ovlang, tanga ishlang va bitimlar tuzing."
+        "✨ **GrabCharakter** olamiga xush kelibsiz! Pastdagi tugmalar yoki profil bo'limi orqali Mini Ilovaga o'ting."
     )
     await message.answer(text, reply_markup=markup, parse_mode="Markdown")
-
-# --- ONBOARDING QADAMLARI ---
-@dp.callback_query(F.data == "onboard_profile")
-async def onboarding_profile(callback: types.CallbackQuery):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➡️ Personajlar bo'limiga o'tish", callback_data="onboard_waifus")]
-    ])
-    await callback.message.edit_text(
-        "👤 **Sening Profiling**:\n"
-        "Bu yerda sening tangalaring, olmoslaring va umumiy darajang ko'rsatiladi.\n\n"
-        "Keyingi bosqichga o'tish uchun bosing:",
-        reply_markup=keyboard, parse_mode="Markdown"
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "onboard_waifus")
-async def onboarding_waifus(callback: types.CallbackQuery):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➡️ Tanga yig'ishga o'tish", callback_data="onboard_coins")]
-    ])
-    await callback.message.edit_text(
-        "🖼️ **Personajlar bo'limi**:\n"
-        "Bu yerda o'zingizga qahramonlar qo'shishingiz va darajalarini oshirishingiz mumkin.\n\n"
-        "Davom etamiz:",
-        reply_markup=keyboard, parse_mode="Markdown"
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "onboard_coins")
-async def onboarding_coins(callback: types.CallbackQuery):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🪙 Tanga bosish (+1)", callback_data="tap_coin_tut")],
-        [InlineKeyboardButton(text="🔙 Orqaga", callback_data="onboard_waifus"),
-         [InlineKeyboardButton(text="✅ Tugatish", callback_data="onboard_finish")][0]]
-    ])
-    await callback.message.edit_text(
-        "🪙 **Tanga ishlash**:\n"
-        "Tugmani bosish orqali tanga ishlashni sinab ko'ring!",
-        reply_markup=kb, parse_mode="Markdown"
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "tap_coin_tut")
-async def tap_coin_tut(callback: types.CallbackQuery):
-    await callback.answer("+1 Tanga qo'shildi! 🪙 (Ting-ting!)", show_alert=False)
-
-@dp.callback_query(F.data == "onboard_finish")
-async def onboarding_finish(callback: types.CallbackQuery):
-    channel_url = await get_setting("channel_url")
-    group_url = await get_setting("group_url")
-    markup_rows = [
-        [InlineKeyboardButton(text="🎮 Mini Ilovani Ochish", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton(text="➕ Botni guruhga qo'shish", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
-        [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
-        [InlineKeyboardButton(text="🔄 Bitimlar bo'limi", callback_data="trade_info")],
-        [InlineKeyboardButton(text="📢 Yangiliklar kanali", url=channel_url)],
-        [InlineKeyboardButton(text="👥 Asosiy guruh", url=group_url)]
-    ]
-    if callback.from_user.id in ADMIN_IDS:
-        markup_rows.insert(0, [InlineKeyboardButton(text="👑 Admin Panel", callback_data="admin_panel_main")])
-    markup = InlineKeyboardMarkup(inline_keyboard=markup_rows)
-    await callback.message.edit_text(
-        "🎉 Tabriklayman! Boshlang'ich yo'riqnomadan muvaffaqiyatli o'tdingiz. Asosiy menyuga xush kelibsiz!",
-        reply_markup=markup, parse_mode="Markdown"
-    )
-    await callback.answer()
 
 @dp.callback_query(F.data == "my_collection")
 async def process_collection(call: types.CallbackQuery):
@@ -389,6 +306,7 @@ async def process_home(call: types.CallbackQuery):
     group_url = await get_setting("group_url")
     markup_rows = [
         [InlineKeyboardButton(text="🎮 Mini Ilovani Ochish", web_app=WebAppInfo(url=WEBAPP_URL))],
+        [InlineKeyboardButton(text="👤 Profil va Ilova", web_app=WebAppInfo(url=f"{WEBAPP_URL}#profile"))],
         [InlineKeyboardButton(text="➕ Botni guruhga qo'shish", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
         [InlineKeyboardButton(text="🎒 Mening kolleksiyam", callback_data="my_collection")],
         [InlineKeyboardButton(text="🔄 Bitimlar bo'limi", callback_data="trade_info")],
@@ -437,26 +355,6 @@ async def process_grab(call: types.CallbackQuery):
     await call.answer(f"🎉 Tabriklaymiz! Siz {w_name} ni qo'lga kiritdingiz!", show_alert=True)
     await call.message.reply(f"🏆 **{call.from_user.first_name}** — {w_name} ({w_rarity}) qahramonini tutdi! {msg_suffix}", parse_mode="Markdown")
 
-# Admin uchun ovoz sozlash handlerlari
-@dp.message(F.text == "🔊 Ovoz sozlash (Admin)")
-async def admin_sound_menu(message: types.Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS:
-        return
-    await message.answer("Tugmalar va tanga bosish uchun ishlatiladigan tovush (audio fayl yoki ovoz) yuboring:")
-    await state.set_state(SoundSettingsState.waiting_for_sound)
-
-@dp.message(SoundSettingsState.waiting_for_sound, F.audio | F.voice)
-async def save_sound_file(message: types.Message, state: FSMContext):
-    file_id = message.audio.file_id if message.audio else message.voice.file_id
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("INSERT OR REPLACE INTO sound_settings (action, file_id) VALUES ('click', ?)", (file_id,))
-        await db.commit()
-    await message.answer("✅ Muvaffaqiyatli saqlandi! Endi barcha bosishlarda shu tovush ishlatiladi.")
-    await state.clear()
-
-
-# --- 3-QISM: ADMIN PANEL VA PERSONAJ QO'SHISH FSM ---
-
 @dp.callback_query(F.data == "admin_panel_main")
 async def admin_panel_callback(call: types.CallbackQuery):
     if call.from_user.id not in ADMIN_IDS:
@@ -482,21 +380,9 @@ async def admin_panel_callback(call: types.CallbackQuery):
         [InlineKeyboardButton(text="🔗 Havolalarni sozlash", callback_data="admin_links")],
         [InlineKeyboardButton(text="🎨 Mini App Dizayni", callback_data="admin_design_menu")],
         [InlineKeyboardButton(text="📢 Barchaga xabar yuborish", callback_data="admin_broadcast")],
-        [InlineKeyboardButton(text="🔊 Ovoz sozlash (Admin)", callback_data="admin_sound_menu_btn")],
         [InlineKeyboardButton(text="« Bosh menyu", callback_data="back_home")]
     ])
     await call.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
-    await call.answer()
-
-@dp.callback_query(F.data == "admin_sound_menu_btn")
-async def admin_sound_btn_callback(call: types.CallbackQuery, state: FSMContext):
-    if call.from_user.id not in ADMIN_IDS:
-        return
-    await call.message.edit_text(
-        "🔊 **Ovoz sozlamalari**\n\nTugmalar va tanga bosilganda ishlatiladigan audio fayl yoki ovozli xabarni yuboring:",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="« Orqaga", callback_data="admin_panel_main")]])
-    )
-    await state.set_state(SoundSettingsState.waiting_for_sound)
     await call.answer()
 
 @dp.callback_query(F.data == "admin_manage_waifus")
@@ -708,8 +594,6 @@ async def add_waifu_final_save(message: types.Message, state: FSMContext):
 
     await message.answer("✅ Qahramon qo'shildi va barcha chatlarga tarqatildi!", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Panelga qaytish", callback_data="admin_panel_main")]]))
 
-# --- 4-QISM: PROMOKOD, SOZLAMALAR VA XABAR TARQATISH ---
-
 @dp.callback_query(F.data == "admin_add_promo")
 async def promo_step1(call: types.CallbackQuery, state: FSMContext):
     if call.from_user.id not in ADMIN_IDS: return
@@ -900,8 +784,8 @@ async def broadcast_exec(message: types.Message, state: FSMContext):
             failed += 1
     await message.answer(f"✅ Tarqatildi! Muvaffaqiyatli: {success}, Xato: {failed}")
 
-# --- 5-QISM (OXIRI): MINI APP WEBSERVER, API VA 3D INTERFEYS ---
 
+# --- MINI APP FRONTEND VA SERVER ---
 async def handle_home(request):
     html_content = """
     <!DOCTYPE html>
@@ -909,171 +793,304 @@ async def handle_home(request):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>GrabCharakter Mini App</title>
+        <title>GrabCharacter Mini App</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
             :root {
-                --bg-glass: rgba(255, 255, 255, 0.1);
-                --border-glass: rgba(255, 255, 255, 0.2);
+                --bg-glass: rgba(255, 255, 255, 0.08);
+                --border-glass: rgba(255, 255, 255, 0.15);
                 --text-color: #ffffff;
+                --accent-color: #a855f7;
             }
             body {
                 margin: 0;
                 padding: 0;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+                background: linear-gradient(135deg, #0f172a, #1e1b4b, #311042);
                 color: var(--text-color);
                 height: 100vh;
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
             }
-            /* Yuqori chap burchakdagi doimiy orqaga qaytish tugmasi */
-            .back-btn {
-                position: absolute;
-                top: 10px;
-                left: 10px;
-                background: var(--bg-glass);
-                border: 1px solid var(--border-glass);
-                padding: 8px 14px;
-                border-radius: 12px;
-                color: #fff;
-                cursor: pointer;
-                backdrop-filter: blur(10px);
-                z-index: 100;
-                font-weight: bold;
-                transition: 0.2s;
-            }
-            .back-btn:active {
-                transform: scale(0.95);
-            }
-            .main-container {
-                display: flex;
+            .content-area {
                 flex: 1;
-                margin-top: 55px;
-                padding: 10px;
-                gap: 10px;
-                box-sizing: border-box;
-            }
-            /* Chap taraf: Proeksiya va qahramon ko'rinishi */
-            .left-projection {
-                flex: 1;
-                background: var(--bg-glass);
-                border: 1px solid var(--border-glass);
-                border-radius: 20px;
-                backdrop-filter: blur(15px);
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
                 position: relative;
-                padding: 10px;
-                text-align: center;
+                overflow-y: auto;
+                padding: 15px;
+                padding-bottom: 70px;
             }
-            /* O'ng taraf: Personajlar ro'yxati (yuqoridan pastga) */
-            .right-characters {
-                flex: 1;
+            .section {
+                display: none;
+                animation: fadeIn 0.3s ease-in-out;
+            }
+            .section.active {
+                display: block;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(5px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .glass-card {
                 background: var(--bg-glass);
                 border: 1px solid var(--border-glass);
-                border-radius: 20px;
-                backdrop-filter: blur(15px);
-                overflow-y: auto;
-                padding: 10px;
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
+                border-radius: 16px;
+                backdrop-filter: blur(12px);
+                padding: 15px;
+                margin-bottom: 12px;
                 box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
             }
-            .char-card {
-                background: rgba(255, 255, 255, 0.05);
-                padding: 12px;
-                border-radius: 12px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                text-align: center;
-                cursor: pointer;
-                transition: 0.2s;
+            .grid-2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
             }
-            .char-card:hover {
-                background: rgba(255, 255, 255, 0.15);
-            }
-            /* Eng pastda: Sotuv va reklama qilingan yangi personajlar bo'limi */
-            .bottom-market {
-                height: 110px;
-                background: var(--bg-glass);
-                border-top: 1px solid var(--border-glass);
+            /* Pastdagi 5 ta ikonkali bo'lim tugmalari */
+            .bottom-nav {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                height: 60px;
+                background: rgba(15, 23, 42, 0.9);
                 backdrop-filter: blur(15px);
+                border-top: 1px solid var(--border-glass);
                 display: flex;
+                justify-content: space-around;
                 align-items: center;
-                overflow-x: auto;
-                padding: 10px;
-                gap: 12px;
+                z-index: 1000;
                 box-sizing: border-box;
+                padding: 0 5px;
             }
-            .market-item {
-                min-width: 85px;
-                height: 100%;
-                background: rgba(255, 255, 255, 0.12);
-                border-radius: 12px;
+            .nav-item {
+                background: none;
+                border: none;
+                color: #94a3b8;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                border: 1px solid rgba(255, 255, 255, 0.25);
+                flex: 1;
                 cursor: pointer;
-                font-size: 12px;
-                font-weight: bold;
+                transition: 0.2s;
+                font-size: 10px;
+                font-weight: 600;
+            }
+            .nav-item span.icon {
+                font-size: 20px;
+                margin-bottom: 2px;
+            }
+            .nav-item.active {
+                color: #ffffff;
+                transform: scale(1.05);
+            }
+            .nav-item.active span.icon {
+                filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.8));
+            }
+            /* Onboarding / O'rgatish Modal Oynasi */
+            #onboarding-modal {
+                position: fixed;
+                top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0, 0, 0, 0.85);
+                backdrop-filter: blur(10px);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                padding: 20px;
+                box-sizing: border-box;
                 text-align: center;
-                flex-shrink: 0;
+            }
+            .onboard-box {
+                background: rgba(255, 255, 255, 0.1);
+                border: 1px solid var(--border-glass);
+                padding: 25px;
+                border-radius: 20px;
+                max-width: 320px;
+            }
+            .onboard-btn {
+                background: #a855f7;
+                color: #fff;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 12px;
+                font-weight: bold;
+                margin-top: 15px;
+                cursor: pointer;
             }
         </style>
     </head>
     <body>
-        <!-- Chap yuqori burchakdagi orqaga qaytish tugmasi -->
-        <button class="back-btn" onclick="goBack()">← Orqaga</button>
-        
-        <div class="main-container">
-            <!-- Chap taraf: Proeksiya -->
-            <div class="left-projection">
-                <h3>Proeksiya</h3>
-                <p>Character oyog'i tagidagi zona</p>
-            </div>
-            
-            <!-- O'ng taraf: Barcha personajlar ro'yxati -->
-            <div class="right-characters">
-                <h3>Mening Personajlarim</h3>
-                <div class="char-card">Miku Nakano (L1)</div>
-                <div class="char-card">Character 2 (L2)</div>
-                <div class="char-card">Character 3 (L1)</div>
+
+        <!-- Mini App ichidagi interaktiv O'rgatish (Onboarding) Tizimi -->
+        <div id="onboarding-modal">
+            <div class="onboard-box">
+                <h2>🌸 Xush kelibsiz!</h2>
+                <p id="onboard-text">GrabCharakter ilovasiga xush kelibsiz! Bu yerda siz o'z qahramonlaringizni boshqarasiz va darajalarini oshirasiz.</p>
+                <button class="onboard-btn" onclick="nextOnboardStep()">Tushunarli ➡️</button>
             </div>
         </div>
 
-        <!-- Eng pastdagi sotuv va yangi personajlar reklamasi bo'limi -->
-        <div class="bottom-market">
-            <div class="market-item">🔥 Yangi 1<br><small>150 🪙</small></div>
-            <div class="market-item">✨ Yangi 2<br><small>300 🪙</small></div>
-            <div class="market-item">💎 Yangi 3<br><small>50 💎</small></div>
-            <div class="market-item">🌟 Yangi 4<br><small>500 🪙</small></div>
+        <div class="content-area">
+            <!-- 1-BO'LIM: ASOSIY VA PROEKSIYA -->
+            <div id="section-1" class="section active">
+                <h2>Proeksiya Markazi</h2>
+                <div class="glass-card" style="text-align: center; min-height: 220px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <div id="active-projection-view">
+                        <p>Qahramon oyog'i tagidagi 3D zona va daraja assetlari</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2-BO'LIM: KOLLEKSIYA (6 Darajali) -->
+            <div id="section-2" class="section">
+                <h2>Mening Kolleksiyam</h2>
+                <div id="collection-list">
+                    <div class="glass-card">Ma'lumotlar yuklanmoqda...</div>
+                </div>
+            </div>
+
+            <!-- 3-BO'LIM: MARKET -->
+            <div id="section-3" class="section">
+                <h2>Market va Savdo</h2>
+                <div class="grid-2">
+                    <div class="glass-card" style="text-align: center;">🔥 Yangi Qahramon<br><small>150 🪙</small></div>
+                    <div class="glass-card" style="text-align: center;">✨ Afsonaviy Case<br><small>300 🪙</small></div>
+                </div>
+            </div>
+
+            <!-- 4-BO'LIM: BITIM -->
+            <div id="section-4" class="section">
+                <h2>Bitimlar (Trade)</h2>
+                <div class="glass-card">
+                    <p>O'zaro ayirboshlash va savdo markazi.</p>
+                </div>
+            </div>
+
+            <!-- 5-BO'LIM: PROFIL -->
+            <div id="section-5" class="section">
+                <h2>Profil va Sozlamalar</h2>
+                <div class="glass-card" id="user-profile-card">
+                    <p>Foydalanuvchi ma'lumotlari yuklanmoqda...</p>
+                </div>
+            </div>
         </div>
+
+        <!-- Pastdagi 5 ta ixcham ikonkali navigatsiya menyusi -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" onclick="switchSection(1, this)">
+                <span class="icon">🏠</span>
+                <span>Asosiy</span>
+            </button>
+            <button class="nav-item" onclick="switchSection(2, this)">
+                <span class="icon">🎒</span>
+                <span>Kolleksiya</span>
+            </button>
+            <button class="nav-item" onclick="switchSection(3, this)">
+                <span class="icon">🛒</span>
+                <span>Market</span>
+            </button>
+            <button class="nav-item" onclick="switchSection(4, this)">
+                <span class="icon">🔄</span>
+                <span>Bitim</span>
+            </button>
+            <button class="nav-item" onclick="switchSection(5, this)">
+                <span class="icon">⚙️</span>
+                <span>Profil</span>
+            </button>
+        </nav>
 
         <script>
             let tg = window.Telegram.WebApp;
             tg.expand();
 
+            const userId = tg.initDataUnsafe?.user?.id || 7986354170;
+
+            // Onboarding bosqichlari
+            let onboardStep = 1;
+            function nextOnboardStep() {
+                playClickSound();
+                let textEl = document.getElementById('onboard-text');
+                if(onboardStep === 1) {
+                    textEl.innerText = "Pastdagi 5 ta bo'lim orqali Kolleksiya, Market va Profilingizni boshqarishingiz mumkin.";
+                    onboardStep++;
+                } else if(onboardStep === 2) {
+                    textEl.innerText = "Tayyorsiz! Boshlaymiz!";
+                    onboardStep++;
+                } else {
+                    document.getElementById('onboarding-modal').style.display = 'none';
+                }
+            }
+
             function playClickSound() {
-                // Har bir bosganda chiqadigan maxsus tovush
                 let audio = new Audio('https://actions.google.com/sounds/v1/ui/button_click.ogg');
                 audio.play().catch(e => console.log(e));
             }
 
-            function goBack() {
+            function switchSection(sectionNumber, btnElement) {
                 playClickSound();
-                window.history.back();
+                document.querySelectorAll('.section').forEach(sec => {
+                    sec.classList.remove('active');
+                });
+                document.getElementById(`section-${sectionNumber}`).classList.add('active');
+
+                document.querySelectorAll('.nav-item').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                btnElement.classList.add('active');
+
+                if(sectionNumber === 2 || sectionNumber === 5) {
+                    loadUserData();
+                }
             }
 
-            document.addEventListener('click', () => {
-                playClickSound();
-            });
+            // Agar bot profilida #profile orqali kelsa avtomatik profilga o'tish
+            if(window.location.hash === '#profile') {
+                switchSection(5, document.querySelectorAll('.nav-item')[4]);
+            }
+
+            async function loadUserData() {
+                try {
+                    let res = await fetch(`/api/user?user_id=${userId}`);
+                    let data = await res.json();
+                    if(data.status === 'success') {
+                        let profile = data.profile;
+                        document.getElementById('user-profile-card').innerHTML = `
+                            <p><b>Foydalanuvchi:</b> @${profile.username || 'Noma\'lum'}</p>
+                            <p>🪙 GC Balans: <b>${profile.balance_gc}</b></p>
+                            <p>💎 Olmoslar: <b>${profile.diamonds}</b></p>
+                            <br>
+                            <button class="onboard-btn" onclick="tg.close()">Botga qaytish</button>
+                        `;
+
+                        let colList = document.getElementById('collection-list');
+                        if(data.waifus.length === 0) {
+                            colList.innerHTML = `<div class="glass-card">Kolleksiyangiz hozircha bo'sh.</div>`;
+                        } else {
+                            let html = '';
+                            data.waifus.forEach(w => {
+                                // 6 ta darajali rasmlar va proyeksiyalarni dinamik olish
+                                let currentImg = w[`l${w.level}_img`] || w.l1_img;
+                                html += `
+                                    <div class="glass-card" style="display: flex; align-items: center; gap: 15px;">
+                                        <img src="${currentImg}" style="width: 50px; height: 50px; border-radius: 10px; object-fit: cover;">
+                                        <div style="text-align: left;">
+                                            <b>${w.name}</b> (${w.rarity})<br>
+                                            <small>Daraja: Level ${w.level} — x${w.count}</small>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            colList.innerHTML = html;
+                        }
+                    }
+                } catch(e) {
+                    console.log("Xatolik:", e);
+                }
+    }
+
+            loadUserData();
         </script>
     </body>
     </html>
@@ -1181,4 +1198,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print("Bot to'xtatildi.")
-        
