@@ -302,7 +302,6 @@ async def process_grab(call: types.CallbackQuery):
     await call.answer(f"🎉 Tabriklaymiz! Siz {w_name} ni qo'lga kiritdingiz!", show_alert=True)
     await call.message.reply(f"🏆 **{call.from_user.first_name}** — {w_name} ({w_rarity}) qahramonini tutdi! {msg_suffix}", parse_mode="Markdown")
 
-
 class AddWaifuState(StatesGroup):
     name = State()
     anime_name = State()
@@ -1142,7 +1141,7 @@ async def main():
         
         from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
         
-        await bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
+        await bot.set_webhook(url=WEBAPP_URL, drop_pending_updates=True)
         
         webhook_requests_handler = SimpleRequestHandler(
             dispatcher=dp,
