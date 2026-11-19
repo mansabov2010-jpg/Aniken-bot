@@ -33,6 +33,6 @@ async def cb_handler(client: Bot, query: CallbackQuery):
 
 # Jishu Developer 
 # Don't Remove Credit 🥺
-# Telegram Channel @Madflix_Bots
-# Backup Channel @JishuBotz
-# Developer @JishuDeveloper
+# Telegram Channel @Forever_TN
+# Backup Channel @AniKinolar_Kanal
+# Developer @Yegerist_mvp
