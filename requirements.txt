@@ -1,5 +1,6 @@
-kurigram
-tgcrypto
+pyrogram==2.0.106
+TgCrypto==1.2.5
+pyromod==1.5
 pymongo
 dnspython
 aiohttp
