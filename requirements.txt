@@ -1,5 +1,4 @@
-pyaes>=1.6.0
-pyrofork
+kurigram
 tgcrypto
 pymongo
 dnspython
