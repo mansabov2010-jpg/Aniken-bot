@@ -1,6 +1,5 @@
 kurigram
 tgcrypto
-pyromod
 pymongo
 dnspython
 aiohttp
