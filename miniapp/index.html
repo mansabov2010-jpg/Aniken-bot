@@ -351,6 +351,7 @@
 
   <div class="topbar">
     <select id="itemSelector" class="chat-select" onchange="switchItemDropdown()"></select>
+    <button class="small-btn" onclick="manualRefresh()">🔄</button>
     <button class="small-btn" onclick="toggleCustomBar()">+ Qo'shish</button>
   </div>
 
@@ -495,6 +496,33 @@
         setSendStatus("⚠️ Serverga ulanib bo'lmadi (Render uyg'onyapti bo'lishi mumkin, qayta urining)", true);
       }
       return null;
+    }
+
+    // Guruh va kontaktlar ro'yxatini serverdan jonli yangilaydi
+    async function syncListsFromServer() {
+      if (!apiBaseUrl || !tg || !tg.initData) return false;
+      try {
+        const resp = await fetch(`${apiBaseUrl.replace(/\/+$/, "")}/api/lists`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ init_data: tg.initData }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.ok) {
+          const before = JSON.stringify([loadList("groups"), loadList("contacts")]);
+          ingestPayload({ groups: data.groups, contacts: data.contacts });
+          const after = JSON.stringify([loadList("groups"), loadList("contacts")]);
+          if (before !== after) renderAll();
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+
+    async function manualRefresh() {
+      setSendStatus("⏳ Ro'yxat yangilanmoqda...", false);
+      const ok = await syncListsFromServer();
+      setSendStatus(ok ? "✅ Ro'yxat yangilandi" : "⚠️ Ro'yxatni yangilab bo'lmadi", !ok);
     }
 
     function loadList(tab) {
@@ -1051,6 +1079,8 @@
 
     initFromUrl();
     renderAll();
+    syncListsFromServer();
+    setInterval(syncListsFromServer, 15000);
   </script>
 </body>
 </html>
