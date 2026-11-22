@@ -2,6 +2,7 @@ import asyncio
 import base64
 import hashlib
 import hmac
+import html
 import json
 import os
 import random
@@ -119,6 +120,19 @@ def is_admin(user_id: int) -> bool:
     return user_id in get_all_admin_ids()
 
 
+# Bot nomidan yuboriladigan matnlar uchun bezak (kerak bo'lmasa "" qiling)
+STYLE_PREFIX = "✨ "
+
+
+def fancy_text(text: str) -> str:
+    """Matnni qalin + qiya (bold italic) qilib, oldiga bezak qo'shadi.
+    Faqat emoji/belgidan iborat matn (stiker) o'zgarishsiz yuboriladi."""
+    safe = html.escape(text or "", quote=False)
+    if not any(ch.isalnum() for ch in safe):
+        return safe
+    return f"{STYLE_PREFIX}<b><i>{safe}</i></b>"
+
+
 def parse_target_id(raw_target: str) -> int | str:
     s = str(raw_target or "").strip()
     if s.lstrip("-").isdigit():
@@ -139,45 +153,58 @@ def make_chat_link(chat_id_str: str, username: str = "") -> str:
     return f"https://t.me/{MAIN_CHANNEL.lstrip('@')}"
 
 
-def build_miniapp_url() -> str:
-    payload = {"groups": [], "contacts": [], "api_base": BACKEND_API_URL, "incoming_message": None}
+def _rows_as_dicts(cur, sql: str) -> list[dict]:
+    cur.execute(sql)
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, tuple(r))) for r in cur.fetchall()]
 
+
+def _pick(row: dict, *names: str, default: str = "") -> str:
+    for n in names:
+        if row.get(n) not in (None, ""):
+            return str(row[n])
+    return default
+
+
+def load_lists() -> dict:
+    """Bazadan guruh/kanal va kontaktlar ro'yxatini jonli o'qiydi."""
+    groups: list[dict] = []
+    contacts: list[dict] = []
     try:
         conn = db.get_conn()
         cur = conn.cursor()
 
         try:
-            rows = cur.execute("SELECT chat_id, title, chat_type FROM chats").fetchall()
-            for r in rows:
-                cid = str(r["chat_id"] if hasattr(r, "keys") else r[0])
-                title = str(r["title"] if hasattr(r, "keys") else (r[1] or cid))
-                ctype = str(r["chat_type"] if hasattr(r, "keys") else (r[2] or ""))
-                if ctype in ("group", "supergroup", "channel") or cid.startswith("-100"):
-                    payload["groups"].append({
-                        "id": cid,
-                        "name": title,
-                        "link": make_chat_link(cid),
-                    })
-        except Exception:
-            pass
+            for r in _rows_as_dicts(cur, "SELECT * FROM chats"):
+                cid = _pick(r, "chat_id", "id")
+                if not cid:
+                    continue
+                title = _pick(r, "title", "name", default=cid)
+                ctype = _pick(r, "chat_type", "type").lower()
+                if "group" in ctype or "channel" in ctype or cid.startswith("-"):
+                    groups.append({"id": cid, "name": title, "link": make_chat_link(cid)})
+        except Exception as e:
+            print("load_lists (chats) xatosi:", e)
 
         try:
-            urows = cur.execute("SELECT user_id, full_name, username FROM users").fetchall()
-            for u in urows:
-                uid = str(u["user_id"] if hasattr(u, "keys") else u[0])
-                fname = str(u["full_name"] if hasattr(u, "keys") else (u[1] or uid))
-                uname = str(u["username"] if hasattr(u, "keys") else (u[2] or ""))
-                payload["contacts"].append({
-                    "id": uid,
-                    "name": fname,
-                    "link": make_chat_link(uid, uname),
-                })
-        except Exception:
-            pass
+            for r in _rows_as_dicts(cur, "SELECT * FROM users"):
+                uid = _pick(r, "user_id", "id")
+                if not uid:
+                    continue
+                fname = _pick(r, "full_name", "name", default=uid)
+                uname = _pick(r, "username")
+                contacts.append({"id": uid, "name": fname, "link": make_chat_link(uid, uname)})
+        except Exception as e:
+            print("load_lists (users) xatosi:", e)
 
         conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        print("load_lists xatosi:", e)
+    return {"groups": groups, "contacts": contacts}
+
+
+def build_miniapp_url() -> str:
+    payload = {**load_lists(), "api_base": BACKEND_API_URL, "incoming_message": None}
 
     encoded = urllib.parse.quote(json.dumps(payload, ensure_ascii=False))
     sep = "&" if "?" in BASE_MINIAPP_URL else "?"
@@ -522,8 +549,8 @@ async def execute_miniapp_payload(bot: Bot, payload: dict) -> tuple[bool, str, i
             return False, "Manzil yoki matn bo'sh", None
         sent = await bot.send_message(
             chat_id=target_chat,
-            text=text_body,
-            parse_mode=None,
+            text=fancy_text(text_body),
+            parse_mode=ParseMode.HTML,
             reply_to_message_id=reply_id,
         )
         return True, f"Xabar {target_chat} ga yuborildi", sent.message_id
@@ -568,8 +595,8 @@ async def execute_miniapp_payload(bot: Bot, payload: dict) -> tuple[bool, str, i
             await bot.edit_message_text(
                 chat_id=target_chat,
                 message_id=msg_id,
-                text=new_text,
-                parse_mode=None,
+                text=fancy_text(new_text),
+                parse_mode=ParseMode.HTML,
             )
             return True, "Xabar tahrirlandi", msg_id
         return False, "Tahrirlash parametrlari noto'g'ri", None
@@ -594,7 +621,10 @@ async def on_my_chat_member(event):
 
 @router.message(F.chat.type.in_({"group", "supergroup"}))
 async def on_group_activity(message: Message, bot: Bot):
-    db.add_chat(message.chat.id, message.chat.title or str(message.chat.id), message.chat.type)
+    try:
+        db.add_chat(message.chat.id, message.chat.title or str(message.chat.id), message.chat.type)
+    except Exception as e:
+        print("db.add_chat xatosi:", e)
     if message.from_user and not message.from_user.is_bot:
         db.add_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
 
@@ -953,8 +983,8 @@ async def fsm_direct_send(message: Message, bot: Bot, state: FSMContext):
     try:
         sent = await bot.send_message(
             chat_id=target_id,
-            text=body,
-            parse_mode=None,
+            text=fancy_text(body),
+            parse_mode=ParseMode.HTML,
         )
         await message.answer(
             f"✅ Xabar bot nomidan yuborildi!\n• Manzil: <code>{target_id}</code>\n• Xabar ID: <code>{sent.message_id}</code>",
@@ -1533,11 +1563,25 @@ async def api_send_handler(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": str(e)}, status=400, headers=_cors_headers())
 
 
+async def api_lists_handler(request: web.Request) -> web.Response:
+    """Mini ilova guruh va kontaktlar ro'yxatini shu yerdan jonli oladi."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    uid = verify_init_data(payload.get("init_data", ""))
+    if not uid or not is_admin(uid):
+        return web.json_response({"ok": False, "error": "Ruxsat yo'q"}, status=403, headers=_cors_headers())
+    return web.json_response({"ok": True, **load_lists()}, headers=_cors_headers())
+
+
 async def start_web_server():
     app = web.Application(client_max_size=20 * 1024 * 1024)
     app.router.add_get("/", lambda req: web.Response(text="OK - AniKinolar Bot Running"))
     app.router.add_options("/api/send", api_options)
     app.router.add_post("/api/send", api_send_handler)
+    app.router.add_options("/api/lists", api_options)
+    app.router.add_post("/api/lists", api_lists_handler)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
