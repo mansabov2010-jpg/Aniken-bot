@@ -321,6 +321,7 @@
     }
     .btn.primary { background: #0284c7; border-color: #7dd3fc; color: #fff; }
     .btn.danger { background: #dc2626; border-color: #fca5a5; color: #fff; }
+    .btn:disabled { opacity: 0.55; cursor: wait; }
     .input-row { display: flex; gap: 6px; }
     .input-row input {
       flex: 1;
@@ -446,46 +447,54 @@
     let recordedAudioUrl = "";
     let recordedDuration = "0:00";
 
+    // Matnni xavfsiz ko'rsatish (HTML belgilar xato chiqarmasligi uchun)
+    function esc(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
     function setSendStatus(txt, isErr = false) {
       const el = document.getElementById("sendStatusLabel");
       if (!el) return;
       el.innerHTML = isErr
-        ? `<span style="color:#fca5a5;">${txt}</span>`
-        : `<span>${txt}</span>`;
+        ? `<span style="color:#fca5a5;">${esc(txt)}</span>`
+        : `<span>${esc(txt)}</span>`;
     }
 
+    // ───────────────────────────────────────────────
+    //  Telegram'ga yuborish (bot serveri orqali)
+    //  Muvaffaqiyatli bo'lsa javob obyektini, aks holda null qaytaradi
+    // ───────────────────────────────────────────────
     async function dispatchToTelegram(payloadObj) {
-      let sentViaApi = false;
-      if (apiBaseUrl) {
-        try {
-          const resp = await fetch(`${apiBaseUrl.replace(/\/+$/, "")}/api/send`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payloadObj),
-          });
-          const data = await resp.json();
-          if (resp.ok && data && data.ok) {
-            sentViaApi = true;
-            setSendStatus("✅ Telegram'ga yuborildi", false);
-            return;
-          }
-          if (data && data.error) {
-            setSendStatus(`⚠️ TG xato: ${data.error}`, true);
-            return;
-          }
-        } catch (_) {}
+      if (!apiBaseUrl) {
+        setSendStatus("⚠️ API manzili yo'q. Botda BACKEND_API_URL ni o'rnating va mini ilovani qayta oching", true);
+        return null;
       }
-
-      if (tg && typeof tg.sendData === "function") {
-        try {
-          tg.sendData(JSON.stringify(payloadObj));
-          setSendStatus("📤 Botga yuborildi", false);
-        } catch (_) {
-          if (!sentViaApi) {
-            setSendStatus("⚠️ Yuborishda xatolik", true);
-          }
+      if (!tg || !tg.initData) {
+        setSendStatus("⚠️ Mini ilovani Telegram ichidagi tugma orqali oching", true);
+        return null;
+      }
+      setSendStatus("⏳ Yuborilmoqda...", false);
+      try {
+        const resp = await fetch(`${apiBaseUrl.replace(/\/+$/, "")}/api/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payloadObj, init_data: tg.initData }),
+        });
+        let data = {};
+        try { data = await resp.json(); } catch (_) {}
+        if (resp.ok && data.ok) {
+          setSendStatus("✅ Telegram'ga yuborildi", false);
+          return data;
         }
+        setSendStatus("⚠️ " + (data.error || data.message || ("Server xatosi: " + resp.status)), true);
+      } catch (e) {
+        setSendStatus("⚠️ Serverga ulanib bo'lmadi (Render uyg'onyapti bo'lishi mumkin, qayta urining)", true);
       }
+      return null;
     }
 
     function loadList(tab) {
@@ -647,11 +656,11 @@
 
       bar.innerHTML = list.map(item => `
         <button class="item-chip ${active && String(active.id) === String(item.id) ? "active" : ""}" onclick="selectItem('${String(item.id).replace(/'/g, "\\'")}')">
-          ${item.name}
+          ${esc(item.name)}
         </button>
       `).join("");
 
-      sel.innerHTML = list.map(item => `<option value="${item.id}">${item.name}</option>`).join("");
+      sel.innerHTML = list.map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join("");
       if (active) sel.value = active.id;
 
       if (active) {
@@ -723,30 +732,30 @@
 
         let bodyHtml = "";
         if (m.type === "sticker") {
-          bodyHtml = `<div class="sticker-view">${m.sticker || "🧸"}</div>`;
+          bodyHtml = `<div class="sticker-view">${esc(m.sticker || "🧸")}</div>`;
         } else if (m.type === "voice") {
           bodyHtml = `
             <div class="voice-box">
-              <span>🎙 Ovozli xabar (${m.duration || "0:00"})</span>
+              <span>🎙 Ovozli xabar (${esc(m.duration || "0:00")})</span>
               ${m.audioUrl ? `<audio controls src="${m.audioUrl}"></audio>` : ""}
             </div>
           `;
         }
         if (m.text) {
-          bodyHtml += `<div class="msg-body">${m.text}</div>`;
+          bodyHtml += `<div class="msg-body">${esc(m.text)}</div>`;
         }
 
         return `
           <div id="msg-row-${m.id}" class="msg-row ${dir}">
             <div class="msg-card">
               <div class="msg-head">
-                <span>${sender}</span>
-                <span class="msg-time">${m.time || ""} • #${m.id}</span>
+                <span>${esc(sender)}</span>
+                <span class="msg-time">${esc(m.time || "")} • #${m.id}</span>
               </div>
               ${hasReply ? `
-                <div class="reply-box" onclick="jumpToMessage(${m.replyTo.id || 0})">
-                  <b>↩️ ${m.replyTo.sender || "Xabar"} ${m.replyTo.id ? "#" + m.replyTo.id : ""}</b><br/>
-                  <span>${m.replyTo.text || ""}</span>
+                <div class="reply-box" onclick="jumpToMessage(${Number(m.replyTo.id) || 0})">
+                  <b>↩️ ${esc(m.replyTo.sender || "Xabar")} ${m.replyTo.id ? "#" + m.replyTo.id : ""}</b><br/>
+                  <span>${esc(m.replyTo.text || "")}</span>
                 </div>
               ` : ""}
               ${bodyHtml}
@@ -796,6 +805,14 @@
       const list = JSON.parse(localStorage.getItem(msgsKey(active)) || "[]");
       const found = list.find(x => String(x.id) === String(id));
       if (!found) return;
+      if (found.direction === "incoming") {
+        setSendStatus("⚠️ Faqat bot yuborgan xabarni tahrirlash mumkin", true);
+        return;
+      }
+      if (found.type === "voice") {
+        setSendStatus("⚠️ Ovozli xabarni tahrirlab bo'lmaydi", true);
+        return;
+      }
       editingMsgId = found.id;
       document.getElementById("msgInput").value = found.text || found.sticker || "";
       document.getElementById("submitBtn").textContent = "Saqlash";
@@ -808,72 +825,78 @@
       document.getElementById("editingBadge").textContent = "";
     }
 
-    function reactMsg(id, emoji) {
+    async function reactMsg(id, emoji) {
       const active = getActiveItem();
       if (!active) return;
       const key = msgsKey(active);
       const list = JSON.parse(localStorage.getItem(key) || "[]");
       const item = list.find(x => String(x.id) === String(id));
       if (!item) return;
-      item.reaction = item.reaction === emoji ? "" : emoji;
-      localStorage.setItem(key, JSON.stringify(list));
-      renderMessages(active);
-      dispatchToTelegram({
+      const newReaction = item.reaction === emoji ? "" : emoji;
+      const data = await dispatchToTelegram({
         action: "react_msg",
         target_id: active.id,
         message_id: id,
-        emoji
+        emoji: newReaction || emoji
       });
-    }
-
-    function deleteMsg(id) {
-      const active = getActiveItem();
-      if (!active) return;
-      const key = msgsKey(active);
-      const list = JSON.parse(localStorage.getItem(key) || "[]").filter(x => String(x.id) !== String(id));
+      if (!data) return;
+      item.reaction = newReaction;
       localStorage.setItem(key, JSON.stringify(list));
       renderMessages(active);
-      dispatchToTelegram({
+    }
+
+    async function deleteMsg(id) {
+      const active = getActiveItem();
+      if (!active) return;
+      const data = await dispatchToTelegram({
         action: "delete_sent_msg",
         target_id: active.id,
         message_id: id
       });
+      if (!data) return;
+      const key = msgsKey(active);
+      const list = JSON.parse(localStorage.getItem(key) || "[]").filter(x => String(x.id) !== String(id));
+      localStorage.setItem(key, JSON.stringify(list));
+      renderMessages(active);
     }
 
-    function pushOutMsg(payloadObj) {
+    // Avval Telegram'ga yuboradi. Faqat muvaffaqiyatli bo'lsa chatga haqiqiy Telegram ID bilan qo'shadi.
+    async function pushOutMsg(payloadObj) {
       const active = getActiveItem();
-      if (!active) return;
+      if (!active) return false;
+      const rt = replyTarget;
+      const isVoice = payloadObj.type === "voice";
+
+      const body = isVoice
+        ? { action: "send_voice_data", target_id: active.id, audio_base64: payloadObj.audioUrl }
+        : { action: "send_direct", target_id: active.id, text: payloadObj.text || payloadObj.sticker };
+      if (rt && rt.id) body.reply_to = rt.id;
+
+      const data = await dispatchToTelegram(body);
+      if (!data || !data.tg_message_id) return false;
+
       const key = msgsKey(active);
       const list = JSON.parse(localStorage.getItem(key) || "[]");
-      const newId = Math.floor(Date.now() + Math.random() * 900) % 1000000;
-      const item = {
-        id: newId,
+      list.push({
+        id: data.tg_message_id,
         direction: "outgoing",
         sender: "Bot",
         time: nowTime(),
-        replyTo: replyTarget ? { id: replyTarget.id, sender: replyTarget.sender, text: replyTarget.text } : null,
+        replyTo: rt ? { id: rt.id, sender: rt.sender, text: rt.text } : null,
         reaction: "",
         ...payloadObj
-      };
-      list.push(item);
+      });
       localStorage.setItem(key, JSON.stringify(dedupeById(list)));
       renderMessages(active);
-
-      dispatchToTelegram({
-        action: "send_direct",
-        target_id: active.id,
-        text: item.text || item.sticker || `🎙 Ovozli xabar (${item.duration || "0:00"})`,
-        media_type: item.type || "text",
-        show_sender: false
-      });
+      return true;
     }
 
-    function sendStickerItem(stickerChar) {
+    async function sendStickerItem(stickerChar) {
       if (isSubmitting) return;
       isSubmitting = true;
-      pushOutMsg({ type: "sticker", sticker: stickerChar, text: "" });
-      clearReply();
-      setTimeout(() => { isSubmitting = false; }, 250);
+      const ok = await pushOutMsg({ type: "sticker", sticker: stickerChar, text: "" });
+      if (ok) clearReply();
+      isSubmitting = false;
     }
 
     function openVoicePanel() {
@@ -953,71 +976,78 @@
       }
     }
 
-    function sendRecordedVoice() {
+    async function sendRecordedVoice() {
       const active = getActiveItem();
-      if (!active || !recordedAudioUrl) return;
+      if (!active || !recordedAudioUrl || isSubmitting) return;
+      isSubmitting = true;
+      const btn = document.getElementById("sendVoiceBtn");
+      btn.disabled = true;
 
-      pushOutMsg({
+      const ok = await pushOutMsg({
         type: "voice",
         duration: recordedDuration,
         audioUrl: recordedAudioUrl,
         text: ""
       });
 
-      dispatchToTelegram({
-        action: "send_voice_data",
-        target_id: active.id,
-        duration: recordedDuration,
-        audio_base64: recordedAudioUrl
-      });
-
-      clearReply();
-      discardVoice();
+      btn.disabled = false;
+      isSubmitting = false;
+      if (ok) {
+        clearReply();
+        discardVoice();
+      }
     }
 
-    function submitTextOrEdit() {
+    async function submitTextOrEdit() {
       if (isSubmitting) return;
       const inp = document.getElementById("msgInput");
       const text = inp.value.trim();
       if (!text) return;
-      isSubmitting = true;
 
       const active = getActiveItem();
-      if (!active) {
-        isSubmitting = false;
-        return;
-      }
+      if (!active) return;
+      isSubmitting = true;
+      const submitBtn = document.getElementById("submitBtn");
+      submitBtn.disabled = true;
 
       if (editingMsgId !== null) {
-        const key = msgsKey(active);
-        const list = JSON.parse(localStorage.getItem(key) || "[]");
-        const item = list.find(x => String(x.id) === String(editingMsgId));
-        if (item) {
-          if (item.type === "sticker") {
-            item.sticker = text;
-          } else {
-            item.text = text;
+        const data = await dispatchToTelegram({
+          action: "edit_sent_msg",
+          target_id: active.id,
+          message_id: editingMsgId,
+          text
+        });
+        if (data) {
+          const key = msgsKey(active);
+          const list = JSON.parse(localStorage.getItem(key) || "[]");
+          const item = list.find(x => String(x.id) === String(editingMsgId));
+          if (item) {
+            if (item.type === "sticker") {
+              item.sticker = text;
+            } else {
+              item.text = text;
+            }
+            localStorage.setItem(key, JSON.stringify(list));
+            renderMessages(active);
           }
-          localStorage.setItem(key, JSON.stringify(list));
-          renderMessages(active);
-          dispatchToTelegram({
-            action: "edit_sent_msg",
-            target_id: active.id,
-            message_id: editingMsgId,
-            text
-          });
+          inp.value = "";
+          cancelEdit();
         }
-        inp.value = "";
-        cancelEdit();
-        setTimeout(() => { isSubmitting = false; }, 250);
-        return;
+      } else {
+        const ok = await pushOutMsg({ type: "text", text });
+        if (ok) {
+          inp.value = "";
+          clearReply();
+        }
       }
 
-      pushOutMsg({ type: "text", text });
-      inp.value = "";
-      clearReply();
-      setTimeout(() => { isSubmitting = false; }, 250);
+      submitBtn.disabled = false;
+      isSubmitting = false;
     }
+
+    document.getElementById("msgInput").addEventListener("keydown", e => {
+      if (e.key === "Enter") submitTextOrEdit();
+    });
 
     initFromUrl();
     renderAll();
