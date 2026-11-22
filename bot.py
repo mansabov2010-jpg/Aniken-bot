@@ -437,7 +437,8 @@ def build_miniapp_url() -> str:
 
     encoded = urllib.parse.quote(json.dumps(payload, ensure_ascii=False))
     sep = "&" if "?" in BASE_MINIAPP_URL else "?"
-    return f"{BASE_MINIAPP_URL}{sep}data={encoded}"
+    # v=... Telegram eski index.html nusxasini ishlatib qolmasligi uchun
+    return f"{BASE_MINIAPP_URL}{sep}v={int(time.time())}&data={encoded}"
 
 
 def format_welcome(full_name: str, bot_username: str, is_adm: bool) -> str:
@@ -1813,6 +1814,15 @@ async def api_lists_handler(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **load_lists()}, headers=_cors_headers())
 
 
+async def root_status_handler(request: web.Request) -> web.Response:
+    """Brauzerda ochib tekshirish uchun: versiya va qayd etilgan xabarlar soni."""
+    try:
+        _, last_seq, _ = fetch_inbox(0)
+    except Exception as e:
+        last_seq = f"xato: {e}"
+    return web.Response(text=f"OK - AniKinolar Bot Running (inbox v1) | qayd etilgan xabarlar: {last_seq}")
+
+
 async def api_messages_handler(request: web.Request) -> web.Response:
     """Mini ilova kelgan xabarlarni shu yerdan oladi."""
     try:
@@ -1835,7 +1845,7 @@ async def api_messages_handler(request: web.Request) -> web.Response:
 
 async def start_web_server():
     app = web.Application(client_max_size=20 * 1024 * 1024)
-    app.router.add_get("/", lambda req: web.Response(text="OK - AniKinolar Bot Running (inbox v1)"))
+    app.router.add_get("/", root_status_handler)
     app.router.add_options("/api/send", api_options)
     app.router.add_post("/api/send", api_send_handler)
     app.router.add_options("/api/lists", api_options)
