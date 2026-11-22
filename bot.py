@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
-    WebAppInfo
+    ReplyKeyboardRemove, WebAppInfo
 )
 
 import db
@@ -78,7 +78,7 @@ def format_welcome(full_name: str, bot_username: str, is_adm: bool) -> str:
         f"{EMOJI_BOT} Ushbu bot <b>@{bot_username}</b> | Admin: <b>{OWNER_USER}</b>"
     )
     if is_adm:
-        base += "\n\n🛡 <i>Admin huquqi faol. Quyidagi Inline menyudan boshqarishingiz mumkin.</i>"
+        base += "\n\n🛡 <i>Admin huquqi faol. Barcha boshqaruv bo'limlari Admin Panel ichida.</i>"
     return base
 
 
@@ -93,6 +93,7 @@ def main_inline_kb(user_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="👤 Admin bilan bog'lanish", url=f"https://t.me/{OWNER_USER.lstrip('@')}"),
         ],
     ]
+    # Faqat adminlarga ko'rinadi
     if is_admin(user_id):
         rows.append([
             InlineKeyboardButton(text="⚙️ Admin Panel", callback_data="admin:panel"),
@@ -278,6 +279,13 @@ async def cmd_start(message: Message, bot: Bot, state: FSMContext):
     db.add_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
     me = await bot.get_me()
 
+    # Eski pastki klaviatura tugmalarini majburiy olib tashlash
+    clear_msg = await message.answer("♻️", reply_markup=ReplyKeyboardRemove())
+    try:
+        await clear_msg.delete()
+    except Exception:
+        pass
+
     parts = message.text.split(maxsplit=1)
     if len(parts) > 1 and parts[1].strip():
         await send_movie_to_user(bot, message.chat.id, message.from_user.id, parts[1].strip(), me.username)
@@ -387,7 +395,7 @@ async def cb_subcheck(call: CallbackQuery, bot: Bot):
 @router.callback_query(F.data == "admin:panel")
 async def cb_admin_panel(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id):
-        await call.answer("Ruxsat yo'q", show_alert=True)
+        await call.answer(f"❌ Bu bo'lim faqat adminlar uchun! Sizning ID: {call.from_user.id}", show_alert=True)
         return
     await state.clear()
     await call.message.edit_text("🛡 <b>Admin Panel</b>", reply_markup=admin_panel_kb())
@@ -397,6 +405,7 @@ async def cb_admin_panel(call: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "admin:stats")
 async def cb_admin_stats(call: CallbackQuery):
     if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
     st = db.get_stats()
     text = (
@@ -420,6 +429,7 @@ async def cb_admin_stats(call: CallbackQuery):
 @router.callback_query(F.data == "admin:admins_list")
 async def cb_admins_list(call: CallbackQuery):
     if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
     admins_str = "\n".join(f"• <code>{aid}</code>" for aid in sorted(ADMIN_IDS))
     await call.message.edit_text(
@@ -434,6 +444,7 @@ async def cb_admins_list(call: CallbackQuery):
 @router.callback_query(F.data == "admin:chats_info")
 async def cb_chats_info(call: CallbackQuery):
     if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
     st = db.get_stats()
     await call.message.edit_text(
@@ -450,6 +461,7 @@ async def cb_chats_info(call: CallbackQuery):
 @router.callback_query(F.data == "admin:status")
 async def cb_bot_status(call: CallbackQuery):
     if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
     await call.message.edit_text(
         "🤖 <b>Bot holati:</b> 🟢 Faol va barqaror ishlamoqda\n"
@@ -464,6 +476,7 @@ async def cb_bot_status(call: CallbackQuery):
 @router.callback_query(F.data == "admin:req_channels")
 async def cb_req_channels(call: CallbackQuery):
     if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
     channels = db.list_required_channels()
     lines = ["🔒 <b>Majburiy a'zolik sozlamalari</b>", "━━━━━━━━━━━━━━━"]
@@ -539,6 +552,7 @@ async def cb_req_channel_del(call: CallbackQuery):
 @router.callback_query(F.data == "admin:broadcast_menu")
 async def cb_broadcast_menu(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
     await state.clear()
     await call.message.edit_text(
@@ -619,6 +633,7 @@ async def fsm_broadcast_send(message: Message, bot: Bot, state: FSMContext):
 @router.callback_query(F.data == "admin:add_menu")
 async def cb_add_menu(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
     await state.clear()
     await call.message.edit_text(
@@ -749,6 +764,7 @@ async def cb_send_ad_to_channel(call: CallbackQuery, bot: Bot):
 @router.callback_query(F.data == "admin:edit_list")
 async def cb_edit_list(call: CallbackQuery, state: FSMContext):
     if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
     await state.clear()
     items = db.list_contents(limit=20)
