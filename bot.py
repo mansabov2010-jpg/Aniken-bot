@@ -499,6 +499,9 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="✏️ Tahrirlash (Edit)", callback_data="admin:edit_list"),
         ],
         [
+            InlineKeyboardButton(text="🗑 Kontentni o'chirish", callback_data="admin:del_menu"),
+        ],
+        [
             InlineKeyboardButton(text="🔒 Majburiy a'zo", callback_data="admin:req_channels"),
             InlineKeyboardButton(text="📡 Kanal / Chatlar", callback_data="admin:chats_info"),
         ],
@@ -1694,6 +1697,167 @@ async def _advance_edit_step(msg_obj: Message, state: FSMContext, item: dict, cu
         "✅ <b>Ma'lumotlar yangilandi!</b>\n\n" + build_content_caption(item),
         reply_markup=admin_panel_kb()
     )
+
+
+# ════════════════════════════════════════════════════════════════
+#  KONTENTNI O'CHIRISH (Admin panel → 🗑 Kontentni o'chirish)
+#  Bo'lim tanlanadi (Kino / Multfilm / Anime) → nomlar ro'yxati →
+#  kontent tanlanadi → tasdiqlanadi → o'chiriladi
+# ════════════════════════════════════════════════════════════════
+DEL_PAGE_SIZE = 8
+DEL_CATEGORIES = {
+    "kino": "🎥 Kino",
+    "multfilm": "🧸 Multfilm",
+    "anime": "🍥 Anime",
+}
+
+
+def _short(text: str, limit: int = 38) -> str:
+    text = (text or "").strip()
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+@router.callback_query(F.data == "admin:del_menu")
+async def cb_del_menu(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
+        return
+    await state.clear()
+    counts = db.count_contents_by_category()
+    rows = [
+        [InlineKeyboardButton(
+            text=f"{label} ({counts.get(cat, 0)})",
+            callback_data=f"delcat:{cat}:0",
+        )]
+        for cat, label in DEL_CATEGORIES.items()
+    ]
+    rows.append([InlineKeyboardButton(text="⬅️ Admin panel", callback_data="admin:panel")])
+    await call.message.edit_text(
+        "🗑 <b>Kontentni o'chirish</b>\nQaysi bo'limdan o'chirmoqchisiz?",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("delcat:"))
+async def cb_del_category(call: CallbackQuery):
+    if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
+        return
+    parts = call.data.split(":")
+    cat = parts[1] if len(parts) > 1 else ""
+    try:
+        page = int(parts[2]) if len(parts) > 2 else 0
+    except ValueError:
+        page = 0
+    if cat not in DEL_CATEGORIES:
+        await call.answer("Noto'g'ri bo'lim", show_alert=True)
+        return
+
+    total = db.count_contents_by_category().get(cat, 0)
+    if total == 0:
+        await call.answer("Bu bo'limda hozircha kontent yo'q", show_alert=True)
+        return
+
+    pages = (total + DEL_PAGE_SIZE - 1) // DEL_PAGE_SIZE
+    page = max(0, min(page, pages - 1))
+    items = db.list_contents_by_category(cat, DEL_PAGE_SIZE, page * DEL_PAGE_SIZE)
+
+    rows = [
+        [InlineKeyboardButton(
+            text=f"🗑 [{it['code']}] {_short(it['title'])}",
+            callback_data=f"delsel:{it['code']}",
+        )]
+        for it in items
+    ]
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="⬅️ Oldingi", callback_data=f"delcat:{cat}:{page - 1}"))
+    if pages > 1:
+        nav.append(InlineKeyboardButton(text=f"{page + 1}/{pages}", callback_data=f"delcat:{cat}:{page}"))
+    if page < pages - 1:
+        nav.append(InlineKeyboardButton(text="Keyingi ➡️", callback_data=f"delcat:{cat}:{page + 1}"))
+    if nav:
+        rows.append(nav)
+    rows.append([InlineKeyboardButton(text="⬅️ Bo'limlar", callback_data="admin:del_menu")])
+
+    await call.message.edit_text(
+        f"🗑 <b>{DEL_CATEGORIES[cat]}</b> — jami: {total} ta\nO'chirmoqchi bo'lganingizni tanlang:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("delsel:"))
+async def cb_del_select(call: CallbackQuery):
+    if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
+        return
+    code = call.data.split(":", 1)[1]
+    item = db.get_content_by_code(code)
+    if not item:
+        await call.answer("Topilmadi (allaqachon o'chirilgan bo'lishi mumkin)", show_alert=True)
+        return
+    cat = item.get("category", "")
+    label = DEL_CATEGORIES.get(cat, "Kontent")
+    rows = [
+        [InlineKeyboardButton(text="🗑 Faqat botdan o'chirish", callback_data=f"delyes:b:{item['code']}")],
+        [InlineKeyboardButton(text="🗑 Botdan + saqlash kanalidan ham", callback_data=f"delyes:c:{item['code']}")],
+        [InlineKeyboardButton(text="↩️ Bekor qilish", callback_data=f"delcat:{cat}:0")],
+    ]
+    await call.message.edit_text(
+        "⚠️ <b>Rostdan o'chirilsinmi?</b>\n\n"
+        f"🎬 <b>{html.escape(str(item['title']))}</b>\n"
+        f"📂 Bo'lim: {label}\n"
+        f"🔑 Kod: <code>{html.escape(str(item['code']))}</code>\n\n"
+        "• <b>Faqat botdan</b> — bot bazasidan o'chadi, video saqlash kanalida qoladi.\n"
+        "• <b>Botdan + kanaldan</b> — video ham saqlash kanalidan o'chiriladi.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("delyes:"))
+async def cb_del_confirm(call: CallbackQuery, bot: Bot):
+    if not is_admin(call.from_user.id):
+        await call.answer("❌ Ruxsat yo'q", show_alert=True)
+        return
+    parts = call.data.split(":", 2)
+    if len(parts) < 3:
+        await call.answer("Xato", show_alert=True)
+        return
+    mode, code = parts[1], parts[2]
+    item = db.get_content_by_code(code)
+    if not item:
+        await call.answer("Topilmadi (allaqachon o'chirilgan)", show_alert=True)
+        return
+
+    db.delete_content(item["code"])
+
+    note = ""
+    if mode == "c":
+        try:
+            await bot.delete_message(
+                chat_id=item["storage_channel"],
+                message_id=int(item["storage_msg_id"]),
+            )
+            note = "\n📦 Saqlash kanalidagi video ham o'chirildi."
+        except Exception as e:
+            note = (
+                "\n⚠️ Saqlash kanalidagi videoni o'chirib bo'lmadi "
+                f"(qo'lda o'chiring): <code>{html.escape(str(e))}</code>"
+            )
+
+    cat = item.get("category", "")
+    rows = [
+        [InlineKeyboardButton(text="🗑 Yana o'chirish", callback_data=f"delcat:{cat}:0")],
+        [InlineKeyboardButton(text="⬅️ Admin panel", callback_data="admin:panel")],
+    ]
+    await call.message.edit_text(
+        f"✅ <b>{html.escape(str(item['title']))}</b> o'chirildi.{note}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+    )
+    await call.answer("O'chirildi!")
 
 
 @router.message(F.text)
