@@ -209,6 +209,37 @@ def list_contents(limit: int = 20) -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
+def count_contents_by_category() -> dict[str, int]:
+    """Har bir bo'limdagi (kino / multfilm / anime) kontentlar soni."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT category, COUNT(*) AS c FROM contents GROUP BY category"
+        ).fetchall()
+        return {str(r["category"]): int(r["c"]) for r in rows}
+
+
+def list_contents_by_category(category: str, limit: int = 8, offset: int = 0) -> list[dict[str, Any]]:
+    """Bo'lim bo'yicha kontentlar (yangilari birinchi), sahifalash bilan."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM contents WHERE category = ? "
+            "ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
+            (category, limit, offset),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def delete_content(code: str) -> bool:
+    """Kontentni bazadan o'chiradi. O'chirilgan bo'lsa True qaytaradi."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM contents WHERE LOWER(code) = LOWER(?)",
+            (code.strip(),),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def add_required_channel(channel_ref: str, title: str, url: str) -> None:
     with get_conn() as conn:
         conn.execute(
