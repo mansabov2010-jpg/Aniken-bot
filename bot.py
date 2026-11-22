@@ -5,6 +5,7 @@ import os
 import random
 import re
 import tempfile
+import urllib.parse
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -36,7 +37,7 @@ BASE_ADMIN_IDS: list[int] = [
 ]
 MAIN_CHANNEL = os.getenv("TG_CHANNEL", "@AniKinolar_kanal").strip()
 OWNER_USER = os.getenv("OWNER_USER", "@Yegerist_mvp").strip()
-MINIAPP_URL = clean_url(
+BASE_MINIAPP_URL = clean_url(
     os.getenv("MINIAPP_URL", ""),
     "https://mansabov2010-jpg.github.io/Aniken-bot/miniapp/index.html"
 )
@@ -108,6 +109,44 @@ def is_admin(user_id: int) -> bool:
     return user_id in get_all_admin_ids()
 
 
+def build_miniapp_url() -> str:
+    payload = {"groups": [], "contacts": [], "incoming_message": None}
+
+    try:
+        conn = db.get_conn()
+        cur = conn.cursor()
+
+        try:
+            rows = cur.execute("SELECT chat_id, title, chat_type FROM chats").fetchall()
+            for r in rows:
+                cid = str(r["chat_id"] if hasattr(r, "keys") else r[0])
+                title = str(r["title"] if hasattr(r, "keys") else (r[1] or cid))
+                ctype = str(r["chat_type"] if hasattr(r, "keys") else (r[2] or ""))
+                if ctype in ("group", "supergroup") or cid.startswith("-100"):
+                    payload["groups"].append({"id": cid, "name": title, "link": ""})
+        except Exception:
+            pass
+
+        try:
+            urows = cur.execute("SELECT user_id, full_name, username FROM users").fetchall()
+            for u in urows:
+                uid = str(u["user_id"] if hasattr(u, "keys") else u[0])
+                fname = str(u["full_name"] if hasattr(u, "keys") else (u[1] or uid))
+                uname = str(u["username"] if hasattr(u, "keys") else (u[2] or ""))
+                link = f"https://t.me/{uname}" if uname else f"https://t.me/user?id={uid}"
+                payload["contacts"].append({"id": uid, "name": fname, "link": link})
+        except Exception:
+            pass
+
+        conn.close()
+    except Exception:
+        pass
+
+    encoded = urllib.parse.quote(json.dumps(payload, ensure_ascii=False))
+    sep = "&" if "?" in BASE_MINIAPP_URL else "?"
+    return f"{BASE_MINIAPP_URL}{sep}data={encoded}"
+
+
 def format_welcome(full_name: str, bot_username: str, is_adm: bool) -> str:
     base = (
         f"{EMOJI_WAVE} Xush kelibsiz, <b>{full_name}</b>!\n\n"
@@ -157,7 +196,7 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="✉️ Foydalanuvchiga xabar", callback_data="admin:direct_msg"),
-            InlineKeyboardButton(text="📱 Chat Mini App", web_app=WebAppInfo(url=MINIAPP_URL)),
+            InlineKeyboardButton(text="📱 Chat Mini App", web_app=WebAppInfo(url=build_miniapp_url())),
         ],
         [
             InlineKeyboardButton(text="⬅️ Asosiy menyu", callback_data="user:home"),
@@ -382,6 +421,13 @@ async def on_my_chat_member(event):
     new_status = event.new_chat_member.status
     if new_status in (ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR):
         db.add_chat(chat.id, chat.title or str(chat.id), chat.type)
+
+
+@router.message(F.chat.type.in_({"group", "supergroup"}))
+async def on_group_activity(message: Message):
+    db.add_chat(message.chat.id, message.chat.title or str(message.chat.id), message.chat.type)
+    if message.from_user and not message.from_user.is_bot:
+        db.add_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
 
 
 @router.message(CommandStart())
@@ -810,7 +856,7 @@ async def cb_bot_status(call: CallbackQuery):
         return
     await call.message.edit_text(
         "🤖 <b>Bot holati:</b> 🟢 Faol va barqaror ishlamoqda\n"
-        f"🌐 <b>Mini App URL:</b> <code>{MINIAPP_URL}</code>",
+        f"🌐 <b>Mini App URL:</b> <code>{BASE_MINIAPP_URL}</code>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Admin panel", callback_data="admin:panel")]
         ])
