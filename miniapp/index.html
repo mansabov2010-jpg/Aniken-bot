@@ -435,6 +435,7 @@
 
     <div class="sub-row">
       <span id="sendStatusLabel">Yozuvchi: <b>Bot</b></span>
+      <span id="inboxStatus" style="font-size:10px;"></span>
       <span id="editingBadge" style="color:#7dd3fc;"></span>
     </div>
   </div>
@@ -516,6 +517,13 @@
     let lastSeq = Number(localStorage.getItem("anirem_seq_v5") || 0);
     let msgSyncBusy = false;
 
+    function setInboxStatus(txt, isErr = false) {
+      const el = document.getElementById("inboxStatus");
+      if (!el) return;
+      el.style.color = isErr ? "#fca5a5" : "#86efac";
+      el.textContent = "📥 " + txt;
+    }
+
     function badge(n) { return n > 0 ? " 🔴" + n : ""; }
 
     function tabUnread(tab) {
@@ -553,7 +561,9 @@
     //  Kelgan xabarlarni serverdan olish
     // ───────────────────────────────────────────────
     async function syncMessages() {
-      if (msgSyncBusy || !apiBaseUrl || !tg || !tg.initData) return;
+      if (msgSyncBusy) return;
+      if (!apiBaseUrl) { setInboxStatus("API manzili yo'q", true); return; }
+      if (!tg || !tg.initData) { setInboxStatus("Telegram ichida oching", true); return; }
       msgSyncBusy = true;
       try {
         const resp = await fetch(`${apiBaseUrl.replace(/\/+$/, "")}/api/messages`, {
@@ -561,8 +571,11 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ since: lastSeq, init_data: tg.initData }),
         });
-        const data = await resp.json();
-        if (!(resp.ok && data.ok)) return;
+        if (resp.status === 404) { setInboxStatus("bot.py yangilanmagan (404)", true); return; }
+        if (resp.status === 403) { setInboxStatus("ruxsat yo'q (admin emas)", true); return; }
+        let data = {};
+        try { data = await resp.json(); } catch (_) {}
+        if (!(resp.ok && data.ok)) { setInboxStatus("server xatosi " + resp.status, true); return; }
 
         const countUnread = lastSeq > 0 && !data.reset;
         const act = getActiveItem();
@@ -604,6 +617,7 @@
 
         lastSeq = Number(data.last_seq || 0);
         localStorage.setItem("anirem_seq_v5", String(lastSeq));
+        setInboxStatus("serverda " + lastSeq + " ta xabar qayd etilgan");
 
         if (needLists) await syncListsFromServer();
         if (newCount > 0 && tg && tg.HapticFeedback) {
@@ -612,6 +626,7 @@
         if (activeChanged || needLists) renderAll();
         else if (badgeChanged) updateBadges();
       } catch (_) {
+        setInboxStatus("serverga ulanib bo'lmadi", true);
       } finally {
         msgSyncBusy = false;
       }
