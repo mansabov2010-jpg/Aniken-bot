@@ -7,11 +7,14 @@ import json
 import os
 import random
 import re
+import sqlite3
 import tempfile
+import time
 import urllib.parse
 from urllib.parse import parse_qsl
 from aiohttp import web
-from aiogram import Bot, Dispatcher, F, Router
+from aiogram import BaseMiddleware, Bot, Dispatcher, F, Router
+from aiogram.exceptions import TelegramRetryAfter
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode, ChatMemberStatus
 from aiogram.filters import CommandStart
@@ -60,6 +63,231 @@ URL_REGEX = re.compile(r"https?://\S+")
 
 router = Router()
 ACTIVE_BOT: Bot | None = None
+
+
+# ════════════════════════════════════════════════════════════════
+#  KELGAN XABARLAR (guruh / kanal / shaxsiy) → MINI ILOVA
+# ════════════════════════════════════════════════════════════════
+
+INBOX_DB = os.getenv("INBOX_DB", "inbox.db")
+BG_TASKS: set = set()
+
+
+def inbox_conn() -> sqlite3.Connection:
+    conn = sqlite3.connect(INBOX_DB)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_inbox() -> None:
+    conn = inbox_conn()
+    try:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS inbox (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id TEXT NOT NULL,
+                msg_id INTEGER NOT NULL,
+                sender TEXT,
+                kind TEXT,
+                text TEXT,
+                reply_id INTEGER,
+                reply_sender TEXT,
+                reply_text TEXT,
+                ts INTEGER NOT NULL
+            )"""
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def sender_name(m: Message) -> str:
+    if m.from_user:
+        return m.from_user.full_name
+    if m.sender_chat:
+        return m.sender_chat.title or str(m.sender_chat.id)
+    return "Noma'lum"
+
+
+def describe_message(m: Message) -> tuple[str, str]:
+    """(turi, matn) qaytaradi. Stiker uchun matn = emoji."""
+    if m.text:
+        return "text", m.text
+    if m.sticker:
+        return "sticker", m.sticker.emoji or "🧸"
+    cap = m.caption or ""
+    labels = [
+        (m.photo, "🖼 Rasm"),
+        (m.video, "🎬 Video"),
+        (m.voice, "🎙 Ovozli xabar"),
+        (m.video_note, "⭕ Video xabar"),
+        (m.audio, "🎵 Audio"),
+        (m.animation, "🎞 GIF"),
+        (m.document, "📎 Fayl"),
+        (m.poll, "📊 So'rovnoma"),
+        (m.location, "📍 Joylashuv"),
+        (m.contact, "👤 Kontakt"),
+    ]
+    for obj, label in labels:
+        if obj:
+            return "media", label + (f": {cap}" if cap else "")
+    if m.new_chat_members:
+        return "media", "➕ Qo'shildi: " + ", ".join(u.full_name for u in m.new_chat_members)
+    if m.left_chat_member:
+        return "media", f"➖ Chiqib ketdi: {m.left_chat_member.full_name}"
+    return "media", "📨 Xabar"
+
+
+def record_incoming(m: Message) -> None:
+    kind, text = describe_message(m)
+    reply_id = reply_sender = reply_text = None
+    r = m.reply_to_message
+    if r:
+        _, rtext = describe_message(r)
+        reply_id = r.message_id
+        reply_sender = sender_name(r)
+        reply_text = (rtext or "")[:120]
+
+    conn = inbox_conn()
+    try:
+        conn.execute(
+            "INSERT INTO inbox (chat_id, msg_id, sender, kind, text, reply_id, reply_sender, reply_text, ts) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (str(m.chat.id), m.message_id, sender_name(m), kind, text,
+             reply_id, reply_sender, reply_text, int(time.time())),
+        )
+        conn.execute("DELETE FROM inbox WHERE seq <= (SELECT MAX(seq) FROM inbox) - 5000")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def fetch_inbox(since: int) -> tuple[list[dict], int, bool]:
+    """(xabarlar, oxirgi_seq, reset) qaytaradi."""
+    conn = inbox_conn()
+    try:
+        last_seq = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM inbox").fetchone()[0]
+        reset = since > last_seq
+        if since <= 0 or reset:
+            rows = conn.execute(
+                "SELECT * FROM (SELECT * FROM inbox ORDER BY seq DESC LIMIT 300) ORDER BY seq ASC"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM inbox WHERE seq > ? ORDER BY seq ASC LIMIT 500", (since,)
+            ).fetchall()
+    finally:
+        conn.close()
+
+    out: list[dict] = []
+    for r in rows:
+        is_sticker = r["kind"] == "sticker"
+        out.append({
+            "seq": r["seq"],
+            "chat_id": r["chat_id"],
+            "id": r["msg_id"],
+            "sender": r["sender"],
+            "type": "sticker" if is_sticker else "text",
+            "text": "" if is_sticker else (r["text"] or ""),
+            "sticker": (r["text"] or "🧸") if is_sticker else "",
+            "replyTo": {
+                "id": r["reply_id"],
+                "sender": r["reply_sender"] or "Xabar",
+                "text": r["reply_text"] or "",
+            } if r["reply_id"] else None,
+            "ts": r["ts"],
+        })
+    return out, last_seq, reset
+
+
+class InboxMiddleware(BaseMiddleware):
+    """Botga tushgan har bir xabarni (qaysi handler ishlashidan qat'i nazar) yozib qo'yadi."""
+
+    async def __call__(self, handler, event, data):
+        try:
+            record_incoming(event)
+            if event.chat.type == "private" and event.from_user:
+                db.add_user(event.from_user.id, event.from_user.full_name, event.from_user.username)
+        except Exception as e:
+            print("inbox xatosi:", e)
+        return await handler(event, data)
+
+
+router.message.outer_middleware(InboxMiddleware())
+
+
+@router.channel_post()
+async def on_channel_post(message: Message):
+    try:
+        db.add_chat(message.chat.id, message.chat.title or str(message.chat.id), message.chat.type)
+        record_incoming(message)
+    except Exception as e:
+        print("channel_post xatosi:", e)
+
+
+# ════════════════════════════════════════════════════════════════
+#  MINI ILOVADAN OMMAVIY XABAR TARQATISH
+# ════════════════════════════════════════════════════════════════
+
+async def _collect_broadcast_targets(bot: Bot, mode: str) -> list[int]:
+    targets: list[int] = []
+    if mode in ("users", "all"):
+        targets.extend(db.get_all_user_ids())
+    if mode in ("chats", "all"):
+        targets.extend(db.get_all_chat_ids())
+        if MAIN_CHANNEL.startswith("@"):
+            try:
+                ch = await bot.get_chat(MAIN_CHANNEL)
+                targets.append(ch.id)
+            except Exception:
+                pass
+    return list(dict.fromkeys(targets))
+
+
+async def _broadcast_worker(bot: Bot, targets: list[int], text: str, admin_uid: int) -> None:
+    sent = 0
+    failed = 0
+    body = fancy_text(text)
+    for tid in targets:
+        for attempt in range(2):
+            try:
+                await bot.send_message(chat_id=tid, text=body, parse_mode=ParseMode.HTML)
+                sent += 1
+                break
+            except TelegramRetryAfter as e:
+                await asyncio.sleep(e.retry_after + 1)
+            except Exception:
+                failed += 1
+                break
+        else:
+            failed += 1
+        await asyncio.sleep(0.05)
+    try:
+        await bot.send_message(
+            chat_id=admin_uid,
+            text=(
+                "✅ <b>Mini ilovadan tarqatish yakunlandi!</b>\n"
+                f"📤 Yuborildi: <b>{sent}</b>\n"
+                f"⚠️ Xato / bloklangan: <b>{failed}</b>"
+            ),
+        )
+    except Exception:
+        pass
+
+
+async def start_broadcast(bot: Bot, mode: str, text: str, admin_uid: int) -> tuple[bool, str]:
+    text = (text or "").strip()
+    if mode not in ("users", "chats", "all"):
+        return False, "Tarqatish turi noto'g'ri"
+    if not text:
+        return False, "Xabar matni bo'sh"
+    targets = await _collect_broadcast_targets(bot, mode)
+    if not targets:
+        return False, "Yuboriladigan manzil topilmadi"
+    task = asyncio.create_task(_broadcast_worker(bot, targets, text, admin_uid))
+    BG_TASKS.add(task)
+    task.add_done_callback(BG_TASKS.discard)
+    return True, f"Tarqatish boshlandi: {len(targets)} manzil. Yakunida botdan hisobot keladi."
 
 
 class AddContentFSM(StatesGroup):
@@ -1553,6 +1781,15 @@ async def api_send_handler(request: web.Request) -> web.Response:
             headers=_cors_headers(),
         )
 
+    if payload.get("action") == "broadcast":
+        ok, info_text = await start_broadcast(
+            ACTIVE_BOT, str(payload.get("mode", "")), payload.get("text", ""), uid
+        )
+        return web.json_response(
+            {"ok": ok, "message": info_text, "error": "" if ok else info_text, "tg_message_id": None},
+            headers=_cors_headers(),
+        )
+
     try:
         ok, info_text, tg_msg_id = await execute_miniapp_payload(ACTIVE_BOT, payload)
         return web.json_response(
@@ -1575,6 +1812,26 @@ async def api_lists_handler(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **load_lists()}, headers=_cors_headers())
 
 
+async def api_messages_handler(request: web.Request) -> web.Response:
+    """Mini ilova kelgan xabarlarni shu yerdan oladi."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    uid = verify_init_data(payload.get("init_data", ""))
+    if not uid or not is_admin(uid):
+        return web.json_response({"ok": False, "error": "Ruxsat yo'q"}, status=403, headers=_cors_headers())
+    try:
+        since = int(payload.get("since") or 0)
+    except Exception:
+        since = 0
+    messages, last_seq, reset = fetch_inbox(since)
+    return web.json_response(
+        {"ok": True, "messages": messages, "last_seq": last_seq, "reset": reset},
+        headers=_cors_headers(),
+    )
+
+
 async def start_web_server():
     app = web.Application(client_max_size=20 * 1024 * 1024)
     app.router.add_get("/", lambda req: web.Response(text="OK - AniKinolar Bot Running"))
@@ -1582,6 +1839,8 @@ async def start_web_server():
     app.router.add_post("/api/send", api_send_handler)
     app.router.add_options("/api/lists", api_options)
     app.router.add_post("/api/lists", api_lists_handler)
+    app.router.add_options("/api/messages", api_options)
+    app.router.add_post("/api/messages", api_messages_handler)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
@@ -1593,6 +1852,7 @@ async def main():
     if not TG_TOKEN:
         raise RuntimeError("TG_TOKEN environment variable is missing!")
     db.init_db()
+    init_inbox()
     await start_web_server()
     bot = Bot(
         token=TG_TOKEN,
