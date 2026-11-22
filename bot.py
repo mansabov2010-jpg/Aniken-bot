@@ -10,7 +10,7 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode, ChatMemberStatus
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -109,6 +109,19 @@ def is_admin(user_id: int) -> bool:
     return user_id in get_all_admin_ids()
 
 
+def make_chat_link(chat_id_str: str, username: str = "") -> str:
+    s = (chat_id_str or "").strip()
+    if username:
+        return f"https://t.me/{username.lstrip('@')}"
+    if s.startswith("@"):
+        return f"https://t.me/{s[1:]}"
+    if s.startswith("-100") and s[4:].isdigit():
+        return f"https://t.me/c/{s[4:]}"
+    if s.isdigit():
+        return f"https://t.me/user?id={s}"
+    return f"https://t.me/{MAIN_CHANNEL.lstrip('@')}"
+
+
 def build_miniapp_url() -> str:
     payload = {"groups": [], "contacts": [], "incoming_message": None}
 
@@ -123,7 +136,11 @@ def build_miniapp_url() -> str:
                 title = str(r["title"] if hasattr(r, "keys") else (r[1] or cid))
                 ctype = str(r["chat_type"] if hasattr(r, "keys") else (r[2] or ""))
                 if ctype in ("group", "supergroup") or cid.startswith("-100"):
-                    payload["groups"].append({"id": cid, "name": title, "link": ""})
+                    payload["groups"].append({
+                        "id": cid,
+                        "name": title,
+                        "link": make_chat_link(cid),
+                    })
         except Exception:
             pass
 
@@ -133,8 +150,11 @@ def build_miniapp_url() -> str:
                 uid = str(u["user_id"] if hasattr(u, "keys") else u[0])
                 fname = str(u["full_name"] if hasattr(u, "keys") else (u[1] or uid))
                 uname = str(u["username"] if hasattr(u, "keys") else (u[2] or ""))
-                link = f"https://t.me/{uname}" if uname else f"https://t.me/user?id={uid}"
-                payload["contacts"].append({"id": uid, "name": fname, "link": link})
+                payload["contacts"].append({
+                    "id": uid,
+                    "name": fname,
+                    "link": make_chat_link(uid, uname),
+                })
         except Exception:
             pass
 
@@ -156,6 +176,24 @@ def format_welcome(full_name: str, bot_username: str, is_adm: bool) -> str:
     if is_adm:
         base += "\n\n🛡 <i>Admin huquqi faol. Barcha boshqaruv bo'limlari Admin Panel ichida.</i>"
     return base
+
+
+def format_group_intro(chat_title: str, bot_username: str) -> str:
+    main_ch_clean = MAIN_CHANNEL.lstrip("@")
+    owner_clean = OWNER_USER.lstrip("@")
+    return (
+        f"✨ <b>Assalomu alaykum, «{chat_title}» jamoasi!</b> ✨\n\n"
+        f"Men <b>@{bot_username}</b> botiman — har bir lahzani mazmunli va qulay qiladigan aqlli yordamchingiz.\n\n"
+        f"🎬 <b>Nimalar qila olaman:</b>\n"
+        f"• Havola yuborilganda videolarni o'zining asl ovozi bilan tez yuklab beraman;\n"
+        f"• Anime, multfilm va kinolarni kod yoki nomi bo'yicha topib beraman;\n"
+        f"• Guruh va foydalanuvchilar bilan tezkor aloqa va boshqaruvni ta'minlayman.\n\n"
+        f"📌 <b>Asosiy ma'lumotlar:</b>\n"
+        f"• <b>Owner (Yaratuvchi / Boshqaruvchi):</b> <a href=\"https://t.me/{owner_clean}\">{OWNER_USER}</a>\n"
+        f"• <b>Asosiy kanal:</b> <a href=\"https://t.me/{main_ch_clean}\">{MAIN_CHANNEL}</a>\n"
+        f"• <b>Bot manzili:</b> <a href=\"https://t.me/{bot_username}\">@{bot_username}</a>\n\n"
+        f"💫 <i>Do'stona muhit, iliq muloqot va eng sara kontent doimo siz bilan birga bo'lsin!</i>"
+    )
 
 
 def main_inline_kb(user_id: int) -> InlineKeyboardMarkup:
@@ -424,10 +462,18 @@ async def on_my_chat_member(event):
 
 
 @router.message(F.chat.type.in_({"group", "supergroup"}))
-async def on_group_activity(message: Message):
+async def on_group_activity(message: Message, bot: Bot):
     db.add_chat(message.chat.id, message.chat.title or str(message.chat.id), message.chat.type)
     if message.from_user and not message.from_user.is_bot:
         db.add_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
+
+    txt = (message.text or "").strip()
+    me = await bot.get_me()
+    if txt == "/start" or txt.startswith(f"/start@{me.username}"):
+        await message.answer(
+            text=format_group_intro(message.chat.title or str(message.chat.id), me.username),
+            disable_web_page_preview=True,
+        )
 
 
 @router.message(CommandStart())
@@ -435,6 +481,14 @@ async def cmd_start(message: Message, bot: Bot, state: FSMContext):
     await state.clear()
     db.add_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
     me = await bot.get_me()
+
+    if message.chat.type in ("group", "supergroup"):
+        db.add_chat(message.chat.id, message.chat.title or str(message.chat.id), message.chat.type)
+        await message.answer(
+            text=format_group_intro(message.chat.title or str(message.chat.id), me.username),
+            disable_web_page_preview=True,
+        )
+        return
 
     clear_msg = await message.answer("♻️", reply_markup=ReplyKeyboardRemove())
     try:
@@ -458,13 +512,6 @@ async def cmd_start(message: Message, bot: Bot, state: FSMContext):
         text=format_welcome(message.from_user.full_name, me.username, is_admin(message.from_user.id)),
         reply_markup=main_inline_kb(message.from_user.id),
     )
-
-
-@router.message(Command("panel"))
-async def cmd_panel(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    await message.answer("🛡 <b>Admin Panel</b>", reply_markup=admin_panel_kb())
 
 
 @router.message(F.web_app_data)
@@ -1377,6 +1424,7 @@ async def main():
     )
     dp = Dispatcher()
     dp.include_router(router)
+    await bot.set_my_commands([])
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
