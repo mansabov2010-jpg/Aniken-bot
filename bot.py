@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import os
 import random
@@ -13,7 +14,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardRemove, WebAppInfo, ReactionTypeEmoji, FSInputFile
+    ReplyKeyboardRemove, WebAppInfo, ReactionTypeEmoji, FSInputFile, BufferedInputFile
 )
 import yt_dlp
 
@@ -310,7 +311,6 @@ async def handle_link_video(message: Message, bot: Bot) -> None:
     status = await message.answer("⚡ Yuklanmoqda...")
 
     tmp_dir = tempfile.mkdtemp(prefix="dl_")
-    file_path = ""
     try:
         file_path = await asyncio.to_thread(_download_merged_video_sync, url, tmp_dir)
         if not file_path or not os.path.exists(file_path):
@@ -470,6 +470,20 @@ async def handle_webapp_data(message: Message, bot: Bot, state: FSMContext):
                 await message.answer(f"✅ Xabar bot nomidan <code>{target_chat}</code> ga yuborildi!", reply_markup=admin_panel_kb())
             except Exception as e:
                 await message.answer(f"❌ Yuborishda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
+    elif action == "send_voice_data":
+        raw_target = str(payload.get("target_id", "")).strip()
+        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
+        audio_b64 = payload.get("audio_base64") or ""
+        if target_chat and "," in audio_b64:
+            try:
+                raw_bytes = base64.b64decode(audio_b64.split(",", 1)[1])
+                await bot.send_voice(
+                    chat_id=target_chat,
+                    voice=BufferedInputFile(raw_bytes, filename="voice.ogg"),
+                )
+                await message.answer(f"🎙 Ovozli xabar <code>{target_chat}</code> ga yuborildi!", reply_markup=admin_panel_kb())
+            except Exception as e:
+                await message.answer(f"❌ Ovozli xabar yuborilmadi: <code>{e}</code>", reply_markup=admin_panel_kb())
     elif action == "react_msg":
         raw_target = str(payload.get("target_id", "")).strip()
         target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
