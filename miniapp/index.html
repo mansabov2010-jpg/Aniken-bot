@@ -13,7 +13,7 @@
       --quote: rgba(15, 23, 42, 0.52);
       --accent: #38bdf8;
       --text: #f8fafc;
-      --muted: #e2e8f0;
+      --muted: #cbd5e1;
       --line: rgba(226, 232, 240, 0.24);
     }
     * { box-sizing: border-box; font-family: Inter, system-ui, -apple-system, sans-serif; }
@@ -133,10 +133,9 @@
       border: 1px solid var(--line);
       border-radius: 11px;
       padding: 6px 9px;
-      font-size: 11px;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 2px;
       cursor: pointer;
       backdrop-filter: blur(4px);
     }
@@ -145,16 +144,17 @@
       justify-content: space-between;
       align-items: center;
       font-weight: 700;
-      font-size: 12px;
+      font-size: 13px;
     }
-    .chat-meta-line {
+    .chat-meta-small {
       display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      flex-wrap: wrap;
+      flex-direction: column;
+      gap: 1px;
+      font-size: 10px;
       color: var(--muted);
+      line-height: 1.25;
     }
-    .chat-meta-line a {
+    .chat-meta-small a {
       color: #7dd3fc;
       text-decoration: none;
       word-break: break-all;
@@ -225,17 +225,19 @@
       line-height: 1.1;
       padding: 2px 0;
     }
-    .voice-view {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+    .voice-player {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
       background: rgba(15, 23, 42, 0.45);
       border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 12px;
-      font-weight: 600;
-      width: fit-content;
+      border-radius: 10px;
+      padding: 6px 8px;
+      font-size: 11.5px;
+    }
+    .voice-player audio {
+      width: 100%;
+      height: 28px;
     }
     .msg-body { font-size: 13.5px; line-height: 1.32; word-break: break-word; }
     .msg-actions {
@@ -253,6 +255,10 @@
       padding: 2px 7px;
       font-size: 10.5px;
       cursor: pointer;
+    }
+    .chip.rec-active {
+      background: rgba(220, 38, 38, 0.85);
+      border-color: #fca5a5;
     }
     .chip.del {
       background: rgba(190, 24, 93, 0.65);
@@ -275,7 +281,7 @@
       gap: 5px;
       backdrop-filter: blur(5px);
     }
-    .reply-preview {
+    .reply-preview, .rec-status {
       display: none;
       justify-content: space-between;
       align-items: center;
@@ -285,7 +291,8 @@
       padding: 4px 8px;
       font-size: 11px;
     }
-    .reply-preview.active { display: flex; }
+    .reply-preview.active, .rec-status.active { display: flex; }
+    .rec-status { border-left-color: #ef4444; }
     .media-tools, .emoji-row {
       display: flex;
       gap: 5px;
@@ -345,7 +352,7 @@
   </div>
 
   <div id="customBar" class="custom-bar">
-    <input id="customNameInput" type="text" placeholder="Chat / Kontakt nomi..." />
+    <input id="customNameInput" type="text" placeholder="Nomi..." />
     <input id="customIdInput" type="text" placeholder="ID yoki @username..." />
     <input id="customLinkInput" type="text" placeholder="Havola (ixtiyoriy)..." />
     <button class="small-btn" onclick="addCustomChat()">Saqlash</button>
@@ -356,9 +363,9 @@
       <span id="profileTitle">Chat</span>
       <span>Chatga kirish ↗</span>
     </div>
-    <div class="chat-meta-line">
-      <span><b>ID:</b> <code id="metaId">-</code></span>
-      <span><b>Havola:</b> <a id="metaLink" href="#" target="_blank" onclick="event.stopPropagation()">-</a></span>
+    <div class="chat-meta-small">
+      <span>ID: <code id="metaId">-</code></span>
+      <span>Havola: <a id="metaLink" href="#" target="_blank" onclick="event.stopPropagation()">-</a></span>
     </div>
   </div>
 
@@ -375,11 +382,17 @@
       <button class="chip" onclick="clearReply()">✕</button>
     </div>
 
+    <div id="recStatus" class="rec-status">
+      <span id="recTimerText">🎙 Ovoz yozilmoqda... 0:00</span>
+      <button class="chip rec-active" onclick="stopVoiceRecording(true)">Yuborish</button>
+      <button class="chip" onclick="stopVoiceRecording(false)">Bekor</button>
+    </div>
+
     <div class="media-tools">
       <button class="chip" onclick="sendStickerItem('🧸')">🧸 Stiker</button>
       <button class="chip" onclick="sendStickerItem('🔥')">🔥 Stiker</button>
       <button class="chip" onclick="sendStickerItem('😂')">😂 Stiker</button>
-      <button class="chip" onclick="sendVoiceItem('0:05')">🎙 Ovozli xabar</button>
+      <button id="voiceRecBtn" class="chip" onclick="toggleVoiceRecording()">🎙 Ovozli xabar</button>
     </div>
 
     <div class="emoji-row">
@@ -414,23 +427,47 @@
     }
 
     const DEFAULT_CHATS = {
-      groups: [
-        { id: "-1002000000001", name: "Anime Muhokama Guruhi", link: "https://t.me/joinchat/group_demo" },
-        { id: "-1002000000002", name: "Dublyaj Jamoasi", link: "https://t.me/joinchat/dub_team" }
-      ],
+      groups: [],
       channels: [
         { id: "@AniKinolar_kanal", name: "AniKinolar Asosiy Kanal", link: "https://t.me/AniKinolar_kanal" }
       ],
-      contacts: [
-        { id: "7986354170", name: "Obunachi #1", link: "https://t.me/Yegerist_mvp" },
-        { id: "7637155944", name: "Obunachi #2", link: "https://t.me/AniRembot" }
-      ]
+      contacts: []
     };
+
+    function ingestUrlChats() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("chats");
+        if (!raw) return;
+        const parsed = JSON.parse(decodeURIComponent(raw));
+        ["groups", "channels", "contacts"].forEach(cat => {
+          if (Array.isArray(parsed[cat]) && parsed[cat].length) {
+            const existing = getChats(cat);
+            const merged = [...existing];
+            parsed[cat].forEach(item => {
+              if (item && item.id && !merged.some(x => String(x.id) === String(item.id))) {
+                merged.push({
+                  id: String(item.id),
+                  name: item.name || String(item.id),
+                  link: item.link || ""
+                });
+              }
+            });
+            saveChats(cat, merged);
+          }
+        });
+      } catch (_) {}
+    }
 
     let currentCategory = localStorage.getItem("anirem_cat") || "groups";
     let replyTarget = null;
     let editingMsgId = null;
     let isSubmitting = false;
+
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let recInterval = null;
+    let recSeconds = 0;
 
     function getChats(cat) {
       const saved = JSON.parse(localStorage.getItem("anirem_chats_" + cat) || "null");
@@ -445,24 +482,26 @@
     function getActiveChatObj() {
       const list = getChats(currentCategory);
       const savedId = localStorage.getItem("anirem_active_id_" + currentCategory);
-      return list.find(c => String(c.id) === String(savedId)) || list[0] || { id: "", name: "Chat", link: "" };
+      return list.find(c => String(c.id) === String(savedId)) || list[0] || { id: "", name: "Chat qo'shilmagan", link: "" };
     }
 
     function buildLink(chatObj) {
+      if (!chatObj || !chatObj.id) return "";
       if (chatObj.link) return chatObj.link;
-      if (String(chatObj.id).startsWith("@")) {
-        return "https://t.me/" + String(chatObj.id).slice(1);
-      }
-      const numId = String(chatObj.id).replace(/^-100/, "");
-      return "https://t.me/c/" + numId;
+      const sid = String(chatObj.id).trim();
+      if (sid.startsWith("@")) return "https://t.me/" + sid.slice(1);
+      if (/^-100\d+$/.test(sid)) return "https://t.me/c/" + sid.slice(4);
+      if (/^\d+$/.test(sid)) return "https://t.me/user?id=" + sid;
+      return "";
     }
 
     function openCurrentChatProfile() {
       const active = getActiveChatObj();
       const link = buildLink(active);
-      if (link && tg && tg.openTelegramLink && link.startsWith("https://t.me/")) {
+      if (!link) return;
+      if (tg && tg.openTelegramLink && link.startsWith("https://t.me/")) {
         tg.openTelegramLink(link);
-      } else if (link && link !== "#") {
+      } else {
         window.open(link, "_blank");
       }
     }
@@ -476,14 +515,18 @@
       const active = getActiveChatObj();
 
       const chipsBar = document.getElementById("chatChipsBar");
-      chipsBar.innerHTML = list.map(c => `
-        <button class="chat-chip ${String(c.id) === String(active.id) ? "active" : ""}" onclick="pickChatById('${String(c.id).replace(/'/g, "\\'")}')">
-          ${c.name}
-        </button>
-      `).join("");
+      chipsBar.innerHTML = list.length
+        ? list.map(c => `
+            <button class="chat-chip ${String(c.id) === String(active.id) ? "active" : ""}" onclick="pickChatById('${String(c.id).replace(/'/g, "\\'")}')">
+              ${c.name}
+            </button>
+          `).join("")
+        : `<span style="font-size:11px;color:#cbd5e1;">Hozircha ro'yxat bo'sh (+ Qo'shish orqali qo'shing)</span>`;
 
       const sel = document.getElementById("chatSelector");
-      sel.innerHTML = list.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+      sel.innerHTML = list.length
+        ? list.map(c => `<option value="${c.id}">${c.name}</option>`).join("")
+        : `<option value="">Ro'yxat bo'sh</option>`;
       if (active.id) sel.value = active.id;
 
       updateProfileBox(active);
@@ -508,8 +551,13 @@
       document.getElementById("profileTitle").textContent = chatObj.name || "Chat";
       document.getElementById("metaId").textContent = chatObj.id || "-";
       const a = document.getElementById("metaLink");
-      a.textContent = link || "-";
-      a.href = link || "#";
+      if (link) {
+        a.textContent = link;
+        a.href = link;
+      } else {
+        a.textContent = "-";
+        a.href = "#";
+      }
     }
 
     function selectCategory(cat) {
@@ -551,7 +599,7 @@
 
     function msgStorageKey() {
       const active = getActiveChatObj();
-      return "anirem_chat_v3_" + currentCategory + "_" + active.id;
+      return "anirem_chat_v4_" + currentCategory + "_" + (active.id || "empty");
     }
 
     function dedupeById(list) {
@@ -578,6 +626,12 @@
 
     function nowTime() {
       return new Date().toTimeString().slice(0, 8);
+    }
+
+    function formatSec(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${String(s).padStart(2, "0")}`;
     }
 
     function hideJumpBanner() {
@@ -611,7 +665,12 @@
         if (m.type === "sticker") {
           contentHtml = `<div class="sticker-view">${m.sticker || "🧸"}</div>`;
         } else if (m.type === "voice") {
-          contentHtml = `<div class="voice-view">🎙 Ovozli xabar • ${m.duration || "0:05"}</div>`;
+          contentHtml = `
+            <div class="voice-player">
+              <span>🎙 Ovozli xabar • ${m.duration || "0:01"}</span>
+              ${m.audioData ? `<audio controls src="${m.audioData}"></audio>` : ""}
+            </div>
+          `;
         }
         if (m.text) {
           contentHtml += `<div class="msg-body">${m.text}</div>`;
@@ -656,7 +715,7 @@
     function startReply(id) {
       const found = loadMsgs().find(x => x.id === id);
       if (!found) return;
-      const previewText = found.text || found.sticker || (found.type === "voice" ? `Ovozli xabar (${found.duration || "0:05"})` : "Xabar");
+      const previewText = found.text || found.sticker || (found.type === "voice" ? `Ovozli xabar (${found.duration || "0:01"})` : "Xabar");
       const author = found.direction === "incoming" ? (found.sender || "Obunachi") : "Bot";
       replyTarget = { id: found.id, sender: author, text: previewText };
       document.getElementById("replyText").textContent = `↩️ #${found.id} (${author}): ${previewText}`;
@@ -691,7 +750,7 @@
       item.reaction = item.reaction === emoji ? "" : emoji;
       saveMsgs(list);
       renderMsgs();
-      if (tg) {
+      if (tg && active.id) {
         tg.sendData(JSON.stringify({
           action: "react_msg",
           target_id: active.id,
@@ -706,7 +765,7 @@
       const list = loadMsgs().filter(x => x.id !== id);
       saveMsgs(list);
       renderMsgs();
-      if (tg) {
+      if (tg && active.id) {
         tg.sendData(JSON.stringify({
           action: "delete_sent_msg",
           target_id: active.id,
@@ -717,6 +776,7 @@
 
     function pushOutMsg(payloadObj) {
       const active = getActiveChatObj();
+      if (!active.id) return;
       const list = loadMsgs();
       const newId = Math.floor(Date.now() + Math.random() * 900) % 1000000;
       const item = {
@@ -736,7 +796,7 @@
         tg.sendData(JSON.stringify({
           action: "send_direct",
           target_id: active.id,
-          text: item.text || item.sticker || `🎙 Ovozli xabar (${item.duration || "0:05"})`,
+          text: item.text || item.sticker || `🎙 Ovozli xabar (${item.duration || "0:01"})`,
           media_type: item.type || "text",
           show_sender: false,
           reply_to_message_id: replyTarget ? replyTarget.id : null
@@ -752,12 +812,65 @@
       setTimeout(() => { isSubmitting = false; }, 250);
     }
 
-    function sendVoiceItem(durationStr) {
-      if (isSubmitting) return;
-      isSubmitting = true;
-      pushOutMsg({ type: "voice", duration: durationStr, text: "" });
-      clearReply();
-      setTimeout(() => { isSubmitting = false; }, 250);
+    async function toggleVoiceRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        stopVoiceRecording(true);
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
+        pushOutMsg({ type: "voice", duration: "0:03", audioData: "", text: "" });
+        clearReply();
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordedChunks = [];
+        recSeconds = 0;
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = e => {
+          if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+          clearInterval(recInterval);
+          document.getElementById("recStatus").classList.remove("active");
+          document.getElementById("voiceRecBtn").classList.remove("rec-active");
+          if (!mediaRecorder._shouldSend) return;
+          const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+          const durStr = formatSec(Math.max(1, recSeconds));
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            pushOutMsg({
+              type: "voice",
+              duration: durStr,
+              audioData: typeof reader.result === "string" ? reader.result : "",
+              text: ""
+            });
+            clearReply();
+          };
+          reader.readAsDataURL(blob);
+        };
+        mediaRecorder._shouldSend = true;
+        mediaRecorder.start();
+        document.getElementById("recStatus").classList.add("active");
+        document.getElementById("voiceRecBtn").classList.add("rec-active");
+        document.getElementById("recTimerText").textContent = "🎙 Ovoz yozilmoqda... 0:00";
+        recInterval = setInterval(() => {
+          recSeconds += 1;
+          document.getElementById("recTimerText").textContent = `🎙 Ovoz yozilmoqda... ${formatSec(recSeconds)}`;
+        }, 1000);
+      } catch (_) {
+        pushOutMsg({ type: "voice", duration: "0:03", audioData: "", text: "" });
+        clearReply();
+      }
+    }
+
+    function stopVoiceRecording(shouldSend) {
+      if (!mediaRecorder) return;
+      mediaRecorder._shouldSend = Boolean(shouldSend);
+      if (mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
     }
 
     function submitMessage() {
@@ -779,7 +892,7 @@
             item.text = text;
           }
           saveMsgs(list);
-          if (tg) {
+          if (tg && active.id) {
             tg.sendData(JSON.stringify({
               action: "edit_sent_msg",
               target_id: active.id,
@@ -801,6 +914,7 @@
       setTimeout(() => { isSubmitting = false; }, 250);
     }
 
+    ingestUrlChats();
     renderChatSelector();
     renderMsgs();
   </script>
