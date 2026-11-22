@@ -7,13 +7,13 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --panel: rgba(15, 23, 42, 0.62);
-      --bubble: rgba(19, 28, 46, 0.72);
-      --quote: rgba(15, 23, 42, 0.75);
+      --panel: rgba(15, 23, 42, 0.56);
+      --bubble: rgba(19, 28, 46, 0.70);
+      --quote: rgba(15, 23, 42, 0.76);
       --accent: #38bdf8;
       --text: #f8fafc;
-      --muted: #cbd5e1;
-      --line: rgba(226, 232, 240, 0.24);
+      --muted: #e2e8f0;
+      --line: rgba(226, 232, 240, 0.25);
     }
     * { box-sizing: border-box; font-family: Inter, system-ui, -apple-system, sans-serif; }
     body {
@@ -22,122 +22,167 @@
       overflow: hidden;
       color: var(--text);
       background:
-        linear-gradient(180deg, rgba(10, 15, 28, 0.22), rgba(10, 15, 28, 0.46)),
+        linear-gradient(180deg, rgba(10, 15, 28, 0.14), rgba(10, 15, 28, 0.36)),
         url("bg-girl.jpg") center/cover no-repeat fixed;
       display: flex;
       flex-direction: column;
-      padding: 10px;
-      gap: 8px;
+      padding: 8px;
+      gap: 6px;
     }
     .cat-tabs {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
+      gap: 5px;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 5px;
-      backdrop-filter: blur(5px);
+      padding: 4px;
+      backdrop-filter: blur(4px);
     }
     .cat-tab {
       border: 1px solid transparent;
       background: transparent;
       color: var(--text);
-      padding: 7px 6px;
+      padding: 6px;
       border-radius: 9px;
-      font-size: 12.5px;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
     }
     .cat-tab.active {
-      background: rgba(56, 189, 248, 0.28);
+      background: rgba(56, 189, 248, 0.32);
       border-color: var(--accent);
+    }
+    .chat-chips-bar {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 4px 2px;
+      min-height: 36px;
+      align-items: center;
+    }
+    .chat-chip {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      backdrop-filter: blur(4px);
+    }
+    .chat-chip.active {
+      background: rgba(2, 132, 199, 0.78);
+      border-color: #7dd3fc;
     }
     .topbar {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 8px 10px;
+      border-radius: 11px;
+      padding: 6px 8px;
       display: flex;
       gap: 6px;
       align-items: center;
-      backdrop-filter: blur(5px);
+      backdrop-filter: blur(4px);
     }
     .chat-select {
       flex: 1;
-      background: rgba(15, 23, 42, 0.78);
+      background: rgba(15, 23, 42, 0.74);
       color: var(--text);
       border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 7px 9px;
-      font-size: 12.5px;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
       font-weight: 600;
     }
     .small-btn {
-      background: rgba(30, 41, 59, 0.85);
+      background: rgba(30, 41, 59, 0.82);
       color: var(--text);
       border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 7px 10px;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .chat-meta-outside {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 11px;
-      padding: 7px 10px;
+      border-radius: 8px;
+      padding: 6px 9px;
       font-size: 11.5px;
-      color: var(--text);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      backdrop-filter: blur(5px);
-    }
-    .chat-meta-outside a {
-      color: #7dd3fc;
-      text-decoration: none;
-      word-break: break-all;
+      cursor: pointer;
+      white-space: nowrap;
     }
     .custom-bar {
       display: none;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 11px;
-      padding: 7px 9px;
-      gap: 6px;
+      padding: 6px 8px;
+      gap: 5px;
+      flex-wrap: wrap;
     }
     .custom-bar.active { display: flex; }
     .custom-bar input {
       flex: 1;
-      background: rgba(15, 23, 42, 0.82);
+      min-width: 110px;
+      background: rgba(15, 23, 42, 0.78);
       color: var(--text);
       border: 1px solid var(--line);
       border-radius: 8px;
-      padding: 6px 9px;
-      font-size: 12px;
+      padding: 6px 8px;
+      font-size: 11.5px;
     }
+    .chat-meta-outside {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 6px 9px;
+      font-size: 11px;
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      backdrop-filter: blur(4px);
+    }
+    .chat-meta-outside a {
+      color: #7dd3fc;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .jump-banner {
+      display: none;
+      background: rgba(2, 132, 199, 0.88);
+      border: 1px solid #bae6fd;
+      color: #fff;
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: 600;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .jump-banner.active { display: flex; }
     .messages {
       flex: 1;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 7px;
       padding-right: 2px;
     }
     .msg-card {
-      width: 88%;
+      width: 89%;
       background: var(--bubble);
       border: 1px solid var(--line);
-      border-radius: 13px;
+      border-radius: 12px;
       padding: 8px 10px;
-      backdrop-filter: blur(5px);
+      backdrop-filter: blur(4px);
       display: flex;
       flex-direction: column;
       gap: 5px;
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .msg-card.highlighted {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.65);
     }
     .msg-head {
       display: flex;
@@ -154,7 +199,20 @@
       border-radius: 7px;
       padding: 5px 8px;
       font-size: 11px;
-      color: #f1f5f9;
+      color: #f8fafc;
+      cursor: pointer;
+    }
+    .media-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 600;
+      width: fit-content;
     }
     .msg-body { font-size: 13.5px; line-height: 1.35; word-break: break-word; }
     .msg-actions {
@@ -164,7 +222,7 @@
       align-items: center;
     }
     .chip {
-      background: rgba(15, 23, 42, 0.75);
+      background: rgba(15, 23, 42, 0.72);
       border: 1px solid var(--line);
       color: var(--text);
       border-radius: 7px;
@@ -176,18 +234,18 @@
       font-size: 12px;
       padding: 2px 6px;
       border-radius: 7px;
-      background: rgba(56, 189, 248, 0.25);
+      background: rgba(56, 189, 248, 0.28);
       border: 1px solid rgba(56, 189, 248, 0.45);
     }
     .composer {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 13px;
-      padding: 8px;
+      border-radius: 12px;
+      padding: 7px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      backdrop-filter: blur(6px);
+      gap: 5px;
+      backdrop-filter: blur(5px);
     }
     .reply-preview {
       display: none;
@@ -196,10 +254,16 @@
       background: var(--quote);
       border-left: 3px solid var(--accent);
       border-radius: 7px;
-      padding: 5px 8px;
+      padding: 4px 8px;
       font-size: 11.5px;
     }
     .reply-preview.active { display: flex; }
+    .media-tools {
+      display: flex;
+      gap: 5px;
+      overflow-x: auto;
+      padding-bottom: 1px;
+    }
     .emoji-row {
       display: flex;
       gap: 5px;
@@ -218,11 +282,11 @@
     .input-row { display: flex; gap: 6px; }
     .input-row input {
       flex: 1;
-      background: rgba(15, 23, 42, 0.82);
+      background: rgba(15, 23, 42, 0.78);
       border: 1px solid var(--line);
       color: var(--text);
       border-radius: 9px;
-      padding: 8px 10px;
+      padding: 7px 10px;
       font-size: 13px;
     }
     .send-btn {
@@ -251,14 +315,17 @@
     <button id="tab-contacts" class="cat-tab" onclick="selectCategory('contacts')">👤 Kontaktlar</button>
   </div>
 
+  <div id="chatChipsBar" class="chat-chips-bar"></div>
+
   <div class="topbar">
     <select id="chatSelector" class="chat-select" onchange="switchChat()"></select>
     <button class="small-btn" onclick="toggleCustomBar()">+ Qo'shish</button>
   </div>
 
   <div id="customBar" class="custom-bar">
+    <input id="customNameInput" type="text" placeholder="Chat / Kontakt nomi..." />
     <input id="customIdInput" type="text" placeholder="ID yoki @username..." />
-    <input id="customLinkInput" type="text" placeholder="Havola (ixtiyoriy, https://t.me/...)" />
+    <input id="customLinkInput" type="text" placeholder="Havola (ixtiyoriy)..." />
     <button class="small-btn" onclick="addCustomChat()">Saqlash</button>
   </div>
 
@@ -267,12 +334,24 @@
     <span><b>Havola:</b> <a id="metaLink" href="#" target="_blank">-</a></span>
   </div>
 
+  <div id="jumpBanner" class="jump-banner">
+    <span id="jumpBannerText">Mana shu xabarga reply qilingan</span>
+    <button class="chip" onclick="hideJumpBanner()">Yopish</button>
+  </div>
+
   <div id="messagesList" class="messages"></div>
 
   <div class="composer">
     <div id="replyBar" class="reply-preview">
       <span id="replyText">Reply...</span>
       <button class="chip" onclick="clearReply()">✕</button>
+    </div>
+
+    <div class="media-tools">
+      <button class="chip" onclick="sendMedia('sticker', '🧸 Sticker')">🧸 Sticker</button>
+      <button class="chip" onclick="sendMedia('gif', '🎞 GIF')">🎞 GIF</button>
+      <button class="chip" onclick="sendMedia('photo', '🖼 Rasm')">🖼 Rasm</button>
+      <button class="chip" onclick="sendMedia('voice', '🎙 Ovozli xabar (0:05)')">🎙 Ovozli xabar</button>
     </div>
 
     <div class="emoji-row">
@@ -310,10 +389,12 @@
 
     const DEFAULT_CHATS = {
       groups: [
-        { id: "-1002000000001", name: "Anime Muhokama Guruhi", link: "https://t.me/joinchat/group_demo" }
+        { id: "-1002000000001", name: "Anime Muhokama Guruhi", link: "https://t.me/joinchat/group_demo" },
+        { id: "-1002000000002", name: "Dublyaj Jamoasi", link: "https://t.me/joinchat/dub_team" }
       ],
       channels: [
-        { id: "@AniKinolar_kanal", name: "AniKinolar Asosiy Kanal", link: "https://t.me/AniKinolar_kanal" }
+        { id: "@AniKinolar_kanal", name: "AniKinolar Asosiy Kanal", link: "https://t.me/AniKinolar_kanal" },
+        { id: "@AniRembot", name: "AniREM Bot Kanali", link: "https://t.me/AniRembot" }
       ],
       contacts: [
         { id: "7986354170", name: "Obunachi / Kontakt #1", link: "https://t.me/Yegerist_mvp" },
@@ -324,6 +405,7 @@
     let currentCategory = localStorage.getItem("anirem_cat") || "groups";
     let replyTarget = null;
     let editingMsgId = null;
+    let isSubmitting = false;
 
     function getChats(cat) {
       const saved = JSON.parse(localStorage.getItem("anirem_chats_" + cat) || "null");
@@ -357,11 +439,33 @@
 
       const list = getChats(currentCategory);
       const active = getActiveChatObj();
+
+      const chipsBar = document.getElementById("chatChipsBar");
+      chipsBar.innerHTML = list.map(c => `
+        <button class="chat-chip ${String(c.id) === String(active.id) ? "active" : ""}" onclick="pickChatById('${String(c.id).replace(/'/g, "\\'")}')">
+          ${c.name}
+        </button>
+      `).join("");
+
       const sel = document.getElementById("chatSelector");
       sel.innerHTML = list.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
       if (active.id) sel.value = active.id;
 
       updateMetaOutside(active);
+    }
+
+    function pickChatById(cid) {
+      const list = getChats(currentCategory);
+      const found = list.find(c => String(c.id) === String(cid));
+      if (found) {
+        localStorage.setItem("anirem_active_id_" + currentCategory, found.id);
+        updateMetaOutside(found);
+      }
+      clearReply();
+      cancelEdit();
+      hideJumpBanner();
+      renderChatSelector();
+      renderMsgs();
     }
 
     function updateMetaOutside(chatObj) {
@@ -377,21 +481,14 @@
       localStorage.setItem("anirem_cat", cat);
       clearReply();
       cancelEdit();
+      hideJumpBanner();
       renderChatSelector();
       renderMsgs();
     }
 
     function switchChat() {
       const sel = document.getElementById("chatSelector");
-      const list = getChats(currentCategory);
-      const found = list.find(c => String(c.id) === String(sel.value));
-      if (found) {
-        localStorage.setItem("anirem_active_id_" + currentCategory, found.id);
-        updateMetaOutside(found);
-      }
-      clearReply();
-      cancelEdit();
-      renderMsgs();
+      pickChatById(sel.value);
     }
 
     function toggleCustomBar() {
@@ -399,15 +496,18 @@
     }
 
     function addCustomChat() {
+      const cname = document.getElementById("customNameInput").value.trim();
       const cid = document.getElementById("customIdInput").value.trim();
       const clink = document.getElementById("customLinkInput").value.trim();
       if (!cid) return;
+      const finalName = cname || cid;
       const list = getChats(currentCategory);
       if (!list.some(x => String(x.id) === cid)) {
-        list.push({ id: cid, name: cid, link: clink || "" });
+        list.push({ id: cid, name: finalName, link: clink || "" });
         saveChats(currentCategory, list);
       }
       localStorage.setItem("anirem_active_id_" + currentCategory, cid);
+      document.getElementById("customNameInput").value = "";
       document.getElementById("customIdInput").value = "";
       document.getElementById("customLinkInput").value = "";
       document.getElementById("customBar").classList.remove("active");
@@ -420,27 +520,80 @@
       return "anirem_msgs_" + currentCategory + "_" + active.id;
     }
 
+    function dedupeById(list) {
+      const seen = new Set();
+      return list.filter(item => {
+        const key = String(item.id);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+
     function loadMsgs() {
       const raw = localStorage.getItem(msgStorageKey());
-      if (raw) return JSON.parse(raw);
-      return [
+      if (raw) {
+        const parsed = dedupeById(JSON.parse(raw));
+        localStorage.setItem(msgStorageKey(), JSON.stringify(parsed));
+        return parsed;
+      }
+      const initial = [
         {
           id: 101,
-          sender: "Bot",
+          sender: "Obunachi",
           time: "13:20:00",
+          mediaType: "text",
+          mediaLabel: "",
           replyTo: null,
-          text: "Muloqot oynasi faol.",
+          text: "Salom! Bu xabarga reply qilsangiz, asl xabar ko'rinadi.",
+          reaction: ""
+        },
+        {
+          id: 102,
+          sender: "Obunachi",
+          time: "13:21:10",
+          mediaType: "sticker",
+          mediaLabel: "🧸 Sticker",
+          replyTo: { id: 101, sender: "Obunachi", text: "Salom! Bu xabarga reply qilsangiz, asl xabar ko'rinadi." },
+          text: "Reply yuborildi",
+          reaction: "❤️"
+        },
+        {
+          id: 103,
+          sender: "Obunachi",
+          time: "13:22:05",
+          mediaType: "voice",
+          mediaLabel: "🎙 Ovozli xabar (0:07)",
+          replyTo: null,
+          text: "",
           reaction: ""
         }
       ];
+      localStorage.setItem(msgStorageKey(), JSON.stringify(initial));
+      return initial;
     }
 
     function saveMsgs(list) {
-      localStorage.setItem(msgStorageKey(), JSON.stringify(list));
+      localStorage.setItem(msgStorageKey(), JSON.stringify(dedupeById(list)));
     }
 
     function nowTime() {
       return new Date().toTimeString().slice(0, 8);
+    }
+
+    function hideJumpBanner() {
+      document.getElementById("jumpBanner").classList.remove("active");
+    }
+
+    function jumpToMessage(targetId) {
+      const el = document.getElementById("msg-card-" + targetId);
+      if (!el) return;
+      document.querySelectorAll(".msg-card.highlighted").forEach(n => n.classList.remove("highlighted"));
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("highlighted");
+      document.getElementById("jumpBannerText").textContent = `Mana shu xabarga reply qilingan (#${targetId})`;
+      document.getElementById("jumpBanner").classList.add("active");
+      setTimeout(() => el.classList.remove("highlighted"), 2600);
     }
 
     function renderMsgs() {
@@ -450,25 +603,35 @@
         box.innerHTML = '<div class="msg-card"><div class="msg-body">Xabarlar yo‘q.</div></div>';
         return;
       }
-      box.innerHTML = list.map(m => `
-        <div class="msg-card">
-          <div class="msg-head">
-            <span>Bot</span>
-            <span class="msg-time">${m.time} • #${m.id}</span>
+      box.innerHTML = list.map(m => {
+        const hasReply = m.replyTo && (m.replyTo.text || m.replyTo.id);
+        return `
+          <div id="msg-card-${m.id}" class="msg-card">
+            <div class="msg-head">
+              <span>${m.sender || "Bot"}</span>
+              <span class="msg-time">${m.time} • #${m.id}</span>
+            </div>
+            ${hasReply ? `
+              <div class="reply-box" onclick="jumpToMessage(${m.replyTo.id || 0})">
+                <b>↩️ ${m.replyTo.sender || "Xabar"} ${m.replyTo.id ? "#" + m.replyTo.id : ""}</b><br/>
+                <span>${m.replyTo.text || "Media xabar"}</span>
+              </div>
+            ` : ""}
+            ${m.mediaLabel ? `<div class="media-pill">${m.mediaLabel}</div>` : ""}
+            ${m.text ? `<div class="msg-body">${m.text}</div>` : ""}
+            <div class="msg-actions">
+              ${m.reaction ? `<span class="react-badge">${m.reaction}</span>` : ""}
+              <button class="chip" onclick="startReply(${m.id})">Reply</button>
+              ${hasReply && m.replyTo.id ? `<button class="chip" onclick="jumpToMessage(${m.replyTo.id})">Asl xabar</button>` : ""}
+              <button class="chip" onclick="reactMsg(${m.id}, '❤️')">❤️</button>
+              <button class="chip" onclick="reactMsg(${m.id}, '👍')">👍</button>
+              <button class="chip" onclick="reactMsg(${m.id}, '😂')">😂</button>
+              <button class="chip" onclick="startEdit(${m.id})">Tahrir</button>
+              <button class="chip" onclick="deleteMsg(${m.id})">O'chir</button>
+            </div>
           </div>
-          ${m.replyTo ? `<div class="reply-box"><b>${m.replyTo.sender}</b><br/>${m.replyTo.text}</div>` : ""}
-          <div class="msg-body">${m.text}</div>
-          <div class="msg-actions">
-            ${m.reaction ? `<span class="react-badge">${m.reaction}</span>` : ""}
-            <button class="chip" onclick="startReply(${m.id})">Reply</button>
-            <button class="chip" onclick="reactMsg(${m.id}, '❤️')">❤️</button>
-            <button class="chip" onclick="reactMsg(${m.id}, '👍')">👍</button>
-            <button class="chip" onclick="reactMsg(${m.id}, '😂')">😂</button>
-            <button class="chip" onclick="startEdit(${m.id})">Tahrir</button>
-            <button class="chip" onclick="deleteMsg(${m.id})">O'chir</button>
-          </div>
-        </div>
-      `).join("");
+        `;
+      }).join("");
       box.scrollTop = box.scrollHeight;
     }
 
@@ -481,8 +644,9 @@
     function startReply(id) {
       const found = loadMsgs().find(x => x.id === id);
       if (!found) return;
-      replyTarget = { id: found.id, sender: "Bot", text: found.text };
-      document.getElementById("replyText").textContent = `↩️ #${found.id}: ${found.text}`;
+      const previewText = found.text || found.mediaLabel || "Xabar";
+      replyTarget = { id: found.id, sender: found.sender || "Bot", text: previewText };
+      document.getElementById("replyText").textContent = `↩️ #${found.id} (${found.sender || "Bot"}): ${previewText}`;
       document.getElementById("replyBar").classList.add("active");
     }
 
@@ -495,7 +659,7 @@
       const found = loadMsgs().find(x => x.id === id);
       if (!found) return;
       editingMsgId = id;
-      document.getElementById("msgInput").value = found.text;
+      document.getElementById("msgInput").value = found.text || found.mediaLabel || "";
       document.getElementById("submitBtn").textContent = "Saqlash";
       document.getElementById("editingBadge").textContent = `Tahrir: #${id}`;
     }
@@ -538,10 +702,53 @@
       }
     }
 
+    function appendMessageRecord(mediaType, mediaLabel, textValue) {
+      const active = getActiveChatObj();
+      const list = loadMsgs();
+      const newId = Math.floor(Date.now() + Math.random() * 900) % 1000000;
+      const newItem = {
+        id: newId,
+        sender: "Bot",
+        time: nowTime(),
+        mediaType,
+        mediaLabel,
+        replyTo: replyTarget ? { id: replyTarget.id, sender: replyTarget.sender, text: replyTarget.text } : null,
+        text: textValue,
+        reaction: ""
+      };
+      list.push(newItem);
+      saveMsgs(list);
+      renderMsgs();
+
+      if (tg) {
+        tg.sendData(JSON.stringify({
+          action: "send_direct",
+          target_id: active.id,
+          text: textValue || mediaLabel,
+          media_type: mediaType,
+          show_sender: false,
+          reply_to_message_id: replyTarget ? replyTarget.id : null
+        }));
+      }
+    }
+
+    function sendMedia(mediaType, mediaLabel) {
+      if (isSubmitting) return;
+      isSubmitting = true;
+      const extraText = document.getElementById("msgInput").value.trim();
+      appendMessageRecord(mediaType, mediaLabel, extraText);
+      document.getElementById("msgInput").value = "";
+      clearReply();
+      setTimeout(() => { isSubmitting = false; }, 250);
+    }
+
     function submitMessage() {
+      if (isSubmitting) return;
       const inp = document.getElementById("msgInput");
       const text = inp.value.trim();
       if (!text) return;
+      isSubmitting = true;
+
       const active = getActiveChatObj();
       const list = loadMsgs();
 
@@ -562,33 +769,14 @@
         inp.value = "";
         cancelEdit();
         renderMsgs();
+        setTimeout(() => { isSubmitting = false; }, 250);
         return;
       }
 
-      const newId = Math.floor(Date.now() / 1000) % 100000;
-      list.push({
-        id: newId,
-        sender: "Bot",
-        time: nowTime(),
-        replyTo: replyTarget ? { sender: "Bot", text: replyTarget.text } : null,
-        text,
-        reaction: ""
-      });
-      saveMsgs(list);
-
-      if (tg) {
-        tg.sendData(JSON.stringify({
-          action: "send_direct",
-          target_id: active.id,
-          text,
-          show_sender: false,
-          reply_to_message_id: replyTarget ? replyTarget.id : null
-        }));
-      }
-
+      appendMessageRecord("text", "", text);
       inp.value = "";
       clearReply();
-      renderMsgs();
+      setTimeout(() => { isSubmitting = false; }, 250);
     }
 
     renderChatSelector();
