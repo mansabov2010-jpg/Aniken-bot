@@ -12,7 +12,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardRemove, WebAppInfo
+    ReplyKeyboardRemove, WebAppInfo, ReactionTypeEmoji
 )
 
 import db
@@ -153,7 +153,7 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="✉️ Foydalanuvchiga xabar", callback_data="admin:direct_msg"),
-            InlineKeyboardButton(text="📱 Admin Mini App", web_app=WebAppInfo(url=MINIAPP_URL)),
+            InlineKeyboardButton(text="📱 Chat Mini App", web_app=WebAppInfo(url=MINIAPP_URL)),
         ],
         [
             InlineKeyboardButton(text="⬅️ Asosiy menyu", callback_data="user:home"),
@@ -242,7 +242,6 @@ async def check_subscriptions(bot: Bot, user_id: int) -> list[dict]:
             ):
                 not_joined.append(ch)
         except Exception:
-            # Agar bot kanal/guruhda admin bo'lmasa yoki a'zolikni tekshirib bo'lmasa, bloklash uchun ro'yxatga qo'shamiz
             not_joined.append(ch)
     return not_joined
 
@@ -388,32 +387,52 @@ async def handle_webapp_data(message: Message, bot: Bot, state: FSMContext):
     elif action == "edit_content":
         await message.answer("✏️ Tahrirlash uchun Admin Paneldan <b>Tahrirlash (Edit)</b> ni bosing.", reply_markup=admin_panel_kb())
     elif action == "send_direct":
-        target_id = int(payload.get("target_id", 0))
+        raw_target = str(payload.get("target_id", "")).strip()
+        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
         text_body = (payload.get("text") or "").strip()
-        show_sender = bool(payload.get("show_sender", True))
-        if target_id and text_body:
-            sender_tag = f"\n\n✍️ <i>Admin: {message.from_user.full_name}</i>" if show_sender else ""
+        reply_mid = payload.get("reply_to_message_id")
+        if target_chat and text_body:
             try:
-                await bot.send_message(chat_id=target_id, text=f"📩 <b>Xabar:</b>\n\n{text_body}{sender_tag}")
-                await message.answer(f"✅ Xabar <code>{target_id}</code> ga yuborildi!", reply_markup=admin_panel_kb())
+                await bot.send_message(
+                    chat_id=target_chat,
+                    text=text_body,
+                    reply_to_message_id=int(reply_mid) if reply_mid else None,
+                )
+                await message.answer(f"✅ Xabar bot nomidan <code>{target_chat}</code> ga yuborildi!", reply_markup=admin_panel_kb())
             except Exception as e:
                 await message.answer(f"❌ Yuborishda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
+    elif action == "react_msg":
+        raw_target = str(payload.get("target_id", "")).strip()
+        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
+        msg_id = payload.get("message_id")
+        emoji = (payload.get("emoji") or "").strip()
+        if target_chat and msg_id and emoji:
+            try:
+                await bot.set_message_reaction(
+                    chat_id=target_chat,
+                    message_id=int(msg_id),
+                    reaction=[ReactionTypeEmoji(emoji=emoji)],
+                )
+            except Exception:
+                pass
     elif action == "edit_sent_msg":
-        target_id = int(payload.get("target_id", 0))
+        raw_target = str(payload.get("target_id", "")).strip()
+        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
         msg_id = int(payload.get("message_id", 0))
         new_text = (payload.get("text") or "").strip()
-        if target_id and msg_id and new_text:
+        if target_chat and msg_id and new_text:
             try:
-                await bot.edit_message_text(chat_id=target_id, message_id=msg_id, text=new_text)
+                await bot.edit_message_text(chat_id=target_chat, message_id=msg_id, text=new_text)
                 await message.answer("✏️ Xabar tahrirlandi!", reply_markup=admin_panel_kb())
             except Exception as e:
                 await message.answer(f"❌ Tahrirlashda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
     elif action == "delete_sent_msg":
-        target_id = int(payload.get("target_id", 0))
+        raw_target = str(payload.get("target_id", "")).strip()
+        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
         msg_id = int(payload.get("message_id", 0))
-        if target_id and msg_id:
+        if target_chat and msg_id:
             try:
-                await bot.delete_message(chat_id=target_id, message_id=msg_id)
+                await bot.delete_message(chat_id=target_chat, message_id=msg_id)
                 await message.answer("🗑 Xabar o'chirildi!", reply_markup=admin_panel_kb())
             except Exception as e:
                 await message.answer(f"❌ O'chirishda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
@@ -529,7 +548,6 @@ async def cb_admins_list(call: CallbackQuery):
         return
 
     extra_rows = db.list_extra_admins()
-    extra_ids = {int(r["user_id"]) for r in extra_rows}
 
     lines = ["👮 <b>Adminlar ro'yxati</b>", "━━━━━━━━━━━━━━━", "👑 <b>Asosiy adminlar:</b>"]
     for idx, aid in enumerate(BASE_ADMIN_IDS, 1):
@@ -671,10 +689,10 @@ async def fsm_direct_send(message: Message, bot: Bot, state: FSMContext):
     try:
         sent = await bot.send_message(
             chat_id=target_id,
-            text=f"📩 <b>Admin ({message.from_user.full_name}) dan xabar:</b>\n\n{body}",
+            text=body,
         )
         await message.answer(
-            f"✅ Xabar yuborildi!\n• Manzil: <code>{target_id}</code>\n• Xabar ID: <code>{sent.message_id}</code>",
+            f"✅ Xabar bot nomidan yuborildi!\n• Manzil: <code>{target_id}</code>\n• Xabar ID: <code>{sent.message_id}</code>",
             reply_markup=admin_panel_kb(),
         )
     except Exception as e:
