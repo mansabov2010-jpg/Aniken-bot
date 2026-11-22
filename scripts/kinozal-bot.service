@@ -1,0 +1,16 @@
+[Unit]
+# AniKinolar botini avtomatik ishga tushirish xizmati
+Description=AniKinolar Telegram boti (kino, anime, multfilmlar)
+After=network.target
+
+[Service]
+# Skriptni ishga tushiradi (papka yo'lini o'zingiznikiga almashtiring)
+ExecStart=/bin/bash "/home/USER/anikino-bot/anikino-bot.sh" start bot service
+# Sozlamalarni qayta yuklash
+ExecReload=/bin/kill -HUP $MAINPID
+# Xato bilan to'xtasa, qayta yoqadi
+Restart=on-failure
+Type=forking
+
+[Install]
+WantedBy=multi-user.target
