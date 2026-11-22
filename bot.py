@@ -1,11 +1,14 @@
 import asyncio
 import base64
+import hashlib
+import hmac
 import json
 import os
 import random
 import re
 import tempfile
 import urllib.parse
+from urllib.parse import parse_qsl
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -41,9 +44,11 @@ BASE_MINIAPP_URL = clean_url(
     os.getenv("MINIAPP_URL", ""),
     "https://mansabov2010-jpg.github.io/Aniken-bot/miniapp/index.html"
 )
+# Mini ilova xabarlarni aynan shu manzilga yuboradi (bot o'zining Render manzili).
+# Render RENDER_EXTERNAL_URL ni o'zi beradi, BACKEND_API_URL ni qo'lda ham berish mumkin.
 BACKEND_API_URL = clean_url(
-    os.getenv("BACKEND_API_URL", ""),
-    "https://grab-charakter.onrender.com"
+    os.getenv("BACKEND_API_URL", "") or os.getenv("RENDER_EXTERNAL_URL", ""),
+    "",
 )
 PORT = int(os.getenv("PORT", "8080"))
 
@@ -465,16 +470,62 @@ async def send_movie_to_user(bot: Bot, chat_id: int, user_id: int, code: str, bo
         )
 
 
+# ════════════════════════════════════════════════════════════════
+#  MINI ILOVA → TELEGRAM (bot nomidan xabar yuborish)
+# ════════════════════════════════════════════════════════════════
+
+def verify_init_data(init_data: str) -> int | None:
+    """Mini ilovadan kelgan initData ni Telegram imzosi bilan tekshiradi.
+    To'g'ri bo'lsa foydalanuvchi ID sini qaytaradi, aks holda None."""
+    try:
+        pairs = dict(parse_qsl(init_data or "", keep_blank_values=True))
+        recv_hash = pairs.pop("hash", "")
+        if not recv_hash:
+            return None
+        check_str = "\n".join(f"{k}={v}" for k, v in sorted(pairs.items()))
+        secret = hmac.new(b"WebAppData", TG_TOKEN.encode(), hashlib.sha256).digest()
+        calc = hmac.new(secret, check_str.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(calc, recv_hash):
+            return None
+        return int(json.loads(pairs["user"])["id"])
+    except Exception:
+        return None
+
+
+async def to_ogg_opus(raw: bytes) -> bytes | None:
+    """Brauzerda yozilgan ovozni (webm/mp4) Telegram voice formatiga (OGG/Opus) o'giradi.
+    Serverda ffmpeg bo'lmasa None qaytaradi."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-loglevel", "error", "-i", "pipe:0",
+            "-c:a", "libopus", "-b:a", "48k", "-f", "ogg", "pipe:1",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        out, _ = await proc.communicate(raw)
+        return out if proc.returncode == 0 and out else None
+    except Exception:
+        return None
+
+
 async def execute_miniapp_payload(bot: Bot, payload: dict) -> tuple[bool, str, int | None]:
     action = payload.get("action")
     raw_target = str(payload.get("target_id", "")).strip()
     target_chat = parse_target_id(raw_target)
+    reply_to = payload.get("reply_to")
+    reply_id = int(reply_to) if str(reply_to or "").isdigit() else None
 
     if action == "send_direct":
         text_body = (payload.get("text") or "").strip()
         if not target_chat or not text_body:
             return False, "Manzil yoki matn bo'sh", None
-        sent = await bot.send_message(chat_id=target_chat, text=text_body)
+        sent = await bot.send_message(
+            chat_id=target_chat,
+            text=text_body,
+            parse_mode=None,
+            reply_to_message_id=reply_id,
+        )
         return True, f"Xabar {target_chat} ga yuborildi", sent.message_id
 
     if action == "send_voice_data":
@@ -482,10 +533,20 @@ async def execute_miniapp_payload(bot: Bot, payload: dict) -> tuple[bool, str, i
         if not target_chat or "," not in audio_b64:
             return False, "Ovoz fayli topilmadi", None
         raw_bytes = base64.b64decode(audio_b64.split(",", 1)[1])
-        sent = await bot.send_voice(
-            chat_id=target_chat,
-            voice=BufferedInputFile(raw_bytes, filename="voice.ogg"),
-        )
+        ogg = await to_ogg_opus(raw_bytes)
+        if ogg:
+            sent = await bot.send_voice(
+                chat_id=target_chat,
+                voice=BufferedInputFile(ogg, filename="voice.ogg"),
+                reply_to_message_id=reply_id,
+            )
+        else:
+            # ffmpeg yo'q bo'lsa — ovoz oddiy audio fayl bo'lib boradi
+            sent = await bot.send_document(
+                chat_id=target_chat,
+                document=BufferedInputFile(raw_bytes, filename="voice.webm"),
+                reply_to_message_id=reply_id,
+            )
         return True, f"Ovozli xabar {target_chat} ga yuborildi", sent.message_id
 
     if action == "react_msg":
@@ -504,7 +565,12 @@ async def execute_miniapp_payload(bot: Bot, payload: dict) -> tuple[bool, str, i
         msg_id = int(payload.get("message_id", 0))
         new_text = (payload.get("text") or "").strip()
         if target_chat and msg_id and new_text:
-            await bot.edit_message_text(chat_id=target_chat, message_id=msg_id, text=new_text)
+            await bot.edit_message_text(
+                chat_id=target_chat,
+                message_id=msg_id,
+                text=new_text,
+                parse_mode=None,
+            )
             return True, "Xabar tahrirlandi", msg_id
         return False, "Tahrirlash parametrlari noto'g'ri", None
 
@@ -888,6 +954,7 @@ async def fsm_direct_send(message: Message, bot: Bot, state: FSMContext):
         sent = await bot.send_message(
             chat_id=target_id,
             text=body,
+            parse_mode=None,
         )
         await message.answer(
             f"✅ Xabar bot nomidan yuborildi!\n• Manzil: <code>{target_id}</code>\n• Xabar ID: <code>{sent.message_id}</code>",
@@ -921,7 +988,8 @@ async def cb_bot_status(call: CallbackQuery):
         return
     await call.message.edit_text(
         "🤖 <b>Bot holati:</b> 🟢 Faol va barqaror ishlamoqda\n"
-        f"🌐 <b>Mini App URL:</b> <code>{BASE_MINIAPP_URL}</code>",
+        f"🌐 <b>Mini App URL:</b> <code>{BASE_MINIAPP_URL}</code>\n"
+        f"🔗 <b>API manzili:</b> <code>{BACKEND_API_URL or 'o‘rnatilmagan'}</code>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Admin panel", callback_data="admin:panel")]
         ])
@@ -1422,6 +1490,10 @@ async def cb_pick_content(call: CallbackQuery, bot: Bot):
     await send_movie_to_user(bot, call.message.chat.id, call.from_user.id, code, me.username)
 
 
+# ════════════════════════════════════════════════════════════════
+#  WEB SERVER (mini ilova shu yerga so'rov yuboradi)
+# ════════════════════════════════════════════════════════════════
+
 def _cors_headers() -> dict[str, str]:
     return {
         "Access-Control-Allow-Origin": "*",
@@ -1442,15 +1514,27 @@ async def api_send_handler(request: web.Request) -> web.Response:
     except Exception:
         return web.json_response({"ok": False, "error": "Noto'g'ri JSON"}, status=400, headers=_cors_headers())
 
+    # Faqat admin Telegram ichidagi mini ilovadan yubora oladi
+    uid = verify_init_data(payload.pop("init_data", ""))
+    if not uid or not is_admin(uid):
+        return web.json_response(
+            {"ok": False, "error": "Ruxsat yo'q (admin emas yoki mini ilova Telegram ichida ochilmagan)"},
+            status=403,
+            headers=_cors_headers(),
+        )
+
     try:
         ok, info_text, tg_msg_id = await execute_miniapp_payload(ACTIVE_BOT, payload)
-        return web.json_response({"ok": ok, "message": info_text, "tg_message_id": tg_msg_id}, headers=_cors_headers())
+        return web.json_response(
+            {"ok": ok, "message": info_text, "error": "" if ok else info_text, "tg_message_id": tg_msg_id},
+            headers=_cors_headers(),
+        )
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=400, headers=_cors_headers())
 
 
 async def start_web_server():
-    app = web.Application()
+    app = web.Application(client_max_size=20 * 1024 * 1024)
     app.router.add_get("/", lambda req: web.Response(text="OK - AniKinolar Bot Running"))
     app.router.add_options("/api/send", api_options)
     app.router.add_post("/api/send", api_send_handler)
