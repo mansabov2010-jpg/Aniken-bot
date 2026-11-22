@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+import tempfile
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -12,8 +13,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardRemove, WebAppInfo, ReactionTypeEmoji
+    ReplyKeyboardRemove, WebAppInfo, ReactionTypeEmoji, FSInputFile
 )
+import yt_dlp
 
 import db
 
@@ -42,6 +44,7 @@ PORT = int(os.getenv("PORT", "8080"))
 EMOJI_WAVE = "👋"
 EMOJI_FILM = "🎞"
 EMOJI_BOT = "🤖"
+URL_REGEX = re.compile(r"https?://\S+")
 
 router = Router()
 
@@ -107,7 +110,7 @@ def is_admin(user_id: int) -> bool:
 def format_welcome(full_name: str, bot_username: str, is_adm: bool) -> str:
     base = (
         f"{EMOJI_WAVE} Xush kelibsiz, <b>{full_name}</b>!\n\n"
-        f"{EMOJI_FILM} <b>Anime, multfilm yoki kino kodi / nomini yuboring</b>\n\n"
+        f"{EMOJI_FILM} <b>Havola, anime, multfilm yoki kino kodi / nomini yuboring</b>\n\n"
         f"{EMOJI_BOT} Ushbu bot <b>@{bot_username}</b> | Admin: <b>{OWNER_USER}</b>"
     )
     if is_adm:
@@ -270,6 +273,72 @@ async def send_sub_gate(bot: Bot, chat_id: int, not_joined: list[dict], pending_
         ),
         reply_markup=sub_required_kb(not_joined, pending_code=pending_code),
     )
+
+
+def _download_merged_video_sync(url: str, out_dir: str) -> str:
+    out_tmpl = os.path.join(out_dir, "media.%(ext)s")
+    ydl_opts = {
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
+        "merge_output_format": "mp4",
+        "outtmpl": out_tmpl,
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        "concurrent_fragment_downloads": 5,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        filepath = ydl.prepare_filename(info)
+        base, _ = os.path.splitext(filepath)
+        mp4_path = base + ".mp4"
+        if os.path.exists(mp4_path):
+            return mp4_path
+        if os.path.exists(filepath):
+            return filepath
+        for fname in os.listdir(out_dir):
+            if fname.startswith("media."):
+                return os.path.join(out_dir, fname)
+    return ""
+
+
+async def handle_link_video(message: Message, bot: Bot) -> None:
+    match = URL_REGEX.search(message.text or "")
+    if not match:
+        return
+
+    url = match.group(0).strip(").,]>\"'")
+    status = await message.answer("⚡ Yuklanmoqda...")
+
+    tmp_dir = tempfile.mkdtemp(prefix="dl_")
+    file_path = ""
+    try:
+        file_path = await asyncio.to_thread(_download_merged_video_sync, url, tmp_dir)
+        if not file_path or not os.path.exists(file_path):
+            await status.edit_text("❌ Videoni yuklab bo'lmadi.")
+            return
+
+        await bot.send_video(
+            chat_id=message.chat.id,
+            video=FSInputFile(file_path),
+            supports_streaming=True,
+        )
+        try:
+            await status.delete()
+        except Exception:
+            pass
+    except Exception as e:
+        await status.edit_text(f"❌ Xatolik: <code>{e}</code>")
+    finally:
+        for root_dir, _, files in os.walk(tmp_dir, topdown=False):
+            for fname in files:
+                try:
+                    os.remove(os.path.join(root_dir, fname))
+                except Exception:
+                    pass
+            try:
+                os.rmdir(root_dir)
+            except Exception:
+                pass
 
 
 async def send_movie_to_user(bot: Bot, chat_id: int, user_id: int, code: str, bot_username: str) -> None:
@@ -462,7 +531,7 @@ async def cb_search_hint(call: CallbackQuery, bot: Bot):
         await send_sub_gate(bot, call.message.chat.id, not_joined)
         return
     await call.message.answer(
-        f"{EMOJI_FILM} <b>Anime, multfilm yoki kino kodi / nomini yuboring</b>"
+        f"{EMOJI_FILM} <b>Havola, anime, multfilm yoki kino kodi / nomini yuboring</b>"
     )
     await call.answer()
 
@@ -498,7 +567,11 @@ async def cb_subcheck(call: CallbackQuery, bot: Bot):
         pass
     me = await bot.get_me()
     if pending_code:
-        await send_movie_to_user(bot, call.message.chat.id, call.from_user.id, pending_code, me.username)
+        if URL_REGEX.search(pending_code):
+            fake_msg = call.message.model_copy(update={"text": pending_code, "from_user": call.from_user})
+            await handle_link_video(fake_msg, bot)
+        else:
+            await send_movie_to_user(bot, call.message.chat.id, call.from_user.id, pending_code, me.username)
     else:
         await call.message.answer(
             text=format_welcome(call.from_user.full_name, me.username, is_admin(call.from_user.id)),
@@ -1183,6 +1256,10 @@ async def handle_text_search(message: Message, bot: Bot):
         await send_sub_gate(bot, message.chat.id, not_joined, pending_code=text)
         return
 
+    if URL_REGEX.search(text):
+        await handle_link_video(message, bot)
+        return
+
     exact = db.get_content_by_code(text)
     if exact:
         await send_movie_to_user(bot, message.chat.id, message.from_user.id, text, me.username)
@@ -1201,7 +1278,7 @@ async def handle_text_search(message: Message, bot: Bot):
         return
 
     await message.answer(
-        f"{EMOJI_FILM} <b>Anime, multfilm yoki kino kodi / nomini yuboring</b>\n"
+        f"{EMOJI_FILM} <b>Havola, anime, multfilm yoki kino kodi / nomini yuboring</b>\n"
         f"❌ «{text}» topilmadi.",
         reply_markup=main_inline_kb(message.from_user.id)
     )
