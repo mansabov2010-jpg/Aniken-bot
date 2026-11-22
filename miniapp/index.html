@@ -421,7 +421,7 @@
     </div>
 
     <div class="sub-row">
-      <span>Yozuvchi: <b>Bot</b></span>
+      <span id="sendStatusLabel">Yozuvchi: <b>Bot</b></span>
       <span id="editingBadge" style="color:#7dd3fc;"></span>
     </div>
   </div>
@@ -434,6 +434,7 @@
     }
 
     let currentTab = localStorage.getItem("anirem_tab_v5") || "groups";
+    let apiBaseUrl = localStorage.getItem("anirem_api_base_v5") || "";
     let replyTarget = null;
     let editingMsgId = null;
     let isSubmitting = false;
@@ -445,6 +446,48 @@
     let recordedAudioUrl = "";
     let recordedDuration = "0:00";
 
+    function setSendStatus(txt, isErr = false) {
+      const el = document.getElementById("sendStatusLabel");
+      if (!el) return;
+      el.innerHTML = isErr
+        ? `<span style="color:#fca5a5;">${txt}</span>`
+        : `<span>${txt}</span>`;
+    }
+
+    async function dispatchToTelegram(payloadObj) {
+      let sentViaApi = false;
+      if (apiBaseUrl) {
+        try {
+          const resp = await fetch(`${apiBaseUrl.replace(/\/+$/, "")}/api/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payloadObj),
+          });
+          const data = await resp.json();
+          if (resp.ok && data && data.ok) {
+            sentViaApi = true;
+            setSendStatus("✅ Telegram'ga yuborildi", false);
+            return;
+          }
+          if (data && data.error) {
+            setSendStatus(`⚠️ TG xato: ${data.error}`, true);
+            return;
+          }
+        } catch (_) {}
+      }
+
+      if (tg && typeof tg.sendData === "function") {
+        try {
+          tg.sendData(JSON.stringify(payloadObj));
+          setSendStatus("📤 Botga yuborildi", false);
+        } catch (_) {
+          if (!sentViaApi) {
+            setSendStatus("⚠️ Yuborishda xatolik", true);
+          }
+        }
+      }
+    }
+
     function loadList(tab) {
       return JSON.parse(localStorage.getItem("anirem_list_v5_" + tab) || "[]");
     }
@@ -455,6 +498,10 @@
 
     function ingestPayload(data) {
       if (!data || typeof data !== "object") return;
+      if (data.api_base) {
+        apiBaseUrl = String(data.api_base).trim();
+        localStorage.setItem("anirem_api_base_v5", apiBaseUrl);
+      }
       if (Array.isArray(data.groups)) {
         const cur = loadList("groups");
         data.groups.forEach(g => {
@@ -771,14 +818,12 @@
       item.reaction = item.reaction === emoji ? "" : emoji;
       localStorage.setItem(key, JSON.stringify(list));
       renderMessages(active);
-      if (tg) {
-        tg.sendData(JSON.stringify({
-          action: "react_msg",
-          target_id: active.id,
-          message_id: id,
-          emoji
-        }));
-      }
+      dispatchToTelegram({
+        action: "react_msg",
+        target_id: active.id,
+        message_id: id,
+        emoji
+      });
     }
 
     function deleteMsg(id) {
@@ -788,13 +833,11 @@
       const list = JSON.parse(localStorage.getItem(key) || "[]").filter(x => String(x.id) !== String(id));
       localStorage.setItem(key, JSON.stringify(list));
       renderMessages(active);
-      if (tg) {
-        tg.sendData(JSON.stringify({
-          action: "delete_sent_msg",
-          target_id: active.id,
-          message_id: id
-        }));
-      }
+      dispatchToTelegram({
+        action: "delete_sent_msg",
+        target_id: active.id,
+        message_id: id
+      });
     }
 
     function pushOutMsg(payloadObj) {
@@ -816,16 +859,13 @@
       localStorage.setItem(key, JSON.stringify(dedupeById(list)));
       renderMessages(active);
 
-      if (tg) {
-        tg.sendData(JSON.stringify({
-          action: "send_direct",
-          target_id: active.id,
-          text: item.text || item.sticker || `🎙 Ovozli xabar (${item.duration || "0:00"})`,
-          media_type: item.type || "text",
-          show_sender: false,
-          reply_to_message_id: replyTarget ? replyTarget.id : null
-        }));
-      }
+      dispatchToTelegram({
+        action: "send_direct",
+        target_id: active.id,
+        text: item.text || item.sticker || `🎙 Ovozli xabar (${item.duration || "0:00"})`,
+        media_type: item.type || "text",
+        show_sender: false
+      });
     }
 
     function sendStickerItem(stickerChar) {
@@ -924,14 +964,12 @@
         text: ""
       });
 
-      if (tg) {
-        tg.sendData(JSON.stringify({
-          action: "send_voice_data",
-          target_id: active.id,
-          duration: recordedDuration,
-          audio_base64: recordedAudioUrl
-        }));
-      }
+      dispatchToTelegram({
+        action: "send_voice_data",
+        target_id: active.id,
+        duration: recordedDuration,
+        audio_base64: recordedAudioUrl
+      });
 
       clearReply();
       discardVoice();
@@ -962,14 +1000,12 @@
           }
           localStorage.setItem(key, JSON.stringify(list));
           renderMessages(active);
-          if (tg) {
-            tg.sendData(JSON.stringify({
-              action: "edit_sent_msg",
-              target_id: active.id,
-              message_id: editingMsgId,
-              text
-            }));
-          }
+          dispatchToTelegram({
+            action: "edit_sent_msg",
+            target_id: active.id,
+            message_id: editingMsgId,
+            text
+          });
         }
         inp.value = "";
         cancelEdit();
