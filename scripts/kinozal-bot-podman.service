@@ -1,0 +1,16 @@
+[Unit]
+# AniKinolar botini avtomatik ishga tushirish xizmati (Podman orqali)
+Description=AniKinolar Telegram boti (kino, anime, multfilmlar)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+# Bot to'xtab qolsa, avtomatik qayta yoqiladi
+Restart=always
+# Oldindan yaratilgan "anikino-bot" konteynerini ishga tushiradi
+ExecStart=/usr/bin/podman start -a anikino-bot
+# To'xtatishda 10 soniya kutadi
+ExecStop=/usr/bin/podman stop -t 10 anikino-bot
+
+[Install]
+WantedBy=default.target
