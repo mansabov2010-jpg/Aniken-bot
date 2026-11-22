@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AniREM Chat Mini App</title>
+  <title>AniREM Guruh va Kontaktlar</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --panel: rgba(15, 23, 42, 0.56);
-      --incoming: rgba(24, 33, 52, 0.78);
-      --outgoing: rgba(2, 132, 199, 0.84);
-      --quote: rgba(15, 23, 42, 0.52);
+      --panel: rgba(15, 23, 42, 0.58);
+      --incoming: rgba(24, 33, 52, 0.80);
+      --outgoing: rgba(2, 132, 199, 0.86);
+      --quote: rgba(15, 23, 42, 0.55);
       --accent: #38bdf8;
       --text: #f8fafc;
       --muted: #cbd5e1;
@@ -30,52 +30,52 @@
       padding: 8px;
       gap: 6px;
     }
-    .cat-tabs {
+    .tabs {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 5px;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 4px;
       backdrop-filter: blur(4px);
     }
-    .cat-tab {
+    .tab-btn {
       border: 1px solid transparent;
       background: transparent;
       color: var(--text);
-      padding: 6px;
+      padding: 7px;
       border-radius: 9px;
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 600;
       cursor: pointer;
     }
-    .cat-tab.active {
-      background: rgba(56, 189, 248, 0.32);
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.34);
       border-color: var(--accent);
     }
-    .chat-chips-bar {
+    .items-bar {
       display: flex;
       gap: 6px;
       overflow-x: auto;
-      padding: 3px 2px;
+      padding: 2px;
       min-height: 34px;
       align-items: center;
     }
-    .chat-chip {
+    .item-chip {
       background: var(--panel);
       border: 1px solid var(--line);
       color: var(--text);
       border-radius: 10px;
-      padding: 5px 10px;
+      padding: 5px 11px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
       backdrop-filter: blur(4px);
     }
-    .chat-chip.active {
-      background: rgba(2, 132, 199, 0.85);
+    .item-chip.active {
+      background: rgba(2, 132, 199, 0.88);
       border-color: #7dd3fc;
     }
     .topbar {
@@ -90,7 +90,7 @@
     }
     .chat-select {
       flex: 1;
-      background: rgba(15, 23, 42, 0.75);
+      background: rgba(15, 23, 42, 0.76);
       color: var(--text);
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -121,40 +121,40 @@
     .custom-bar input {
       flex: 1;
       min-width: 105px;
-      background: rgba(15, 23, 42, 0.78);
+      background: rgba(15, 23, 42, 0.80);
       color: var(--text);
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 6px 8px;
       font-size: 11.5px;
     }
-    .chat-profile-box {
+    .header-card {
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 11px;
-      padding: 6px 9px;
+      padding: 7px 10px;
       display: flex;
       flex-direction: column;
       gap: 2px;
       cursor: pointer;
       backdrop-filter: blur(4px);
     }
-    .chat-profile-top {
+    .header-title {
+      font-size: 13px;
+      font-weight: 700;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-weight: 700;
-      font-size: 13px;
     }
-    .chat-meta-small {
+    .header-sub {
+      font-size: 10px;
+      color: var(--muted);
       display: flex;
       flex-direction: column;
       gap: 1px;
-      font-size: 10px;
-      color: var(--muted);
       line-height: 1.25;
     }
-    .chat-meta-small a {
+    .header-sub a {
       color: #7dd3fc;
       text-decoration: none;
       word-break: break-all;
@@ -181,16 +181,13 @@
       gap: 7px;
       padding: 2px;
     }
-    .msg-row {
-      display: flex;
-      width: 100%;
-    }
-    .msg-row.outgoing { justify-content: flex-end; }
+    .msg-row { display: flex; width: 100%; }
     .msg-row.incoming { justify-content: flex-start; }
+    .msg-row.outgoing { justify-content: flex-end; }
     .msg-card {
       width: 82%;
       border: 1px solid var(--line);
-      border-radius: 13px;
+      border-radius: 12px;
       padding: 7px 10px;
       backdrop-filter: blur(4px);
       display: flex;
@@ -207,7 +204,6 @@
     .msg-head {
       display: flex;
       justify-content: space-between;
-      align-items: center;
       font-size: 11px;
       font-weight: 700;
     }
@@ -225,21 +221,18 @@
       line-height: 1.1;
       padding: 2px 0;
     }
-    .voice-player {
+    .msg-body { font-size: 13px; line-height: 1.32; word-break: break-word; }
+    .voice-box {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 9px;
+      padding: 5px 7px;
       display: flex;
       flex-direction: column;
       gap: 4px;
-      background: rgba(15, 23, 42, 0.45);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 10px;
-      padding: 6px 8px;
-      font-size: 11.5px;
+      font-size: 11px;
     }
-    .voice-player audio {
-      width: 100%;
-      height: 28px;
-    }
-    .msg-body { font-size: 13.5px; line-height: 1.32; word-break: break-word; }
+    .voice-box audio { width: 100%; height: 28px; }
     .msg-actions {
       display: flex;
       flex-wrap: wrap;
@@ -255,10 +248,6 @@
       padding: 2px 7px;
       font-size: 10.5px;
       cursor: pointer;
-    }
-    .chip.rec-active {
-      background: rgba(220, 38, 38, 0.85);
-      border-color: #fca5a5;
     }
     .chip.del {
       background: rgba(190, 24, 93, 0.65);
@@ -281,18 +270,30 @@
       gap: 5px;
       backdrop-filter: blur(5px);
     }
-    .reply-preview, .rec-status {
+    .reply-preview, .voice-panel {
       display: none;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--quote);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      border-radius: 10px;
+      padding: 7px;
+      font-size: 11.5px;
+    }
+    .reply-preview {
+      flex-direction: row;
       justify-content: space-between;
       align-items: center;
-      background: var(--quote);
-      border-left: 3px solid var(--accent);
-      border-radius: 7px;
-      padding: 4px 8px;
-      font-size: 11px;
     }
-    .reply-preview.active, .rec-status.active { display: flex; }
-    .rec-status { border-left-color: #ef4444; }
+    .reply-preview.active, .voice-panel.active { display: flex; }
+    .voice-panel { border-left-color: #ef4444; }
+    .voice-controls {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
     .media-tools, .emoji-row {
       display: flex;
       gap: 5px;
@@ -308,25 +309,27 @@
       cursor: pointer;
       white-space: nowrap;
     }
+    .btn {
+      background: rgba(30, 41, 59, 0.88);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn.primary { background: #0284c7; border-color: #7dd3fc; color: #fff; }
+    .btn.danger { background: #dc2626; border-color: #fca5a5; color: #fff; }
     .input-row { display: flex; gap: 6px; }
     .input-row input {
       flex: 1;
-      background: rgba(15, 23, 42, 0.78);
+      background: rgba(15, 23, 42, 0.8);
       border: 1px solid var(--line);
       color: var(--text);
       border-radius: 9px;
       padding: 7px 10px;
       font-size: 13px;
-    }
-    .send-btn {
-      background: #0284c7;
-      color: #fff;
-      border: none;
-      border-radius: 9px;
-      padding: 0 13px;
-      font-weight: 600;
-      font-size: 12.5px;
-      cursor: pointer;
     }
     .sub-row {
       display: flex;
@@ -338,16 +341,15 @@
   </style>
 </head>
 <body>
-  <div class="cat-tabs">
-    <button id="tab-groups" class="cat-tab active" onclick="selectCategory('groups')">👥 Guruhlar</button>
-    <button id="tab-channels" class="cat-tab" onclick="selectCategory('channels')">📢 Kanallar</button>
-    <button id="tab-contacts" class="cat-tab" onclick="selectCategory('contacts')">👤 Kontaktlar</button>
+  <div class="tabs">
+    <button id="tabGroups" class="tab-btn active" onclick="switchTab('groups')">👥 Guruhlar</button>
+    <button id="tabContacts" class="tab-btn" onclick="switchTab('contacts')">👤 Kontaktlar</button>
   </div>
 
-  <div id="chatChipsBar" class="chat-chips-bar"></div>
+  <div id="itemsBar" class="items-bar"></div>
 
   <div class="topbar">
-    <select id="chatSelector" class="chat-select" onchange="switchChat()"></select>
+    <select id="itemSelector" class="chat-select" onchange="switchItemDropdown()"></select>
     <button class="small-btn" onclick="toggleCustomBar()">+ Qo'shish</button>
   </div>
 
@@ -355,17 +357,17 @@
     <input id="customNameInput" type="text" placeholder="Nomi..." />
     <input id="customIdInput" type="text" placeholder="ID yoki @username..." />
     <input id="customLinkInput" type="text" placeholder="Havola (ixtiyoriy)..." />
-    <button class="small-btn" onclick="addCustomChat()">Saqlash</button>
+    <button class="small-btn" onclick="addCustomItem()">Saqlash</button>
   </div>
 
-  <div id="chatProfileBox" class="chat-profile-box" onclick="openCurrentChatProfile()">
-    <div class="chat-profile-top">
-      <span id="profileTitle">Chat</span>
-      <span>Chatga kirish ↗</span>
+  <div class="header-card" onclick="openActiveLink()">
+    <div class="header-title">
+      <span id="activeName">Tanlanmagan</span>
+      <span id="activeTypeLabel" style="font-size:10.5px;color:#7dd3fc;">-</span>
     </div>
-    <div class="chat-meta-small">
-      <span>ID: <code id="metaId">-</code></span>
-      <span>Havola: <a id="metaLink" href="#" target="_blank" onclick="event.stopPropagation()">-</a></span>
+    <div class="header-sub">
+      <span>ID: <code id="activeId">-</code></span>
+      <span>Havola: <a id="activeLink" href="#" target="_blank" onclick="event.stopPropagation()">-</a></span>
     </div>
   </div>
 
@@ -382,17 +384,22 @@
       <button class="chip" onclick="clearReply()">✕</button>
     </div>
 
-    <div id="recStatus" class="rec-status">
-      <span id="recTimerText">🎙 Ovoz yozilmoqda... 0:00</span>
-      <button class="chip rec-active" onclick="stopVoiceRecording(true)">Yuborish</button>
-      <button class="chip" onclick="stopVoiceRecording(false)">Bekor</button>
+    <div id="voicePanel" class="voice-panel">
+      <div id="voiceStatusText">🎙 Ovozli xabar yozishga tayyor</div>
+      <audio id="voicePreviewAudio" controls style="display:none;width:100%;height:28px;"></audio>
+      <div class="voice-controls">
+        <button id="startRecBtn" class="btn danger" onclick="startRecording()">🎙 Yozishni boshlash</button>
+        <button id="stopRecBtn" class="btn" onclick="stopRecording()" style="display:none;">⏹ To'xtatish</button>
+        <button id="sendVoiceBtn" class="btn primary" onclick="sendRecordedVoice()" style="display:none;">📤 Jo'natish</button>
+        <button class="btn" onclick="discardVoice()">✕ Bekor</button>
+      </div>
     </div>
 
     <div class="media-tools">
       <button class="chip" onclick="sendStickerItem('🧸')">🧸 Stiker</button>
       <button class="chip" onclick="sendStickerItem('🔥')">🔥 Stiker</button>
       <button class="chip" onclick="sendStickerItem('😂')">😂 Stiker</button>
-      <button id="voiceRecBtn" class="chip" onclick="toggleVoiceRecording()">🎙 Ovozli xabar</button>
+      <button class="chip" onclick="openVoicePanel()">🎙 Ovozli xabar</button>
     </div>
 
     <div class="emoji-row">
@@ -410,7 +417,7 @@
 
     <div class="input-row">
       <input id="msgInput" type="text" placeholder="Bot nomidan xabar yozing..." />
-      <button id="submitBtn" class="send-btn" onclick="submitMessage()">Yuborish</button>
+      <button id="submitBtn" class="btn primary" onclick="submitTextOrEdit()">Jo'natish</button>
     </div>
 
     <div class="sub-row">
@@ -426,77 +433,141 @@
       tg.expand();
     }
 
-    const DEFAULT_CHATS = {
-      groups: [],
-      channels: [
-        { id: "@AniKinolar_kanal", name: "AniKinolar Asosiy Kanal", link: "https://t.me/AniKinolar_kanal" }
-      ],
-      contacts: []
-    };
-
-    function ingestUrlChats() {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const raw = params.get("chats");
-        if (!raw) return;
-        const parsed = JSON.parse(decodeURIComponent(raw));
-        ["groups", "channels", "contacts"].forEach(cat => {
-          if (Array.isArray(parsed[cat]) && parsed[cat].length) {
-            const existing = getChats(cat);
-            const merged = [...existing];
-            parsed[cat].forEach(item => {
-              if (item && item.id && !merged.some(x => String(x.id) === String(item.id))) {
-                merged.push({
-                  id: String(item.id),
-                  name: item.name || String(item.id),
-                  link: item.link || ""
-                });
-              }
-            });
-            saveChats(cat, merged);
-          }
-        });
-      } catch (_) {}
-    }
-
-    let currentCategory = localStorage.getItem("anirem_cat") || "groups";
+    let currentTab = localStorage.getItem("anirem_tab_v5") || "groups";
     let replyTarget = null;
     let editingMsgId = null;
     let isSubmitting = false;
 
     let mediaRecorder = null;
-    let recordedChunks = [];
-    let recInterval = null;
-    let recSeconds = 0;
+    let audioChunks = [];
+    let recTimer = null;
+    let recSec = 0;
+    let recordedAudioUrl = "";
+    let recordedDuration = "0:00";
 
-    function getChats(cat) {
-      const saved = JSON.parse(localStorage.getItem("anirem_chats_" + cat) || "null");
-      if (Array.isArray(saved) && saved.length) return saved;
-      return DEFAULT_CHATS[cat] || [];
+    function loadList(tab) {
+      return JSON.parse(localStorage.getItem("anirem_list_v5_" + tab) || "[]");
     }
 
-    function saveChats(cat, list) {
-      localStorage.setItem("anirem_chats_" + cat, JSON.stringify(list));
+    function saveList(tab, arr) {
+      localStorage.setItem("anirem_list_v5_" + tab, JSON.stringify(arr));
     }
 
-    function getActiveChatObj() {
-      const list = getChats(currentCategory);
-      const savedId = localStorage.getItem("anirem_active_id_" + currentCategory);
-      return list.find(c => String(c.id) === String(savedId)) || list[0] || { id: "", name: "Chat qo'shilmagan", link: "" };
+    function ingestPayload(data) {
+      if (!data || typeof data !== "object") return;
+      if (Array.isArray(data.groups)) {
+        const cur = loadList("groups");
+        data.groups.forEach(g => {
+          if (g && g.id && !cur.some(x => String(x.id) === String(g.id))) {
+            cur.push({ id: String(g.id), name: g.name || String(g.id), link: g.link || "" });
+          }
+        });
+        saveList("groups", cur);
+      }
+      if (Array.isArray(data.contacts)) {
+        const cur = loadList("contacts");
+        data.contacts.forEach(u => {
+          if (u && u.id && !cur.some(x => String(x.id) === String(u.id))) {
+            cur.push({ id: String(u.id), name: u.name || String(u.id), link: u.link || "" });
+          }
+        });
+        saveList("contacts", cur);
+      }
+      if (data.incoming_message && data.incoming_message.chat_id) {
+        const m = data.incoming_message;
+        const targetTab = m.tab === "groups" ? "groups" : "contacts";
+        const key = "anirem_msgs_v5_" + targetTab + "_" + String(m.chat_id);
+        const list = JSON.parse(localStorage.getItem(key) || "[]");
+        if (!list.some(x => String(x.id) === String(m.id))) {
+          list.push({
+            id: m.id || Date.now(),
+            direction: "incoming",
+            sender: m.sender || "Obunachi",
+            time: m.time || nowTime(),
+            type: m.type || "text",
+            text: m.text || "",
+            sticker: m.sticker || "",
+            audioUrl: m.audioUrl || "",
+            duration: m.duration || "",
+            replyTo: m.replyTo || null,
+            reaction: ""
+          });
+          localStorage.setItem(key, JSON.stringify(list));
+        }
+      }
     }
 
-    function buildLink(chatObj) {
-      if (!chatObj || !chatObj.id) return "";
-      if (chatObj.link) return chatObj.link;
-      const sid = String(chatObj.id).trim();
+    function initFromUrl() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("data");
+        if (raw) {
+          ingestPayload(JSON.parse(decodeURIComponent(raw)));
+        }
+      } catch (_) {}
+    }
+
+    function buildLink(item) {
+      if (!item || !item.id) return "";
+      if (item.link) return item.link;
+      const sid = String(item.id).trim();
       if (sid.startsWith("@")) return "https://t.me/" + sid.slice(1);
       if (/^-100\d+$/.test(sid)) return "https://t.me/c/" + sid.slice(4);
       if (/^\d+$/.test(sid)) return "https://t.me/user?id=" + sid;
       return "";
     }
 
-    function openCurrentChatProfile() {
-      const active = getActiveChatObj();
+    function getActiveItem() {
+      const list = loadList(currentTab);
+      const savedId = localStorage.getItem("anirem_active_v5_" + currentTab);
+      return list.find(x => String(x.id) === String(savedId)) || list[0] || null;
+    }
+
+    function selectItem(id) {
+      localStorage.setItem("anirem_active_v5_" + currentTab, String(id));
+      clearReply();
+      cancelEdit();
+      hideJumpBanner();
+      renderAll();
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      localStorage.setItem("anirem_tab_v5", tab);
+      clearReply();
+      cancelEdit();
+      hideJumpBanner();
+      renderAll();
+    }
+
+    function switchItemDropdown() {
+      selectItem(document.getElementById("itemSelector").value);
+    }
+
+    function toggleCustomBar() {
+      document.getElementById("customBar").classList.toggle("active");
+    }
+
+    function addCustomItem() {
+      const cname = document.getElementById("customNameInput").value.trim();
+      const cid = document.getElementById("customIdInput").value.trim();
+      const clink = document.getElementById("customLinkInput").value.trim();
+      if (!cid) return;
+      const list = loadList(currentTab);
+      if (!list.some(x => String(x.id) === cid)) {
+        list.push({ id: cid, name: cname || cid, link: clink || "" });
+        saveList(currentTab, list);
+      }
+      localStorage.setItem("anirem_active_v5_" + currentTab, cid);
+      document.getElementById("customNameInput").value = "";
+      document.getElementById("customIdInput").value = "";
+      document.getElementById("customLinkInput").value = "";
+      document.getElementById("customBar").classList.remove("active");
+      renderAll();
+    }
+
+    function openActiveLink() {
+      const active = getActiveItem();
       const link = buildLink(active);
       if (!link) return;
       if (tg && tg.openTelegramLink && link.startsWith("https://t.me/")) {
@@ -506,100 +577,51 @@
       }
     }
 
-    function renderChatSelector() {
-      ["groups", "channels", "contacts"].forEach(cat => {
-        document.getElementById("tab-" + cat).classList.toggle("active", cat === currentCategory);
-      });
+    function renderAll() {
+      document.getElementById("tabGroups").classList.toggle("active", currentTab === "groups");
+      document.getElementById("tabContacts").classList.toggle("active", currentTab === "contacts");
 
-      const list = getChats(currentCategory);
-      const active = getActiveChatObj();
+      const list = loadList(currentTab);
+      const active = getActiveItem();
+      const bar = document.getElementById("itemsBar");
+      const sel = document.getElementById("itemSelector");
 
-      const chipsBar = document.getElementById("chatChipsBar");
-      chipsBar.innerHTML = list.length
-        ? list.map(c => `
-            <button class="chat-chip ${String(c.id) === String(active.id) ? "active" : ""}" onclick="pickChatById('${String(c.id).replace(/'/g, "\\'")}')">
-              ${c.name}
-            </button>
-          `).join("")
-        : `<span style="font-size:11px;color:#cbd5e1;">Hozircha ro'yxat bo'sh (+ Qo'shish orqali qo'shing)</span>`;
-
-      const sel = document.getElementById("chatSelector");
-      sel.innerHTML = list.length
-        ? list.map(c => `<option value="${c.id}">${c.name}</option>`).join("")
-        : `<option value="">Ro'yxat bo'sh</option>`;
-      if (active.id) sel.value = active.id;
-
-      updateProfileBox(active);
-    }
-
-    function pickChatById(cid) {
-      const list = getChats(currentCategory);
-      const found = list.find(c => String(c.id) === String(cid));
-      if (found) {
-        localStorage.setItem("anirem_active_id_" + currentCategory, found.id);
-        updateProfileBox(found);
+      if (!list.length) {
+        bar.innerHTML = `<span style="font-size:11px;color:#cbd5e1;">${currentTab === "groups" ? "Bot qo'shilgan guruhlar hali yo'q" : "Botga yozgan insonlar hali yo'q"}</span>`;
+        sel.innerHTML = `<option value="">Ro'yxat bo'sh</option>`;
+        document.getElementById("activeName").textContent = "Ro'yxat bo'sh";
+        document.getElementById("activeTypeLabel").textContent = currentTab === "groups" ? "Guruhlar" : "Kontaktlar";
+        document.getElementById("activeId").textContent = "-";
+        document.getElementById("activeLink").textContent = "-";
+        document.getElementById("activeLink").href = "#";
+        document.getElementById("messagesList").innerHTML = "";
+        return;
       }
-      clearReply();
-      cancelEdit();
-      hideJumpBanner();
-      renderChatSelector();
-      renderMsgs();
-    }
 
-    function updateProfileBox(chatObj) {
-      const link = buildLink(chatObj);
-      document.getElementById("profileTitle").textContent = chatObj.name || "Chat";
-      document.getElementById("metaId").textContent = chatObj.id || "-";
-      const a = document.getElementById("metaLink");
-      if (link) {
-        a.textContent = link;
-        a.href = link;
-      } else {
-        a.textContent = "-";
-        a.href = "#";
+      bar.innerHTML = list.map(item => `
+        <button class="item-chip ${active && String(active.id) === String(item.id) ? "active" : ""}" onclick="selectItem('${String(item.id).replace(/'/g, "\\'")}')">
+          ${item.name}
+        </button>
+      `).join("");
+
+      sel.innerHTML = list.map(item => `<option value="${item.id}">${item.name}</option>`).join("");
+      if (active) sel.value = active.id;
+
+      if (active) {
+        const link = buildLink(active);
+        document.getElementById("activeName").textContent = active.name;
+        document.getElementById("activeTypeLabel").textContent = currentTab === "groups" ? "Guruh" : "Kontakt";
+        document.getElementById("activeId").textContent = active.id;
+        const a = document.getElementById("activeLink");
+        a.textContent = link || "-";
+        a.href = link || "#";
       }
+
+      renderMessages(active);
     }
 
-    function selectCategory(cat) {
-      currentCategory = cat;
-      localStorage.setItem("anirem_cat", cat);
-      clearReply();
-      cancelEdit();
-      hideJumpBanner();
-      renderChatSelector();
-      renderMsgs();
-    }
-
-    function switchChat() {
-      pickChatById(document.getElementById("chatSelector").value);
-    }
-
-    function toggleCustomBar() {
-      document.getElementById("customBar").classList.toggle("active");
-    }
-
-    function addCustomChat() {
-      const cname = document.getElementById("customNameInput").value.trim();
-      const cid = document.getElementById("customIdInput").value.trim();
-      const clink = document.getElementById("customLinkInput").value.trim();
-      if (!cid) return;
-      const list = getChats(currentCategory);
-      if (!list.some(x => String(x.id) === cid)) {
-        list.push({ id: cid, name: cname || cid, link: clink || "" });
-        saveChats(currentCategory, list);
-      }
-      localStorage.setItem("anirem_active_id_" + currentCategory, cid);
-      document.getElementById("customNameInput").value = "";
-      document.getElementById("customIdInput").value = "";
-      document.getElementById("customLinkInput").value = "";
-      document.getElementById("customBar").classList.remove("active");
-      renderChatSelector();
-      renderMsgs();
-    }
-
-    function msgStorageKey() {
-      const active = getActiveChatObj();
-      return "anirem_chat_v4_" + currentCategory + "_" + (active.id || "empty");
+    function msgsKey(active) {
+      return "anirem_msgs_v5_" + currentTab + "_" + (active ? active.id : "none");
     }
 
     function dedupeById(list) {
@@ -612,23 +634,11 @@
       });
     }
 
-    function loadMsgs() {
-      const raw = localStorage.getItem(msgStorageKey());
-      if (!raw) return [];
-      const parsed = dedupeById(JSON.parse(raw));
-      localStorage.setItem(msgStorageKey(), JSON.stringify(parsed));
-      return parsed;
-    }
-
-    function saveMsgs(list) {
-      localStorage.setItem(msgStorageKey(), JSON.stringify(dedupeById(list)));
-    }
-
     function nowTime() {
       return new Date().toTimeString().slice(0, 8);
     }
 
-    function formatSec(sec) {
+    function fmtDur(sec) {
       const m = Math.floor(sec / 60);
       const s = sec % 60;
       return `${m}:${String(s).padStart(2, "0")}`;
@@ -650,38 +660,41 @@
       setTimeout(() => { if (card) card.classList.remove("highlighted"); }, 2500);
     }
 
-    function renderMsgs() {
+    function renderMessages(active) {
       const box = document.getElementById("messagesList");
-      const list = loadMsgs();
-      if (!list.length) {
+      if (!active) {
         box.innerHTML = "";
         return;
       }
+      const list = dedupeById(JSON.parse(localStorage.getItem(msgsKey(active)) || "[]"));
+      localStorage.setItem(msgsKey(active), JSON.stringify(list));
+
       box.innerHTML = list.map(m => {
         const dir = m.direction === "incoming" ? "incoming" : "outgoing";
-        const author = m.direction === "incoming" ? (m.sender || "Obunachi") : "Bot";
+        const sender = m.direction === "incoming" ? (m.sender || active.name) : "Bot";
         const hasReply = m.replyTo && (m.replyTo.text || m.replyTo.id);
-        let contentHtml = "";
+
+        let bodyHtml = "";
         if (m.type === "sticker") {
-          contentHtml = `<div class="sticker-view">${m.sticker || "🧸"}</div>`;
+          bodyHtml = `<div class="sticker-view">${m.sticker || "🧸"}</div>`;
         } else if (m.type === "voice") {
-          contentHtml = `
-            <div class="voice-player">
-              <span>🎙 Ovozli xabar • ${m.duration || "0:01"}</span>
-              ${m.audioData ? `<audio controls src="${m.audioData}"></audio>` : ""}
+          bodyHtml = `
+            <div class="voice-box">
+              <span>🎙 Ovozli xabar (${m.duration || "0:00"})</span>
+              ${m.audioUrl ? `<audio controls src="${m.audioUrl}"></audio>` : ""}
             </div>
           `;
         }
         if (m.text) {
-          contentHtml += `<div class="msg-body">${m.text}</div>`;
+          bodyHtml += `<div class="msg-body">${m.text}</div>`;
         }
 
         return `
           <div id="msg-row-${m.id}" class="msg-row ${dir}">
             <div class="msg-card">
               <div class="msg-head">
-                <span>${author}</span>
-                <span class="msg-time">${m.time} • #${m.id}</span>
+                <span>${sender}</span>
+                <span class="msg-time">${m.time || ""} • #${m.id}</span>
               </div>
               ${hasReply ? `
                 <div class="reply-box" onclick="jumpToMessage(${m.replyTo.id || 0})">
@@ -689,7 +702,7 @@
                   <span>${m.replyTo.text || ""}</span>
                 </div>
               ` : ""}
-              ${contentHtml}
+              ${bodyHtml}
               <div class="msg-actions">
                 ${m.reaction ? `<span class="react-badge">${m.reaction}</span>` : ""}
                 <button class="chip" onclick="startReply(${m.id})">Reply</button>
@@ -713,10 +726,13 @@
     }
 
     function startReply(id) {
-      const found = loadMsgs().find(x => x.id === id);
+      const active = getActiveItem();
+      if (!active) return;
+      const list = JSON.parse(localStorage.getItem(msgsKey(active)) || "[]");
+      const found = list.find(x => String(x.id) === String(id));
       if (!found) return;
-      const previewText = found.text || found.sticker || (found.type === "voice" ? `Ovozli xabar (${found.duration || "0:01"})` : "Xabar");
-      const author = found.direction === "incoming" ? (found.sender || "Obunachi") : "Bot";
+      const previewText = found.text || found.sticker || (found.type === "voice" ? `Ovozli xabar (${found.duration || "0:00"})` : "Xabar");
+      const author = found.direction === "incoming" ? (found.sender || active.name) : "Bot";
       replyTarget = { id: found.id, sender: author, text: previewText };
       document.getElementById("replyText").textContent = `↩️ #${found.id} (${author}): ${previewText}`;
       document.getElementById("replyBar").classList.add("active");
@@ -728,29 +744,34 @@
     }
 
     function startEdit(id) {
-      const found = loadMsgs().find(x => x.id === id);
+      const active = getActiveItem();
+      if (!active) return;
+      const list = JSON.parse(localStorage.getItem(msgsKey(active)) || "[]");
+      const found = list.find(x => String(x.id) === String(id));
       if (!found) return;
-      editingMsgId = id;
+      editingMsgId = found.id;
       document.getElementById("msgInput").value = found.text || found.sticker || "";
       document.getElementById("submitBtn").textContent = "Saqlash";
-      document.getElementById("editingBadge").textContent = `Tahrir: #${id}`;
+      document.getElementById("editingBadge").textContent = `Tahrir: #${found.id}`;
     }
 
     function cancelEdit() {
       editingMsgId = null;
-      document.getElementById("submitBtn").textContent = "Yuborish";
+      document.getElementById("submitBtn").textContent = "Jo'natish";
       document.getElementById("editingBadge").textContent = "";
     }
 
     function reactMsg(id, emoji) {
-      const active = getActiveChatObj();
-      const list = loadMsgs();
-      const item = list.find(x => x.id === id);
+      const active = getActiveItem();
+      if (!active) return;
+      const key = msgsKey(active);
+      const list = JSON.parse(localStorage.getItem(key) || "[]");
+      const item = list.find(x => String(x.id) === String(id));
       if (!item) return;
       item.reaction = item.reaction === emoji ? "" : emoji;
-      saveMsgs(list);
-      renderMsgs();
-      if (tg && active.id) {
+      localStorage.setItem(key, JSON.stringify(list));
+      renderMessages(active);
+      if (tg) {
         tg.sendData(JSON.stringify({
           action: "react_msg",
           target_id: active.id,
@@ -761,11 +782,13 @@
     }
 
     function deleteMsg(id) {
-      const active = getActiveChatObj();
-      const list = loadMsgs().filter(x => x.id !== id);
-      saveMsgs(list);
-      renderMsgs();
-      if (tg && active.id) {
+      const active = getActiveItem();
+      if (!active) return;
+      const key = msgsKey(active);
+      const list = JSON.parse(localStorage.getItem(key) || "[]").filter(x => String(x.id) !== String(id));
+      localStorage.setItem(key, JSON.stringify(list));
+      renderMessages(active);
+      if (tg) {
         tg.sendData(JSON.stringify({
           action: "delete_sent_msg",
           target_id: active.id,
@@ -775,9 +798,10 @@
     }
 
     function pushOutMsg(payloadObj) {
-      const active = getActiveChatObj();
-      if (!active.id) return;
-      const list = loadMsgs();
+      const active = getActiveItem();
+      if (!active) return;
+      const key = msgsKey(active);
+      const list = JSON.parse(localStorage.getItem(key) || "[]");
       const newId = Math.floor(Date.now() + Math.random() * 900) % 1000000;
       const item = {
         id: newId,
@@ -789,14 +813,14 @@
         ...payloadObj
       };
       list.push(item);
-      saveMsgs(list);
-      renderMsgs();
+      localStorage.setItem(key, JSON.stringify(dedupeById(list)));
+      renderMessages(active);
 
       if (tg) {
         tg.sendData(JSON.stringify({
           action: "send_direct",
           target_id: active.id,
-          text: item.text || item.sticker || `🎙 Ovozli xabar (${item.duration || "0:01"})`,
+          text: item.text || item.sticker || `🎙 Ovozli xabar (${item.duration || "0:00"})`,
           media_type: item.type || "text",
           show_sender: false,
           reply_to_message_id: replyTarget ? replyTarget.id : null
@@ -812,87 +836,133 @@
       setTimeout(() => { isSubmitting = false; }, 250);
     }
 
-    async function toggleVoiceRecording() {
+    function openVoicePanel() {
+      document.getElementById("voicePanel").classList.add("active");
+    }
+
+    function discardVoice() {
       if (mediaRecorder && mediaRecorder.state === "recording") {
-        stopVoiceRecording(true);
-        return;
+        mediaRecorder.stop();
       }
+      clearInterval(recTimer);
+      recordedAudioUrl = "";
+      recordedDuration = "0:00";
+      document.getElementById("voicePreviewAudio").style.display = "none";
+      document.getElementById("voicePreviewAudio").src = "";
+      document.getElementById("sendVoiceBtn").style.display = "none";
+      document.getElementById("stopRecBtn").style.display = "none";
+      document.getElementById("startRecBtn").style.display = "inline-block";
+      document.getElementById("voiceStatusText").textContent = "🎙 Ovozli xabar yozishga tayyor";
+      document.getElementById("voicePanel").classList.remove("active");
+    }
+
+    async function startRecording() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
-        pushOutMsg({ type: "voice", duration: "0:03", audioData: "", text: "" });
-        clearReply();
+        document.getElementById("voiceStatusText").textContent = "⚠️ Qurilmada mikrofon yoki MediaRecorder topilmadi.";
         return;
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        recordedChunks = [];
-        recSeconds = 0;
+        audioChunks = [];
+        recSec = 0;
+        recordedAudioUrl = "";
         mediaRecorder = new MediaRecorder(stream);
+
         mediaRecorder.ondataavailable = e => {
-          if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+          if (e.data && e.data.size > 0) audioChunks.push(e.data);
         };
+
         mediaRecorder.onstop = () => {
           stream.getTracks().forEach(t => t.stop());
-          clearInterval(recInterval);
-          document.getElementById("recStatus").classList.remove("active");
-          document.getElementById("voiceRecBtn").classList.remove("rec-active");
-          if (!mediaRecorder._shouldSend) return;
-          const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || "audio/webm" });
-          const durStr = formatSec(Math.max(1, recSeconds));
+          clearInterval(recTimer);
+          recordedDuration = fmtDur(Math.max(1, recSec));
+          const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
           const reader = new FileReader();
           reader.onloadend = () => {
-            pushOutMsg({
-              type: "voice",
-              duration: durStr,
-              audioData: typeof reader.result === "string" ? reader.result : "",
-              text: ""
-            });
-            clearReply();
+            recordedAudioUrl = typeof reader.result === "string" ? reader.result : "";
+            const audioEl = document.getElementById("voicePreviewAudio");
+            audioEl.src = recordedAudioUrl;
+            audioEl.style.display = "block";
+            document.getElementById("voiceStatusText").textContent = `✅ Yozib olindi (${recordedDuration}). Eshitib ko'ring yoki Jo'nating:`;
+            document.getElementById("stopRecBtn").style.display = "none";
+            document.getElementById("startRecBtn").style.display = "inline-block";
+            document.getElementById("sendVoiceBtn").style.display = "inline-block";
           };
           reader.readAsDataURL(blob);
         };
-        mediaRecorder._shouldSend = true;
+
         mediaRecorder.start();
-        document.getElementById("recStatus").classList.add("active");
-        document.getElementById("voiceRecBtn").classList.add("rec-active");
-        document.getElementById("recTimerText").textContent = "🎙 Ovoz yozilmoqda... 0:00";
-        recInterval = setInterval(() => {
-          recSeconds += 1;
-          document.getElementById("recTimerText").textContent = `🎙 Ovoz yozilmoqda... ${formatSec(recSeconds)}`;
+        document.getElementById("voicePreviewAudio").style.display = "none";
+        document.getElementById("sendVoiceBtn").style.display = "none";
+        document.getElementById("startRecBtn").style.display = "none";
+        document.getElementById("stopRecBtn").style.display = "inline-block";
+        document.getElementById("voiceStatusText").textContent = "🔴 Yozilmoqda... 0:00";
+
+        recTimer = setInterval(() => {
+          recSec += 1;
+          document.getElementById("voiceStatusText").textContent = `🔴 Yozilmoqda... ${fmtDur(recSec)}`;
         }, 1000);
       } catch (_) {
-        pushOutMsg({ type: "voice", duration: "0:03", audioData: "", text: "" });
-        clearReply();
+        document.getElementById("voiceStatusText").textContent = "❌ Mikrofonga ruxsat berilmadi.";
       }
     }
 
-    function stopVoiceRecording(shouldSend) {
-      if (!mediaRecorder) return;
-      mediaRecorder._shouldSend = Boolean(shouldSend);
-      if (mediaRecorder.state !== "inactive") {
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
       }
     }
 
-    function submitMessage() {
+    function sendRecordedVoice() {
+      const active = getActiveItem();
+      if (!active || !recordedAudioUrl) return;
+
+      pushOutMsg({
+        type: "voice",
+        duration: recordedDuration,
+        audioUrl: recordedAudioUrl,
+        text: ""
+      });
+
+      if (tg) {
+        tg.sendData(JSON.stringify({
+          action: "send_voice_data",
+          target_id: active.id,
+          duration: recordedDuration,
+          audio_base64: recordedAudioUrl
+        }));
+      }
+
+      clearReply();
+      discardVoice();
+    }
+
+    function submitTextOrEdit() {
       if (isSubmitting) return;
       const inp = document.getElementById("msgInput");
       const text = inp.value.trim();
       if (!text) return;
       isSubmitting = true;
 
-      const active = getActiveChatObj();
-      const list = loadMsgs();
+      const active = getActiveItem();
+      if (!active) {
+        isSubmitting = false;
+        return;
+      }
 
       if (editingMsgId !== null) {
-        const item = list.find(x => x.id === editingMsgId);
+        const key = msgsKey(active);
+        const list = JSON.parse(localStorage.getItem(key) || "[]");
+        const item = list.find(x => String(x.id) === String(editingMsgId));
         if (item) {
           if (item.type === "sticker") {
             item.sticker = text;
           } else {
             item.text = text;
           }
-          saveMsgs(list);
-          if (tg && active.id) {
+          localStorage.setItem(key, JSON.stringify(list));
+          renderMessages(active);
+          if (tg) {
             tg.sendData(JSON.stringify({
               action: "edit_sent_msg",
               target_id: active.id,
@@ -903,7 +973,6 @@
         }
         inp.value = "";
         cancelEdit();
-        renderMsgs();
         setTimeout(() => { isSubmitting = false; }, 250);
         return;
       }
@@ -914,9 +983,8 @@
       setTimeout(() => { isSubmitting = false; }, 250);
     }
 
-    ingestUrlChats();
-    renderChatSelector();
-    renderMsgs();
+    initFromUrl();
+    renderAll();
   </script>
 </body>
 </html>
