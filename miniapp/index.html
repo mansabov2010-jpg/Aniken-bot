@@ -8,12 +8,13 @@
   <style>
     :root {
       --panel: rgba(15, 23, 42, 0.56);
-      --bubble: rgba(19, 28, 46, 0.70);
-      --quote: rgba(15, 23, 42, 0.76);
+      --incoming: rgba(24, 33, 52, 0.78);
+      --outgoing: rgba(2, 132, 199, 0.84);
+      --quote: rgba(15, 23, 42, 0.52);
       --accent: #38bdf8;
       --text: #f8fafc;
       --muted: #e2e8f0;
-      --line: rgba(226, 232, 240, 0.25);
+      --line: rgba(226, 232, 240, 0.24);
     }
     * { box-sizing: border-box; font-family: Inter, system-ui, -apple-system, sans-serif; }
     body {
@@ -22,7 +23,7 @@
       overflow: hidden;
       color: var(--text);
       background:
-        linear-gradient(180deg, rgba(10, 15, 28, 0.14), rgba(10, 15, 28, 0.36)),
+        linear-gradient(180deg, rgba(10, 15, 28, 0.16), rgba(10, 15, 28, 0.38)),
         url("bg-girl.jpg") center/cover no-repeat fixed;
       display: flex;
       flex-direction: column;
@@ -57,8 +58,8 @@
       display: flex;
       gap: 6px;
       overflow-x: auto;
-      padding: 4px 2px;
-      min-height: 36px;
+      padding: 3px 2px;
+      min-height: 34px;
       align-items: center;
     }
     .chat-chip {
@@ -66,7 +67,7 @@
       border: 1px solid var(--line);
       color: var(--text);
       border-radius: 10px;
-      padding: 6px 10px;
+      padding: 5px 10px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
@@ -74,7 +75,7 @@
       backdrop-filter: blur(4px);
     }
     .chat-chip.active {
-      background: rgba(2, 132, 199, 0.78);
+      background: rgba(2, 132, 199, 0.85);
       border-color: #7dd3fc;
     }
     .topbar {
@@ -89,7 +90,7 @@
     }
     .chat-select {
       flex: 1;
-      background: rgba(15, 23, 42, 0.74);
+      background: rgba(15, 23, 42, 0.75);
       color: var(--text);
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -98,7 +99,7 @@
       font-weight: 600;
     }
     .small-btn {
-      background: rgba(30, 41, 59, 0.82);
+      background: rgba(30, 41, 59, 0.85);
       color: var(--text);
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -119,7 +120,7 @@
     .custom-bar.active { display: flex; }
     .custom-bar input {
       flex: 1;
-      min-width: 110px;
+      min-width: 105px;
       background: rgba(15, 23, 42, 0.78);
       color: var(--text);
       border: 1px solid var(--line);
@@ -127,32 +128,44 @@
       padding: 6px 8px;
       font-size: 11.5px;
     }
-    .chat-meta-outside {
+    .chat-profile-box {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: 11px;
       padding: 6px 9px;
       font-size: 11px;
-      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+    .chat-profile-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .chat-meta-line {
+      display: flex;
+      justify-content: space-between;
       gap: 8px;
       flex-wrap: wrap;
-      backdrop-filter: blur(4px);
+      color: var(--muted);
     }
-    .chat-meta-outside a {
+    .chat-meta-line a {
       color: #7dd3fc;
       text-decoration: none;
       word-break: break-all;
     }
     .jump-banner {
       display: none;
-      background: rgba(2, 132, 199, 0.88);
+      background: rgba(2, 132, 199, 0.9);
       border: 1px solid #bae6fd;
       color: #fff;
-      border-radius: 10px;
-      padding: 6px 10px;
+      border-radius: 9px;
+      padding: 5px 9px;
       font-size: 11.5px;
       font-weight: 600;
       justify-content: space-between;
@@ -166,76 +179,91 @@
       display: flex;
       flex-direction: column;
       gap: 7px;
-      padding-right: 2px;
+      padding: 2px;
     }
+    .msg-row {
+      display: flex;
+      width: 100%;
+    }
+    .msg-row.outgoing { justify-content: flex-end; }
+    .msg-row.incoming { justify-content: flex-start; }
     .msg-card {
-      width: 89%;
-      background: var(--bubble);
+      width: 82%;
       border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 8px 10px;
+      border-radius: 13px;
+      padding: 7px 10px;
       backdrop-filter: blur(4px);
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 4px;
       transition: box-shadow 0.2s ease, border-color 0.2s ease;
     }
+    .msg-row.incoming .msg-card { background: var(--incoming); }
+    .msg-row.outgoing .msg-card { background: var(--outgoing); }
     .msg-card.highlighted {
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.65);
+      border-color: #fde047;
+      box-shadow: 0 0 0 2px rgba(253, 224, 71, 0.75);
     }
     .msg-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 11.5px;
-      color: #7dd3fc;
+      font-size: 11px;
       font-weight: 700;
     }
-    .msg-time { color: var(--muted); font-size: 10.5px; font-weight: 400; }
+    .msg-time { font-size: 10px; opacity: 0.85; font-weight: 400; }
     .reply-box {
       background: var(--quote);
-      border-left: 3px solid var(--accent);
+      border-left: 3px solid #fff;
       border-radius: 7px;
-      padding: 5px 8px;
+      padding: 4px 7px;
       font-size: 11px;
-      color: #f8fafc;
       cursor: pointer;
     }
-    .media-pill {
+    .sticker-view {
+      font-size: 38px;
+      line-height: 1.1;
+      padding: 2px 0;
+    }
+    .voice-view {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(30, 41, 59, 0.85);
-      border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 5px 9px;
+      background: rgba(15, 23, 42, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 999px;
+      padding: 4px 10px;
       font-size: 12px;
       font-weight: 600;
       width: fit-content;
     }
-    .msg-body { font-size: 13.5px; line-height: 1.35; word-break: break-word; }
+    .msg-body { font-size: 13.5px; line-height: 1.32; word-break: break-word; }
     .msg-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 4px;
       align-items: center;
+      margin-top: 2px;
     }
     .chip {
-      background: rgba(15, 23, 42, 0.72);
-      border: 1px solid var(--line);
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.24);
       color: var(--text);
       border-radius: 7px;
-      padding: 3px 7px;
-      font-size: 11px;
+      padding: 2px 7px;
+      font-size: 10.5px;
       cursor: pointer;
+    }
+    .chip.del {
+      background: rgba(190, 24, 93, 0.65);
+      border-color: rgba(251, 113, 133, 0.55);
     }
     .react-badge {
       font-size: 12px;
-      padding: 2px 6px;
+      padding: 1px 6px;
       border-radius: 7px;
-      background: rgba(56, 189, 248, 0.28);
-      border: 1px solid rgba(56, 189, 248, 0.45);
+      background: rgba(15, 23, 42, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.35);
     }
     .composer {
       background: var(--panel);
@@ -255,27 +283,21 @@
       border-left: 3px solid var(--accent);
       border-radius: 7px;
       padding: 4px 8px;
-      font-size: 11.5px;
+      font-size: 11px;
     }
     .reply-preview.active { display: flex; }
-    .media-tools {
+    .media-tools, .emoji-row {
       display: flex;
       gap: 5px;
       overflow-x: auto;
       padding-bottom: 1px;
     }
-    .emoji-row {
-      display: flex;
-      gap: 5px;
-      overflow-x: auto;
-      padding-bottom: 2px;
-    }
     .emoji-btn {
       background: rgba(30, 41, 59, 0.82);
       border: 1px solid var(--line);
       border-radius: 8px;
-      padding: 4px 7px;
-      font-size: 13.5px;
+      padding: 3px 7px;
+      font-size: 13px;
       cursor: pointer;
       white-space: nowrap;
     }
@@ -329,14 +351,20 @@
     <button class="small-btn" onclick="addCustomChat()">Saqlash</button>
   </div>
 
-  <div id="chatMetaOutside" class="chat-meta-outside">
-    <span><b>ID:</b> <code id="metaId">-</code></span>
-    <span><b>Havola:</b> <a id="metaLink" href="#" target="_blank">-</a></span>
+  <div id="chatProfileBox" class="chat-profile-box" onclick="openCurrentChatProfile()">
+    <div class="chat-profile-top">
+      <span id="profileTitle">Chat</span>
+      <span>Chatga kirish ↗</span>
+    </div>
+    <div class="chat-meta-line">
+      <span><b>ID:</b> <code id="metaId">-</code></span>
+      <span><b>Havola:</b> <a id="metaLink" href="#" target="_blank" onclick="event.stopPropagation()">-</a></span>
+    </div>
   </div>
 
   <div id="jumpBanner" class="jump-banner">
     <span id="jumpBannerText">Mana shu xabarga reply qilingan</span>
-    <button class="chip" onclick="hideJumpBanner()">Yopish</button>
+    <button class="chip" onclick="hideJumpBanner()">✕</button>
   </div>
 
   <div id="messagesList" class="messages"></div>
@@ -348,10 +376,10 @@
     </div>
 
     <div class="media-tools">
-      <button class="chip" onclick="sendMedia('sticker', '🧸 Sticker')">🧸 Sticker</button>
-      <button class="chip" onclick="sendMedia('gif', '🎞 GIF')">🎞 GIF</button>
-      <button class="chip" onclick="sendMedia('photo', '🖼 Rasm')">🖼 Rasm</button>
-      <button class="chip" onclick="sendMedia('voice', '🎙 Ovozli xabar (0:05)')">🎙 Ovozli xabar</button>
+      <button class="chip" onclick="sendStickerItem('🧸')">🧸 Stiker</button>
+      <button class="chip" onclick="sendStickerItem('🔥')">🔥 Stiker</button>
+      <button class="chip" onclick="sendStickerItem('😂')">😂 Stiker</button>
+      <button class="chip" onclick="sendVoiceItem('0:05')">🎙 Ovozli xabar</button>
     </div>
 
     <div class="emoji-row">
@@ -365,8 +393,6 @@
       <button class="emoji-btn" onclick="addEmoji('⚡')">⚡</button>
       <button class="emoji-btn" onclick="addEmoji('💎')">💎</button>
       <button class="emoji-btn" onclick="addEmoji('👑')">👑</button>
-      <button class="emoji-btn" onclick="addEmoji('✨')">✨</button>
-      <button class="emoji-btn" onclick="addEmoji('🌟')">🌟</button>
     </div>
 
     <div class="input-row">
@@ -393,12 +419,11 @@
         { id: "-1002000000002", name: "Dublyaj Jamoasi", link: "https://t.me/joinchat/dub_team" }
       ],
       channels: [
-        { id: "@AniKinolar_kanal", name: "AniKinolar Asosiy Kanal", link: "https://t.me/AniKinolar_kanal" },
-        { id: "@AniRembot", name: "AniREM Bot Kanali", link: "https://t.me/AniRembot" }
+        { id: "@AniKinolar_kanal", name: "AniKinolar Asosiy Kanal", link: "https://t.me/AniKinolar_kanal" }
       ],
       contacts: [
-        { id: "7986354170", name: "Obunachi / Kontakt #1", link: "https://t.me/Yegerist_mvp" },
-        { id: "7637155944", name: "Obunachi / Kontakt #2", link: "https://t.me/AniRembot" }
+        { id: "7986354170", name: "Obunachi #1", link: "https://t.me/Yegerist_mvp" },
+        { id: "7637155944", name: "Obunachi #2", link: "https://t.me/AniRembot" }
       ]
     };
 
@@ -432,6 +457,16 @@
       return "https://t.me/c/" + numId;
     }
 
+    function openCurrentChatProfile() {
+      const active = getActiveChatObj();
+      const link = buildLink(active);
+      if (link && tg && tg.openTelegramLink && link.startsWith("https://t.me/")) {
+        tg.openTelegramLink(link);
+      } else if (link && link !== "#") {
+        window.open(link, "_blank");
+      }
+    }
+
     function renderChatSelector() {
       ["groups", "channels", "contacts"].forEach(cat => {
         document.getElementById("tab-" + cat).classList.toggle("active", cat === currentCategory);
@@ -451,7 +486,7 @@
       sel.innerHTML = list.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
       if (active.id) sel.value = active.id;
 
-      updateMetaOutside(active);
+      updateProfileBox(active);
     }
 
     function pickChatById(cid) {
@@ -459,7 +494,7 @@
       const found = list.find(c => String(c.id) === String(cid));
       if (found) {
         localStorage.setItem("anirem_active_id_" + currentCategory, found.id);
-        updateMetaOutside(found);
+        updateProfileBox(found);
       }
       clearReply();
       cancelEdit();
@@ -468,8 +503,9 @@
       renderMsgs();
     }
 
-    function updateMetaOutside(chatObj) {
+    function updateProfileBox(chatObj) {
       const link = buildLink(chatObj);
+      document.getElementById("profileTitle").textContent = chatObj.name || "Chat";
       document.getElementById("metaId").textContent = chatObj.id || "-";
       const a = document.getElementById("metaLink");
       a.textContent = link || "-";
@@ -487,8 +523,7 @@
     }
 
     function switchChat() {
-      const sel = document.getElementById("chatSelector");
-      pickChatById(sel.value);
+      pickChatById(document.getElementById("chatSelector").value);
     }
 
     function toggleCustomBar() {
@@ -500,10 +535,9 @@
       const cid = document.getElementById("customIdInput").value.trim();
       const clink = document.getElementById("customLinkInput").value.trim();
       if (!cid) return;
-      const finalName = cname || cid;
       const list = getChats(currentCategory);
       if (!list.some(x => String(x.id) === cid)) {
-        list.push({ id: cid, name: finalName, link: clink || "" });
+        list.push({ id: cid, name: cname || cid, link: clink || "" });
         saveChats(currentCategory, list);
       }
       localStorage.setItem("anirem_active_id_" + currentCategory, cid);
@@ -517,7 +551,7 @@
 
     function msgStorageKey() {
       const active = getActiveChatObj();
-      return "anirem_msgs_" + currentCategory + "_" + active.id;
+      return "anirem_chat_v3_" + currentCategory + "_" + active.id;
     }
 
     function dedupeById(list) {
@@ -532,45 +566,10 @@
 
     function loadMsgs() {
       const raw = localStorage.getItem(msgStorageKey());
-      if (raw) {
-        const parsed = dedupeById(JSON.parse(raw));
-        localStorage.setItem(msgStorageKey(), JSON.stringify(parsed));
-        return parsed;
-      }
-      const initial = [
-        {
-          id: 101,
-          sender: "Obunachi",
-          time: "13:20:00",
-          mediaType: "text",
-          mediaLabel: "",
-          replyTo: null,
-          text: "Salom! Bu xabarga reply qilsangiz, asl xabar ko'rinadi.",
-          reaction: ""
-        },
-        {
-          id: 102,
-          sender: "Obunachi",
-          time: "13:21:10",
-          mediaType: "sticker",
-          mediaLabel: "🧸 Sticker",
-          replyTo: { id: 101, sender: "Obunachi", text: "Salom! Bu xabarga reply qilsangiz, asl xabar ko'rinadi." },
-          text: "Reply yuborildi",
-          reaction: "❤️"
-        },
-        {
-          id: 103,
-          sender: "Obunachi",
-          time: "13:22:05",
-          mediaType: "voice",
-          mediaLabel: "🎙 Ovozli xabar (0:07)",
-          replyTo: null,
-          text: "",
-          reaction: ""
-        }
-      ];
-      localStorage.setItem(msgStorageKey(), JSON.stringify(initial));
-      return initial;
+      if (!raw) return [];
+      const parsed = dedupeById(JSON.parse(raw));
+      localStorage.setItem(msgStorageKey(), JSON.stringify(parsed));
+      return parsed;
     }
 
     function saveMsgs(list) {
@@ -586,48 +585,61 @@
     }
 
     function jumpToMessage(targetId) {
-      const el = document.getElementById("msg-card-" + targetId);
+      const el = document.getElementById("msg-row-" + targetId);
       if (!el) return;
       document.querySelectorAll(".msg-card.highlighted").forEach(n => n.classList.remove("highlighted"));
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("highlighted");
+      const card = el.querySelector(".msg-card");
+      if (card) card.classList.add("highlighted");
       document.getElementById("jumpBannerText").textContent = `Mana shu xabarga reply qilingan (#${targetId})`;
       document.getElementById("jumpBanner").classList.add("active");
-      setTimeout(() => el.classList.remove("highlighted"), 2600);
+      setTimeout(() => { if (card) card.classList.remove("highlighted"); }, 2500);
     }
 
     function renderMsgs() {
       const box = document.getElementById("messagesList");
       const list = loadMsgs();
       if (!list.length) {
-        box.innerHTML = '<div class="msg-card"><div class="msg-body">Xabarlar yo‘q.</div></div>';
+        box.innerHTML = "";
         return;
       }
       box.innerHTML = list.map(m => {
+        const dir = m.direction === "incoming" ? "incoming" : "outgoing";
+        const author = m.direction === "incoming" ? (m.sender || "Obunachi") : "Bot";
         const hasReply = m.replyTo && (m.replyTo.text || m.replyTo.id);
+        let contentHtml = "";
+        if (m.type === "sticker") {
+          contentHtml = `<div class="sticker-view">${m.sticker || "🧸"}</div>`;
+        } else if (m.type === "voice") {
+          contentHtml = `<div class="voice-view">🎙 Ovozli xabar • ${m.duration || "0:05"}</div>`;
+        }
+        if (m.text) {
+          contentHtml += `<div class="msg-body">${m.text}</div>`;
+        }
+
         return `
-          <div id="msg-card-${m.id}" class="msg-card">
-            <div class="msg-head">
-              <span>${m.sender || "Bot"}</span>
-              <span class="msg-time">${m.time} • #${m.id}</span>
-            </div>
-            ${hasReply ? `
-              <div class="reply-box" onclick="jumpToMessage(${m.replyTo.id || 0})">
-                <b>↩️ ${m.replyTo.sender || "Xabar"} ${m.replyTo.id ? "#" + m.replyTo.id : ""}</b><br/>
-                <span>${m.replyTo.text || "Media xabar"}</span>
+          <div id="msg-row-${m.id}" class="msg-row ${dir}">
+            <div class="msg-card">
+              <div class="msg-head">
+                <span>${author}</span>
+                <span class="msg-time">${m.time} • #${m.id}</span>
               </div>
-            ` : ""}
-            ${m.mediaLabel ? `<div class="media-pill">${m.mediaLabel}</div>` : ""}
-            ${m.text ? `<div class="msg-body">${m.text}</div>` : ""}
-            <div class="msg-actions">
-              ${m.reaction ? `<span class="react-badge">${m.reaction}</span>` : ""}
-              <button class="chip" onclick="startReply(${m.id})">Reply</button>
-              ${hasReply && m.replyTo.id ? `<button class="chip" onclick="jumpToMessage(${m.replyTo.id})">Asl xabar</button>` : ""}
-              <button class="chip" onclick="reactMsg(${m.id}, '❤️')">❤️</button>
-              <button class="chip" onclick="reactMsg(${m.id}, '👍')">👍</button>
-              <button class="chip" onclick="reactMsg(${m.id}, '😂')">😂</button>
-              <button class="chip" onclick="startEdit(${m.id})">Tahrir</button>
-              <button class="chip" onclick="deleteMsg(${m.id})">O'chir</button>
+              ${hasReply ? `
+                <div class="reply-box" onclick="jumpToMessage(${m.replyTo.id || 0})">
+                  <b>↩️ ${m.replyTo.sender || "Xabar"} ${m.replyTo.id ? "#" + m.replyTo.id : ""}</b><br/>
+                  <span>${m.replyTo.text || ""}</span>
+                </div>
+              ` : ""}
+              ${contentHtml}
+              <div class="msg-actions">
+                ${m.reaction ? `<span class="react-badge">${m.reaction}</span>` : ""}
+                <button class="chip" onclick="startReply(${m.id})">Reply</button>
+                <button class="chip" onclick="reactMsg(${m.id}, '❤️')">❤️</button>
+                <button class="chip" onclick="reactMsg(${m.id}, '👍')">👍</button>
+                <button class="chip" onclick="reactMsg(${m.id}, '😂')">😂</button>
+                <button class="chip" onclick="startEdit(${m.id})">Tahrirlash</button>
+                <button class="chip del" onclick="deleteMsg(${m.id})">O'chirish</button>
+              </div>
             </div>
           </div>
         `;
@@ -644,9 +656,10 @@
     function startReply(id) {
       const found = loadMsgs().find(x => x.id === id);
       if (!found) return;
-      const previewText = found.text || found.mediaLabel || "Xabar";
-      replyTarget = { id: found.id, sender: found.sender || "Bot", text: previewText };
-      document.getElementById("replyText").textContent = `↩️ #${found.id} (${found.sender || "Bot"}): ${previewText}`;
+      const previewText = found.text || found.sticker || (found.type === "voice" ? `Ovozli xabar (${found.duration || "0:05"})` : "Xabar");
+      const author = found.direction === "incoming" ? (found.sender || "Obunachi") : "Bot";
+      replyTarget = { id: found.id, sender: author, text: previewText };
+      document.getElementById("replyText").textContent = `↩️ #${found.id} (${author}): ${previewText}`;
       document.getElementById("replyBar").classList.add("active");
     }
 
@@ -659,7 +672,7 @@
       const found = loadMsgs().find(x => x.id === id);
       if (!found) return;
       editingMsgId = id;
-      document.getElementById("msgInput").value = found.text || found.mediaLabel || "";
+      document.getElementById("msgInput").value = found.text || found.sticker || "";
       document.getElementById("submitBtn").textContent = "Saqlash";
       document.getElementById("editingBadge").textContent = `Tahrir: #${id}`;
     }
@@ -702,21 +715,20 @@
       }
     }
 
-    function appendMessageRecord(mediaType, mediaLabel, textValue) {
+    function pushOutMsg(payloadObj) {
       const active = getActiveChatObj();
       const list = loadMsgs();
       const newId = Math.floor(Date.now() + Math.random() * 900) % 1000000;
-      const newItem = {
+      const item = {
         id: newId,
+        direction: "outgoing",
         sender: "Bot",
         time: nowTime(),
-        mediaType,
-        mediaLabel,
         replyTo: replyTarget ? { id: replyTarget.id, sender: replyTarget.sender, text: replyTarget.text } : null,
-        text: textValue,
-        reaction: ""
+        reaction: "",
+        ...payloadObj
       };
-      list.push(newItem);
+      list.push(item);
       saveMsgs(list);
       renderMsgs();
 
@@ -724,20 +736,26 @@
         tg.sendData(JSON.stringify({
           action: "send_direct",
           target_id: active.id,
-          text: textValue || mediaLabel,
-          media_type: mediaType,
+          text: item.text || item.sticker || `🎙 Ovozli xabar (${item.duration || "0:05"})`,
+          media_type: item.type || "text",
           show_sender: false,
           reply_to_message_id: replyTarget ? replyTarget.id : null
         }));
       }
     }
 
-    function sendMedia(mediaType, mediaLabel) {
+    function sendStickerItem(stickerChar) {
       if (isSubmitting) return;
       isSubmitting = true;
-      const extraText = document.getElementById("msgInput").value.trim();
-      appendMessageRecord(mediaType, mediaLabel, extraText);
-      document.getElementById("msgInput").value = "";
+      pushOutMsg({ type: "sticker", sticker: stickerChar, text: "" });
+      clearReply();
+      setTimeout(() => { isSubmitting = false; }, 250);
+    }
+
+    function sendVoiceItem(durationStr) {
+      if (isSubmitting) return;
+      isSubmitting = true;
+      pushOutMsg({ type: "voice", duration: durationStr, text: "" });
       clearReply();
       setTimeout(() => { isSubmitting = false; }, 250);
     }
@@ -755,7 +773,11 @@
       if (editingMsgId !== null) {
         const item = list.find(x => x.id === editingMsgId);
         if (item) {
-          item.text = text;
+          if (item.type === "sticker") {
+            item.sticker = text;
+          } else {
+            item.text = text;
+          }
           saveMsgs(list);
           if (tg) {
             tg.sendData(JSON.stringify({
@@ -773,7 +795,7 @@
         return;
       }
 
-      appendMessageRecord("text", "", text);
+      pushOutMsg({ type: "text", text });
       inp.value = "";
       clearReply();
       setTimeout(() => { isSubmitting = false; }, 250);
