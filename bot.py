@@ -158,6 +158,7 @@ def record_incoming(m: Message) -> None:
         )
         conn.execute("DELETE FROM inbox WHERE seq <= (SELECT MAX(seq) FROM inbox) - 5000")
         conn.commit()
+        print(f"[inbox] {m.chat.id} | {sender_name(m)}: {(text or '')[:40]}")
     finally:
         conn.close()
 
@@ -1834,7 +1835,7 @@ async def api_messages_handler(request: web.Request) -> web.Response:
 
 async def start_web_server():
     app = web.Application(client_max_size=20 * 1024 * 1024)
-    app.router.add_get("/", lambda req: web.Response(text="OK - AniKinolar Bot Running"))
+    app.router.add_get("/", lambda req: web.Response(text="OK - AniKinolar Bot Running (inbox v1)"))
     app.router.add_options("/api/send", api_options)
     app.router.add_post("/api/send", api_send_handler)
     app.router.add_options("/api/lists", api_options)
