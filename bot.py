@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+import re
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
@@ -16,15 +17,26 @@ from aiogram.types import (
 
 import db
 
-TG_TOKEN = os.getenv("TG_TOKEN", "8987164421:AAFXZT-Okm9kmXa705FLeBu84BVYbBuaTdA")
+
+def clean_url(raw_url: str, fallback: str) -> str:
+    if not raw_url:
+        return fallback
+    match = re.search(r"https?://[^\s\]\)\"'>]+", raw_url.strip())
+    return match.group(0) if match else fallback
+
+
+TG_TOKEN = os.getenv("TG_TOKEN", "").strip()
 ADMIN_IDS = {
     int(x.strip())
     for x in os.getenv("TG_CHAT", "7986354170,7637155944").split(",")
     if x.strip().isdigit()
 }
-MAIN_CHANNEL = os.getenv("TG_CHANNEL", "@AniKinolar_kanal")
-OWNER_USER = os.getenv("OWNER_USER", "@Yegerist_mvp")
-MINIAPP_URL = os.getenv("MINIAPP_URL", "https://mansabov2010-jpg.github.io/Aniken-bot/miniapp/index.html")
+MAIN_CHANNEL = os.getenv("TG_CHANNEL", "@AniKinolar_kanal").strip()
+OWNER_USER = os.getenv("OWNER_USER", "@Yegerist_mvp").strip()
+MINIAPP_URL = clean_url(
+    os.getenv("MINIAPP_URL", ""),
+    "https://mansabov2010-jpg.github.io/Aniken-bot/miniapp/index.html"
+)
 PORT = int(os.getenv("PORT", "8080"))
 
 EMOJI_WAVE = "👋"
@@ -93,7 +105,6 @@ def main_inline_kb(user_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="👤 Admin bilan bog'lanish", url=f"https://t.me/{OWNER_USER.lstrip('@')}"),
         ],
     ]
-    # Faqat adminlarga ko'rinadi
     if is_admin(user_id):
         rows.append([
             InlineKeyboardButton(text="⚙️ Admin Panel", callback_data="admin:panel"),
@@ -279,7 +290,6 @@ async def cmd_start(message: Message, bot: Bot, state: FSMContext):
     db.add_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
     me = await bot.get_me()
 
-    # Eski pastki klaviatura tugmalarini majburiy olib tashlash
     clear_msg = await message.answer("♻️", reply_markup=ReplyKeyboardRemove())
     try:
         await clear_msg.delete()
@@ -952,6 +962,8 @@ async def start_web_server():
 
 
 async def main():
+    if not TG_TOKEN:
+        raise RuntimeError("TG_TOKEN environment variable is missing!")
     db.init_db()
     await start_web_server()
     bot = Bot(
