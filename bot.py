@@ -41,6 +41,10 @@ BASE_MINIAPP_URL = clean_url(
     os.getenv("MINIAPP_URL", ""),
     "https://mansabov2010-jpg.github.io/Aniken-bot/miniapp/index.html"
 )
+BACKEND_API_URL = clean_url(
+    os.getenv("BACKEND_API_URL", ""),
+    "https://grab-charakter.onrender.com"
+)
 PORT = int(os.getenv("PORT", "8080"))
 
 EMOJI_WAVE = "👋"
@@ -49,6 +53,7 @@ EMOJI_BOT = "🤖"
 URL_REGEX = re.compile(r"https?://\S+")
 
 router = Router()
+ACTIVE_BOT: Bot | None = None
 
 
 class AddContentFSM(StatesGroup):
@@ -109,6 +114,13 @@ def is_admin(user_id: int) -> bool:
     return user_id in get_all_admin_ids()
 
 
+def parse_target_id(raw_target: str) -> int | str:
+    s = str(raw_target or "").strip()
+    if s.lstrip("-").isdigit():
+        return int(s)
+    return s
+
+
 def make_chat_link(chat_id_str: str, username: str = "") -> str:
     s = (chat_id_str or "").strip()
     if username:
@@ -123,7 +135,7 @@ def make_chat_link(chat_id_str: str, username: str = "") -> str:
 
 
 def build_miniapp_url() -> str:
-    payload = {"groups": [], "contacts": [], "incoming_message": None}
+    payload = {"groups": [], "contacts": [], "api_base": BACKEND_API_URL, "incoming_message": None}
 
     try:
         conn = db.get_conn()
@@ -135,7 +147,7 @@ def build_miniapp_url() -> str:
                 cid = str(r["chat_id"] if hasattr(r, "keys") else r[0])
                 title = str(r["title"] if hasattr(r, "keys") else (r[1] or cid))
                 ctype = str(r["chat_type"] if hasattr(r, "keys") else (r[2] or ""))
-                if ctype in ("group", "supergroup") or cid.startswith("-100"):
+                if ctype in ("group", "supergroup", "channel") or cid.startswith("-100"):
                     payload["groups"].append({
                         "id": cid,
                         "name": title,
@@ -453,6 +465,59 @@ async def send_movie_to_user(bot: Bot, chat_id: int, user_id: int, code: str, bo
         )
 
 
+async def execute_miniapp_payload(bot: Bot, payload: dict) -> tuple[bool, str, int | None]:
+    action = payload.get("action")
+    raw_target = str(payload.get("target_id", "")).strip()
+    target_chat = parse_target_id(raw_target)
+
+    if action == "send_direct":
+        text_body = (payload.get("text") or "").strip()
+        if not target_chat or not text_body:
+            return False, "Manzil yoki matn bo'sh", None
+        sent = await bot.send_message(chat_id=target_chat, text=text_body)
+        return True, f"Xabar {target_chat} ga yuborildi", sent.message_id
+
+    if action == "send_voice_data":
+        audio_b64 = payload.get("audio_base64") or ""
+        if not target_chat or "," not in audio_b64:
+            return False, "Ovoz fayli topilmadi", None
+        raw_bytes = base64.b64decode(audio_b64.split(",", 1)[1])
+        sent = await bot.send_voice(
+            chat_id=target_chat,
+            voice=BufferedInputFile(raw_bytes, filename="voice.ogg"),
+        )
+        return True, f"Ovozli xabar {target_chat} ga yuborildi", sent.message_id
+
+    if action == "react_msg":
+        msg_id = payload.get("message_id")
+        emoji = (payload.get("emoji") or "").strip()
+        if target_chat and msg_id and emoji:
+            await bot.set_message_reaction(
+                chat_id=target_chat,
+                message_id=int(msg_id),
+                reaction=[ReactionTypeEmoji(emoji=emoji)],
+            )
+            return True, "Reaksiya qo'yildi", None
+        return False, "Reaksiya parametrlari noto'g'ri", None
+
+    if action == "edit_sent_msg":
+        msg_id = int(payload.get("message_id", 0))
+        new_text = (payload.get("text") or "").strip()
+        if target_chat and msg_id and new_text:
+            await bot.edit_message_text(chat_id=target_chat, message_id=msg_id, text=new_text)
+            return True, "Xabar tahrirlandi", msg_id
+        return False, "Tahrirlash parametrlari noto'g'ri", None
+
+    if action == "delete_sent_msg":
+        msg_id = int(payload.get("message_id", 0))
+        if target_chat and msg_id:
+            await bot.delete_message(chat_id=target_chat, message_id=msg_id)
+            return True, "Xabar o'chirildi", msg_id
+        return False, "O'chirish parametrlari noto'g'ri", None
+
+    return False, "Noma'lum amal", None
+
+
 @router.my_chat_member()
 async def on_my_chat_member(event):
     chat = event.chat
@@ -530,88 +595,41 @@ async def handle_webapp_data(message: Message, bot: Bot, state: FSMContext):
             f"📊 <b>Statistika</b>\n👤 Userlar: <b>{st['users']}</b>\n📢 Kanal/chatlar: <b>{st['chats']}</b>\n🎞 Kontentlar: <b>{st['contents']}</b>",
             reply_markup=admin_panel_kb(),
         )
-    elif action == "req_channels":
+        return
+    if action == "req_channels":
         await message.answer("🔒 Majburiy a'zolik bo'limi:", reply_markup=admin_panel_kb())
-    elif action == "bc_users":
+        return
+    if action == "bc_users":
         await state.set_state(BroadcastFSM.message)
         await state.update_data(bc_mode="users")
         await message.answer("3/1 👤 Foydalanuvchilarga yuboriladigan xabarni kiriting:")
-    elif action == "bc_chats":
+        return
+    if action == "bc_chats":
         await state.set_state(BroadcastFSM.message)
         await state.update_data(bc_mode="chats")
         await message.answer("3/2 📢 Kanal va chatlarga yuboriladigan xabarni kiriting:")
-    elif action == "bc_all":
+        return
+    if action == "bc_all":
         await state.set_state(BroadcastFSM.message)
         await state.update_data(bc_mode="all")
         await message.answer("3/3 🌐 Barchaga yuboriladigan xabarni kiriting:")
-    elif action == "add_content":
+        return
+    if action == "add_content":
         await message.answer("🎬 Bo'limni tanlang:", reply_markup=add_category_kb())
-    elif action == "edit_content":
+        return
+    if action == "edit_content":
         await message.answer("✏️ Tahrirlash uchun Admin Paneldan <b>Tahrirlash (Edit)</b> ni bosing.", reply_markup=admin_panel_kb())
-    elif action == "send_direct":
-        raw_target = str(payload.get("target_id", "")).strip()
-        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
-        text_body = (payload.get("text") or "").strip()
-        reply_mid = payload.get("reply_to_message_id")
-        if target_chat and text_body:
-            try:
-                await bot.send_message(
-                    chat_id=target_chat,
-                    text=text_body,
-                    reply_to_message_id=int(reply_mid) if reply_mid else None,
-                )
-                await message.answer(f"✅ Xabar bot nomidan <code>{target_chat}</code> ga yuborildi!", reply_markup=admin_panel_kb())
-            except Exception as e:
-                await message.answer(f"❌ Yuborishda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
-    elif action == "send_voice_data":
-        raw_target = str(payload.get("target_id", "")).strip()
-        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
-        audio_b64 = payload.get("audio_base64") or ""
-        if target_chat and "," in audio_b64:
-            try:
-                raw_bytes = base64.b64decode(audio_b64.split(",", 1)[1])
-                await bot.send_voice(
-                    chat_id=target_chat,
-                    voice=BufferedInputFile(raw_bytes, filename="voice.ogg"),
-                )
-                await message.answer(f"🎙 Ovozli xabar <code>{target_chat}</code> ga yuborildi!", reply_markup=admin_panel_kb())
-            except Exception as e:
-                await message.answer(f"❌ Ovozli xabar yuborilmadi: <code>{e}</code>", reply_markup=admin_panel_kb())
-    elif action == "react_msg":
-        raw_target = str(payload.get("target_id", "")).strip()
-        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
-        msg_id = payload.get("message_id")
-        emoji = (payload.get("emoji") or "").strip()
-        if target_chat and msg_id and emoji:
-            try:
-                await bot.set_message_reaction(
-                    chat_id=target_chat,
-                    message_id=int(msg_id),
-                    reaction=[ReactionTypeEmoji(emoji=emoji)],
-                )
-            except Exception:
-                pass
-    elif action == "edit_sent_msg":
-        raw_target = str(payload.get("target_id", "")).strip()
-        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
-        msg_id = int(payload.get("message_id", 0))
-        new_text = (payload.get("text") or "").strip()
-        if target_chat and msg_id and new_text:
-            try:
-                await bot.edit_message_text(chat_id=target_chat, message_id=msg_id, text=new_text)
-                await message.answer("✏️ Xabar tahrirlandi!", reply_markup=admin_panel_kb())
-            except Exception as e:
-                await message.answer(f"❌ Tahrirlashda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
-    elif action == "delete_sent_msg":
-        raw_target = str(payload.get("target_id", "")).strip()
-        target_chat = int(raw_target) if raw_target.lstrip("-").isdigit() else raw_target
-        msg_id = int(payload.get("message_id", 0))
-        if target_chat and msg_id:
-            try:
-                await bot.delete_message(chat_id=target_chat, message_id=msg_id)
-                await message.answer("🗑 Xabar o'chirildi!", reply_markup=admin_panel_kb())
-            except Exception as e:
-                await message.answer(f"❌ O'chirishda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
+        return
+
+    try:
+        ok, info_text, tg_msg_id = await execute_miniapp_payload(bot, payload)
+        if ok:
+            extra = f" (TG ID: <code>{tg_msg_id}</code>)" if tg_msg_id else ""
+            await message.answer(f"✅ {info_text}{extra}", reply_markup=admin_panel_kb())
+        else:
+            await message.answer(f"⚠️ {info_text}", reply_markup=admin_panel_kb())
+    except Exception as e:
+        await message.answer(f"❌ Telegram'ga yuborilmadi: <code>{e}</code>", reply_markup=admin_panel_kb())
 
 
 @router.callback_query(F.data == "user:home")
@@ -1404,9 +1422,38 @@ async def cb_pick_content(call: CallbackQuery, bot: Bot):
     await send_movie_to_user(bot, call.message.chat.id, call.from_user.id, code, me.username)
 
 
+def _cors_headers() -> dict[str, str]:
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+
+
+async def api_options(request: web.Request) -> web.Response:
+    return web.Response(status=204, headers=_cors_headers())
+
+
+async def api_send_handler(request: web.Request) -> web.Response:
+    if ACTIVE_BOT is None:
+        return web.json_response({"ok": False, "error": "Bot tayyor emas"}, status=503, headers=_cors_headers())
+    try:
+        payload = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "Noto'g'ri JSON"}, status=400, headers=_cors_headers())
+
+    try:
+        ok, info_text, tg_msg_id = await execute_miniapp_payload(ACTIVE_BOT, payload)
+        return web.json_response({"ok": ok, "message": info_text, "tg_message_id": tg_msg_id}, headers=_cors_headers())
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400, headers=_cors_headers())
+
+
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", lambda req: web.Response(text="OK - AniKinolar Bot Running"))
+    app.router.add_options("/api/send", api_options)
+    app.router.add_post("/api/send", api_send_handler)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
@@ -1414,6 +1461,7 @@ async def start_web_server():
 
 
 async def main():
+    global ACTIVE_BOT
     if not TG_TOKEN:
         raise RuntimeError("TG_TOKEN environment variable is missing!")
     db.init_db()
@@ -1422,6 +1470,7 @@ async def main():
         token=TG_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
+    ACTIVE_BOT = bot
     dp = Dispatcher()
     dp.include_router(router)
     await bot.set_my_commands([])
