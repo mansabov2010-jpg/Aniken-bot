@@ -26,11 +26,11 @@ def clean_url(raw_url: str, fallback: str) -> str:
 
 
 TG_TOKEN = os.getenv("TG_TOKEN", "").strip()
-ADMIN_IDS = {
+BASE_ADMIN_IDS: list[int] = [
     int(x.strip())
     for x in os.getenv("TG_CHAT", "7986354170,7637155944").split(",")
     if x.strip().isdigit()
-}
+]
 MAIN_CHANNEL = os.getenv("TG_CHANNEL", "@AniKinolar_kanal").strip()
 OWNER_USER = os.getenv("OWNER_USER", "@Yegerist_mvp").strip()
 MINIAPP_URL = clean_url(
@@ -79,8 +79,29 @@ class ReqChannelFSM(StatesGroup):
     channel_input = State()
 
 
+class AddAdminFSM(StatesGroup):
+    admin_input = State()
+
+
+class DirectMsgFSM(StatesGroup):
+    target_user = State()
+    message_text = State()
+
+
+def get_all_admin_ids() -> list[int]:
+    ordered: list[int] = []
+    for aid in BASE_ADMIN_IDS:
+        if aid not in ordered:
+            ordered.append(aid)
+    for row in db.list_extra_admins():
+        eid = int(row["user_id"])
+        if eid not in ordered:
+            ordered.append(eid)
+    return ordered
+
+
 def is_admin(user_id: int) -> bool:
-    return user_id in ADMIN_IDS
+    return user_id in get_all_admin_ids()
 
 
 def format_welcome(full_name: str, bot_username: str, is_adm: bool) -> str:
@@ -131,6 +152,7 @@ def admin_panel_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🤖 Bot holati", callback_data="admin:status"),
         ],
         [
+            InlineKeyboardButton(text="✉️ Foydalanuvchiga xabar", callback_data="admin:direct_msg"),
             InlineKeyboardButton(text="📱 Admin Mini App", web_app=WebAppInfo(url=MINIAPP_URL)),
         ],
         [
@@ -209,7 +231,7 @@ async def check_subscriptions(bot: Bot, user_id: int) -> list[dict]:
     req_list = db.list_required_channels()
     not_joined = []
     for ch in req_list:
-        ref = ch["channel_ref"]
+        ref = ch["channel_ref"].strip()
         try:
             chat_id_or_user = int(ref) if ref.lstrip("-").isdigit() else ref
             member = await bot.get_chat_member(chat_id=chat_id_or_user, user_id=user_id)
@@ -220,7 +242,8 @@ async def check_subscriptions(bot: Bot, user_id: int) -> list[dict]:
             ):
                 not_joined.append(ch)
         except Exception:
-            continue
+            # Agar bot kanal/guruhda admin bo'lmasa yoki a'zolikni tekshirib bo'lmasa, bloklash uchun ro'yxatga qo'shamiz
+            not_joined.append(ch)
     return not_joined
 
 
@@ -237,14 +260,23 @@ def sub_required_kb(not_joined: list[dict], pending_code: str = "") -> InlineKey
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+async def send_sub_gate(bot: Bot, chat_id: int, not_joined: list[dict], pending_code: str = "") -> None:
+    await bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "🔒 <b>Majburiy obuna!</b>\n\n"
+            "Botdan foydalanish uchun quyidagi kanal va guruhlarga a'zo bo'ling. "
+            "<b>Ushbu kanal/guruhlarga ulanganingizdan so'ng bot ishlaydi</b> "
+            "(agar chiqib ketsangiz, qayta ulanmaguningizcha ishlamaydi):"
+        ),
+        reply_markup=sub_required_kb(not_joined, pending_code=pending_code),
+    )
+
+
 async def send_movie_to_user(bot: Bot, chat_id: int, user_id: int, code: str, bot_username: str) -> None:
     not_joined = await check_subscriptions(bot, user_id)
     if not_joined:
-        await bot.send_message(
-            chat_id=chat_id,
-            text="🔒 <b>Kontentni olish uchun quyidagi kanallarga a'zo bo'ling:</b>",
-            reply_markup=sub_required_kb(not_joined, pending_code=code),
-        )
+        await send_sub_gate(bot, chat_id, not_joined, pending_code=code)
         return
 
     item = db.get_content_by_code(code.strip())
@@ -297,8 +329,15 @@ async def cmd_start(message: Message, bot: Bot, state: FSMContext):
         pass
 
     parts = message.text.split(maxsplit=1)
-    if len(parts) > 1 and parts[1].strip():
-        await send_movie_to_user(bot, message.chat.id, message.from_user.id, parts[1].strip(), me.username)
+    start_code = parts[1].strip() if len(parts) > 1 and parts[1].strip() else ""
+
+    not_joined = await check_subscriptions(bot, message.from_user.id)
+    if not_joined:
+        await send_sub_gate(bot, message.chat.id, not_joined, pending_code=start_code)
+        return
+
+    if start_code:
+        await send_movie_to_user(bot, message.chat.id, message.from_user.id, start_code, me.username)
         return
 
     await message.answer(
@@ -315,13 +354,14 @@ async def cmd_panel(message: Message):
 
 
 @router.message(F.web_app_data)
-async def handle_webapp_data(message: Message, state: FSMContext):
+async def handle_webapp_data(message: Message, bot: Bot, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     try:
         payload = json.loads(message.web_app_data.data)
     except Exception:
         return
+
     action = payload.get("action")
     if action == "stats":
         st = db.get_stats()
@@ -347,11 +387,46 @@ async def handle_webapp_data(message: Message, state: FSMContext):
         await message.answer("🎬 Bo'limni tanlang:", reply_markup=add_category_kb())
     elif action == "edit_content":
         await message.answer("✏️ Tahrirlash uchun Admin Paneldan <b>Tahrirlash (Edit)</b> ni bosing.", reply_markup=admin_panel_kb())
+    elif action == "send_direct":
+        target_id = int(payload.get("target_id", 0))
+        text_body = (payload.get("text") or "").strip()
+        show_sender = bool(payload.get("show_sender", True))
+        if target_id and text_body:
+            sender_tag = f"\n\n✍️ <i>Admin: {message.from_user.full_name}</i>" if show_sender else ""
+            try:
+                await bot.send_message(chat_id=target_id, text=f"📩 <b>Xabar:</b>\n\n{text_body}{sender_tag}")
+                await message.answer(f"✅ Xabar <code>{target_id}</code> ga yuborildi!", reply_markup=admin_panel_kb())
+            except Exception as e:
+                await message.answer(f"❌ Yuborishda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
+    elif action == "edit_sent_msg":
+        target_id = int(payload.get("target_id", 0))
+        msg_id = int(payload.get("message_id", 0))
+        new_text = (payload.get("text") or "").strip()
+        if target_id and msg_id and new_text:
+            try:
+                await bot.edit_message_text(chat_id=target_id, message_id=msg_id, text=new_text)
+                await message.answer("✏️ Xabar tahrirlandi!", reply_markup=admin_panel_kb())
+            except Exception as e:
+                await message.answer(f"❌ Tahrirlashda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
+    elif action == "delete_sent_msg":
+        target_id = int(payload.get("target_id", 0))
+        msg_id = int(payload.get("message_id", 0))
+        if target_id and msg_id:
+            try:
+                await bot.delete_message(chat_id=target_id, message_id=msg_id)
+                await message.answer("🗑 Xabar o'chirildi!", reply_markup=admin_panel_kb())
+            except Exception as e:
+                await message.answer(f"❌ O'chirishda xato: <code>{e}</code>", reply_markup=admin_panel_kb())
 
 
 @router.callback_query(F.data == "user:home")
 async def cb_user_home(call: CallbackQuery, bot: Bot, state: FSMContext):
     await state.clear()
+    not_joined = await check_subscriptions(bot, call.from_user.id)
+    if not_joined:
+        await call.answer()
+        await send_sub_gate(bot, call.message.chat.id, not_joined)
+        return
     me = await bot.get_me()
     await call.message.edit_text(
         text=format_welcome(call.from_user.full_name, me.username, is_admin(call.from_user.id)),
@@ -361,7 +436,12 @@ async def cb_user_home(call: CallbackQuery, bot: Bot, state: FSMContext):
 
 
 @router.callback_query(F.data == "user:search_hint")
-async def cb_search_hint(call: CallbackQuery):
+async def cb_search_hint(call: CallbackQuery, bot: Bot):
+    not_joined = await check_subscriptions(bot, call.from_user.id)
+    if not_joined:
+        await call.answer()
+        await send_sub_gate(bot, call.message.chat.id, not_joined)
+        return
     await call.message.answer(
         f"{EMOJI_FILM} <b>Anime, multfilm yoki kino kodi / nomini yuboring</b>"
     )
@@ -370,6 +450,11 @@ async def cb_search_hint(call: CallbackQuery):
 
 @router.callback_query(F.data == "user:random")
 async def cb_random_content(call: CallbackQuery, bot: Bot):
+    not_joined = await check_subscriptions(bot, call.from_user.id)
+    if not_joined:
+        await call.answer()
+        await send_sub_gate(bot, call.message.chat.id, not_joined)
+        return
     items = db.list_contents(limit=50)
     if not items:
         await call.answer("Hozircha baza bo'sh!", show_alert=True)
@@ -385,9 +470,9 @@ async def cb_subcheck(call: CallbackQuery, bot: Bot):
     pending_code = call.data.split(":", 1)[1].strip()
     not_joined = await check_subscriptions(bot, call.from_user.id)
     if not_joined:
-        await call.answer("❌ Siz hali barcha kanallarga a'zo bo'lmadingiz!", show_alert=True)
+        await call.answer("❌ Siz hali barcha kanal/guruhlarga a'zo bo'lmadingiz!", show_alert=True)
         return
-    await call.answer("✅ Obuna tasdiqlandi!", show_alert=False)
+    await call.answer("✅ Obuna tasdiqlandi! Bot ishga tushdi.", show_alert=False)
     try:
         await call.message.delete()
     except Exception:
@@ -424,7 +509,8 @@ async def cb_admin_stats(call: CallbackQuery):
         f"👤 <b>Foydalanuvchilar soni:</b> {st['users']}\n"
         f"📢 <b>Kanal va chatlar soni:</b> {st['chats']}\n"
         f"🎞 <b>Bazadagi kontentlar:</b> {st['contents']}\n"
-        f"🔒 <b>Majburiy kanallar:</b> {st['req_channels']}"
+        f"🔒 <b>Majburiy kanallar/guruhlar:</b> {st['req_channels']}\n"
+        f"👮 <b>Qo'shimcha adminlar:</b> {st['extra_admins']}"
     )
     await call.message.edit_text(
         text,
@@ -441,14 +527,158 @@ async def cb_admins_list(call: CallbackQuery):
     if not is_admin(call.from_user.id):
         await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
-    admins_str = "\n".join(f"• <code>{aid}</code>" for aid in sorted(ADMIN_IDS))
+
+    extra_rows = db.list_extra_admins()
+    extra_ids = {int(r["user_id"]) for r in extra_rows}
+
+    lines = ["👮 <b>Adminlar ro'yxati</b>", "━━━━━━━━━━━━━━━", "👑 <b>Asosiy adminlar:</b>"]
+    for idx, aid in enumerate(BASE_ADMIN_IDS, 1):
+        lines.append(f"{idx}. <code>{aid}</code> (Asosiy)")
+
+    lines.append("\n➕ <b>Qo'shilgan adminlar:</b>")
+    if not extra_rows:
+        lines.append("<i>Hozircha qo'shimcha admin qo'shilmagan.</i>")
+    else:
+        for idx, r in enumerate(extra_rows, 1):
+            lbl = f" — {r['label']}" if r.get("label") else ""
+            lines.append(f"{idx}. <code>{r['user_id']}</code>{lbl}")
+
+    kb_rows = [
+        [InlineKeyboardButton(text="➕ Yangi admin qo'shish", callback_data="admin:add_new")],
+    ]
+    for r in extra_rows:
+        eid = int(r["user_id"])
+        if eid not in BASE_ADMIN_IDS:
+            kb_rows.append([
+                InlineKeyboardButton(text=f"🗑 Olib tashlash: {eid}", callback_data=f"admindel:{eid}")
+            ])
+    kb_rows.append([InlineKeyboardButton(text="⬅️ Admin panel", callback_data="admin:panel")])
+
+    await call.message.edit_text("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
+    await call.answer()
+
+
+@router.callback_query(F.data == "admin:add_new")
+async def cb_admin_add_new(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id):
+        return
+    await state.set_state(AddAdminFSM.admin_input)
     await call.message.edit_text(
-        f"👮 <b>Adminlar ro'yxati</b>\n━━━━━━━━━━━━━━━\n{admins_str}\n\n👑 Boshqaruvchi: <b>{OWNER_USER}</b>",
+        "➕ <b>Yangi admin tayinlash</b>\n\n"
+        "Yangi adminning <b>raqamli ID</b> sini, bazadagi <code>@username</code> sini yuboring "
+        "yoki o'sha foydalanuvchidan kelgan xabarni <b>forward</b> qiling.\n\n"
+        "<i>Yangi admin asosiy ikkita admindan keyingi o'rinda ro'yxatga qo'shiladi.</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⬅️ Admin panel", callback_data="admin:panel")]
+            [InlineKeyboardButton(text="⬅️ Bekor qilish", callback_data="admin:admins_list")]
         ])
     )
     await call.answer()
+
+
+@router.message(AddAdminFSM.admin_input)
+async def fsm_admin_add_save(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+
+    target_id: int | None = None
+    label = ""
+
+    if message.forward_from:
+        target_id = message.forward_from.id
+        label = message.forward_from.full_name or (f"@{message.forward_from.username}" if message.forward_from.username else "")
+    elif message.text:
+        raw = message.text.strip()
+        if raw.isdigit():
+            target_id = int(raw)
+        elif raw.startswith("@"):
+            found = db.find_user_by_username(raw)
+            if found:
+                target_id = int(found["user_id"])
+                label = f"{raw} ({found.get('full_name', '')})".strip()
+
+    if not target_id:
+        await message.answer(
+            "❌ Foydalanuvchi topilmadi. Raqamli <b>ID</b> yuboring, xabar <b>forward</b> qiling yoki botdan o'tgan <code>@username</code> kiriting."
+        )
+        return
+
+    if target_id in BASE_ADMIN_IDS:
+        await state.clear()
+        await message.answer(
+            f"ℹ️ <code>{target_id}</code> allaqachon asosiy adminlar ro'yxatida.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="👮 Adminlar ro'yxati", callback_data="admin:admins_list")]
+            ])
+        )
+        return
+
+    db.add_extra_admin(target_id, label)
+    await state.clear()
+    await message.answer(
+        f"✅ Yangi admin qo'shildi: <code>{target_id}</code>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="👮 Adminlar ro'yxati", callback_data="admin:admins_list")],
+            [InlineKeyboardButton(text="⬅️ Admin panel", callback_data="admin:panel")],
+        ])
+    )
+
+
+@router.callback_query(F.data.startswith("admindel:"))
+async def cb_admin_delete(call: CallbackQuery):
+    if not is_admin(call.from_user.id):
+        return
+    eid = int(call.data.split(":", 1)[1])
+    if eid in BASE_ADMIN_IDS:
+        await call.answer("Asosiy adminni o'chirib bo'lmaydi!", show_alert=True)
+        return
+    db.remove_extra_admin(eid)
+    await call.answer("Admin olib tashlandi!", show_alert=False)
+    await cb_admins_list(call)
+
+
+@router.callback_query(F.data == "admin:direct_msg")
+async def cb_direct_msg_start(call: CallbackQuery, state: FSMContext):
+    if not is_admin(call.from_user.id):
+        return
+    await state.set_state(DirectMsgFSM.target_user)
+    await call.message.edit_text(
+        "✉️ <b>Foydalanuvchiga xabar yuborish</b>\n\n"
+        "Xabar yubormoqchi bo'lgan foydalanuvchining <b>Telegram ID</b> sini kiriting:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Bekor qilish", callback_data="admin:panel")]
+        ])
+    )
+    await call.answer()
+
+
+@router.message(DirectMsgFSM.target_user)
+async def fsm_direct_target(message: Message, state: FSMContext):
+    raw = (message.text or "").strip()
+    if not raw.lstrip("-").isdigit():
+        await message.answer("❌ To'g'ri raqamli ID kiriting:")
+        return
+    await state.update_data(direct_target_id=int(raw))
+    await state.set_state(DirectMsgFSM.message_text)
+    await message.answer("📝 Yuboriladigan xabar matnini kiriting:")
+
+
+@router.message(DirectMsgFSM.message_text)
+async def fsm_direct_send(message: Message, bot: Bot, state: FSMContext):
+    data = await state.get_data()
+    target_id = int(data["direct_target_id"])
+    body = (message.text or "").strip()
+    await state.clear()
+    try:
+        sent = await bot.send_message(
+            chat_id=target_id,
+            text=f"📩 <b>Admin ({message.from_user.full_name}) dan xabar:</b>\n\n{body}",
+        )
+        await message.answer(
+            f"✅ Xabar yuborildi!\n• Manzil: <code>{target_id}</code>\n• Xabar ID: <code>{sent.message_id}</code>",
+            reply_markup=admin_panel_kb(),
+        )
+    except Exception as e:
+        await message.answer(f"❌ Xabar yuborilmadi: <code>{e}</code>", reply_markup=admin_panel_kb())
 
 
 @router.callback_query(F.data == "admin:chats_info")
@@ -489,11 +719,16 @@ async def cb_req_channels(call: CallbackQuery):
         await call.answer("❌ Ruxsat yo'q", show_alert=True)
         return
     channels = db.list_required_channels()
-    lines = ["🔒 <b>Majburiy a'zolik sozlamalari</b>", "━━━━━━━━━━━━━━━"]
+    lines = [
+        "🔒 <b>Majburiy a'zolik (Kanal va Guruhlar)</b>",
+        "━━━━━━━━━━━━━━━",
+        "<i>Bot o'sha kanal yoki guruhda admin bo'lishi kerak.</i>",
+    ]
     kb_rows = []
     if not channels:
-        lines.append("Hozircha majburiy kanal qo'shilmagan.")
+        lines.append("\nHozircha majburiy kanal/guruh qo'shilmagan.")
     else:
+        lines.append("")
         for idx, ch in enumerate(channels, 1):
             lines.append(f"{idx}. <b>{ch['title']}</b> — <code>{ch['channel_ref']}</code>")
             kb_rows.append([
@@ -502,7 +737,7 @@ async def cb_req_channels(call: CallbackQuery):
                     callback_data=f"reqdel:{ch['channel_ref']}"
                 )
             ])
-    kb_rows.append([InlineKeyboardButton(text="➕ Majburiy kanal qo'shish", callback_data="reqadd:start")])
+    kb_rows.append([InlineKeyboardButton(text="➕ Majburiy kanal / guruh qo'shish", callback_data="reqadd:start")])
     kb_rows.append([InlineKeyboardButton(text="⬅️ Admin panel", callback_data="admin:panel")])
 
     await call.message.edit_text("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
@@ -515,9 +750,9 @@ async def cb_reqadd_start(call: CallbackQuery, state: FSMContext):
         return
     await state.set_state(ReqChannelFSM.channel_input)
     await call.message.edit_text(
-        "➕ <b>Majburiy kanal qo'shish</b>\n\n"
-        "Kanal <code>@username</code> yoki <code>-100...</code> ID sini yuboring.\n"
-        "<i>Eslatma: Bot o'sha kanalda admin bo'lishi shart.</i>",
+        "➕ <b>Majburiy kanal yoki guruh qo'shish</b>\n\n"
+        "Kanal yoki guruh <code>@username</code> yoki <code>-100...</code> ID sini yuboring.\n"
+        "<i>Eslatma: Bot o'sha kanal/guruhda admin bo'lishi shart.</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="⬅️ Bekor qilish", callback_data="admin:req_channels")]
         ])
@@ -529,20 +764,25 @@ async def cb_reqadd_start(call: CallbackQuery, state: FSMContext):
 async def fsm_req_channel_save(message: Message, bot: Bot, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
-    raw = message.text.strip()
+    raw = (message.text or "").strip()
     chat_target = int(raw) if raw.lstrip("-").isdigit() else raw
+    bot_is_adm = False
     try:
         chat_info = await bot.get_chat(chat_target)
         title = chat_info.title or raw
         url = f"https://t.me/{chat_info.username}" if chat_info.username else f"https://t.me/{MAIN_CHANNEL.lstrip('@')}"
+        me = await bot.get_me()
+        member = await bot.get_chat_member(chat_id=chat_info.id, user_id=me.id)
+        bot_is_adm = member.status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
     except Exception:
         title = raw
         url = f"https://t.me/{raw.lstrip('@')}" if raw.startswith("@") else f"https://t.me/{MAIN_CHANNEL.lstrip('@')}"
 
     db.add_required_channel(raw, title, url)
     await state.clear()
+    warn = "" if bot_is_adm else "\n⚠️ <b>Diqqat:</b> Bot ushbu kanal/guruhda hali admin emas. Iltimos, botni admin qiling!"
     await message.answer(
-        f"✅ Majburiy kanal qo'shildi: <b>{title}</b>",
+        f"✅ Majburiy obuna qo'shildi: <b>{title}</b>{warn}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔒 Majburiy a'zolikka qaytish", callback_data="admin:req_channels")]
         ])
@@ -666,7 +906,7 @@ async def cb_add_cat(call: CallbackQuery, state: FSMContext):
 
 @router.message(AddContentFSM.title)
 async def fsm_add_title(message: Message, state: FSMContext):
-    await state.update_data(title=message.text.strip())
+    await state.update_data(title=(message.text or "").strip())
     await state.set_state(AddContentFSM.poster)
     await message.answer("2/9 🖼 <b>Kanalga yuboriladigan fon rasmini (muqova rasm)</b> yuboring:")
 
@@ -681,42 +921,42 @@ async def fsm_add_poster(message: Message, state: FSMContext):
 
 @router.message(AddContentFSM.episodes)
 async def fsm_add_episodes(message: Message, state: FSMContext):
-    await state.update_data(episodes=message.text.strip())
+    await state.update_data(episodes=(message.text or "").strip())
     await state.set_state(AddContentFSM.genre)
     await message.answer("4/9 🎭 <b>Janrini</b> kiriting (masalan: <i>Action, Fantasy</i>):")
 
 
 @router.message(AddContentFSM.genre)
 async def fsm_add_genre(message: Message, state: FSMContext):
-    await state.update_data(genre=message.text.strip())
+    await state.update_data(genre=(message.text or "").strip())
     await state.set_state(AddContentFSM.year)
     await message.answer("5/9 📅 <b>Chiqarilgan yilini</b> kiriting (masalan: <i>2025</i> yoki <i>2026</i>):")
 
 
 @router.message(AddContentFSM.year)
 async def fsm_add_year(message: Message, state: FSMContext):
-    await state.update_data(year=message.text.strip())
+    await state.update_data(year=(message.text or "").strip())
     await state.set_state(AddContentFSM.code)
     await message.answer("6/9 🔑 <b>Kodni</b> kiriting (masalan: <i>101</i>):")
 
 
 @router.message(AddContentFSM.code)
 async def fsm_add_code(message: Message, state: FSMContext):
-    await state.update_data(code=message.text.strip())
+    await state.update_data(code=(message.text or "").strip())
     await state.set_state(AddContentFSM.language)
     await message.answer("7/9 🌐 <b>Qaysi tildaligini</b> kiriting (masalan: <i>O'zbekcha</i>):")
 
 
 @router.message(AddContentFSM.language)
 async def fsm_add_language(message: Message, state: FSMContext):
-    await state.update_data(language=message.text.strip())
+    await state.update_data(language=(message.text or "").strip())
     await state.set_state(AddContentFSM.quality)
     await message.answer("8/9 💿 <b>Sifatini</b> kiriting (masalan: <i>720p</i> yoki <i>1080p</i>):")
 
 
 @router.message(AddContentFSM.quality)
 async def fsm_add_quality(message: Message, state: FSMContext):
-    await state.update_data(quality=message.text.strip())
+    await state.update_data(quality=(message.text or "").strip())
     await state.set_state(AddContentFSM.storage_msg)
     await message.answer(
         "9/9 📦 Endi <b>videolar/fayllar joylangan kanal postini forward qiling</b> yoki o'sha kanalga yuborilgan xabarni shu yerga yuboring:"
@@ -836,7 +1076,7 @@ async def cb_edit_keep(call: CallbackQuery, state: FSMContext):
 async def fsm_edit_title(message: Message, state: FSMContext):
     data = await state.get_data()
     item = data["current_item"]
-    item["title"] = message.text.strip()
+    item["title"] = (message.text or "").strip()
     await _advance_edit_step(message, state, item, "title", keep_old=False)
 
 
@@ -852,7 +1092,7 @@ async def fsm_edit_poster(message: Message, state: FSMContext):
 async def fsm_edit_episodes(message: Message, state: FSMContext):
     data = await state.get_data()
     item = data["current_item"]
-    item["episodes"] = message.text.strip()
+    item["episodes"] = (message.text or "").strip()
     await _advance_edit_step(message, state, item, "episodes", keep_old=False)
 
 
@@ -860,7 +1100,7 @@ async def fsm_edit_episodes(message: Message, state: FSMContext):
 async def fsm_edit_genre(message: Message, state: FSMContext):
     data = await state.get_data()
     item = data["current_item"]
-    item["genre"] = message.text.strip()
+    item["genre"] = (message.text or "").strip()
     await _advance_edit_step(message, state, item, "genre", keep_old=False)
 
 
@@ -868,7 +1108,7 @@ async def fsm_edit_genre(message: Message, state: FSMContext):
 async def fsm_edit_year(message: Message, state: FSMContext):
     data = await state.get_data()
     item = data["current_item"]
-    item["year"] = message.text.strip()
+    item["year"] = (message.text or "").strip()
     await _advance_edit_step(message, state, item, "year", keep_old=False)
 
 
@@ -876,7 +1116,7 @@ async def fsm_edit_year(message: Message, state: FSMContext):
 async def fsm_edit_language(message: Message, state: FSMContext):
     data = await state.get_data()
     item = data["current_item"]
-    item["language"] = message.text.strip()
+    item["language"] = (message.text or "").strip()
     await _advance_edit_step(message, state, item, "language", keep_old=False)
 
 
@@ -884,7 +1124,7 @@ async def fsm_edit_language(message: Message, state: FSMContext):
 async def fsm_edit_quality(message: Message, state: FSMContext):
     data = await state.get_data()
     item = data["current_item"]
-    item["quality"] = message.text.strip()
+    item["quality"] = (message.text or "").strip()
     await _advance_edit_step(message, state, item, "quality", keep_old=False)
 
 
@@ -917,8 +1157,13 @@ async def handle_text_search(message: Message, bot: Bot):
     if message.chat.type != "private":
         return
     db.add_user(message.from_user.id, message.from_user.full_name, message.from_user.username)
-    text = message.text.strip()
+    text = (message.text or "").strip()
     me = await bot.get_me()
+
+    not_joined = await check_subscriptions(bot, message.from_user.id)
+    if not_joined:
+        await send_sub_gate(bot, message.chat.id, not_joined, pending_code=text)
+        return
 
     exact = db.get_content_by_code(text)
     if exact:
@@ -946,6 +1191,11 @@ async def handle_text_search(message: Message, bot: Bot):
 
 @router.callback_query(F.data.startswith("pick:"))
 async def cb_pick_content(call: CallbackQuery, bot: Bot):
+    not_joined = await check_subscriptions(bot, call.from_user.id)
+    if not_joined:
+        await call.answer()
+        await send_sub_gate(bot, call.message.chat.id, not_joined)
+        return
     code = call.data.split(":", 1)[1]
     me = await bot.get_me()
     await call.answer()
