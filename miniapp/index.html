@@ -351,6 +351,7 @@
 
   <div class="topbar">
     <select id="itemSelector" class="chat-select" onchange="switchItemDropdown()"></select>
+    <button class="small-btn" onclick="toggleBroadcastBar()">📣</button>
     <button class="small-btn" onclick="manualRefresh()">🔄</button>
     <button class="small-btn" onclick="toggleCustomBar()">+ Qo'shish</button>
   </div>
@@ -360,6 +361,16 @@
     <input id="customIdInput" type="text" placeholder="ID yoki @username..." />
     <input id="customLinkInput" type="text" placeholder="Havola (ixtiyoriy)..." />
     <button class="small-btn" onclick="addCustomItem()">Saqlash</button>
+  </div>
+
+  <div id="broadcastBar" class="custom-bar">
+    <select id="bcMode" class="chat-select" style="flex:1 1 100%;">
+      <option value="users">👤 Bot foydalanuvchilariga</option>
+      <option value="chats">📢 Guruh va kanallarga</option>
+      <option value="all">🌐 Barchaga (odamlar + guruh/kanal)</option>
+    </select>
+    <input id="bcText" type="text" placeholder="Hammaga yuboriladigan xabar..." style="flex:1 1 100%;" />
+    <button class="small-btn" onclick="sendBroadcast()">📣 Yuborish</button>
   </div>
 
   <div class="header-card" onclick="openActiveLink()">
@@ -496,6 +507,153 @@
         setSendStatus("⚠️ Serverga ulanib bo'lmadi (Render uyg'onyapti bo'lishi mumkin, qayta urining)", true);
       }
       return null;
+    }
+
+    // ───────────────────────────────────────────────
+    //  O'qilmagan xabar belgilari
+    // ───────────────────────────────────────────────
+    const unread = {};
+    let lastSeq = Number(localStorage.getItem("anirem_seq_v5") || 0);
+    let msgSyncBusy = false;
+
+    function badge(n) { return n > 0 ? " 🔴" + n : ""; }
+
+    function tabUnread(tab) {
+      let n = 0;
+      Object.keys(unread).forEach(k => { if (k.startsWith(tab + ":")) n += unread[k]; });
+      return n;
+    }
+
+    function paintTabs() {
+      document.getElementById("tabGroups").textContent = "👥 Guruhlar" + badge(tabUnread("groups"));
+      document.getElementById("tabContacts").textContent = "👤 Kontaktlar" + badge(tabUnread("contacts"));
+    }
+
+    function paintChips(list, active) {
+      const bar = document.getElementById("itemsBar");
+      const sel = document.getElementById("itemSelector");
+      bar.innerHTML = list.map(item => {
+        const n = unread[currentTab + ":" + item.id] || 0;
+        const isActive = active && String(active.id) === String(item.id);
+        return `<button class="item-chip ${isActive ? "active" : ""}" onclick="selectItem('${String(item.id).replace(/'/g, "\\'")}')">${esc(item.name)}${badge(n)}</button>`;
+      }).join("");
+      sel.innerHTML = list.map(item => {
+        const n = unread[currentTab + ":" + item.id] || 0;
+        return `<option value="${esc(item.id)}">${esc(item.name)}${badge(n)}</option>`;
+      }).join("");
+      if (active) sel.value = active.id;
+    }
+
+    function updateBadges() {
+      paintTabs();
+      paintChips(loadList(currentTab), getActiveItem());
+    }
+
+    // ───────────────────────────────────────────────
+    //  Kelgan xabarlarni serverdan olish
+    // ───────────────────────────────────────────────
+    async function syncMessages() {
+      if (msgSyncBusy || !apiBaseUrl || !tg || !tg.initData) return;
+      msgSyncBusy = true;
+      try {
+        const resp = await fetch(`${apiBaseUrl.replace(/\/+$/, "")}/api/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ since: lastSeq, init_data: tg.initData }),
+        });
+        const data = await resp.json();
+        if (!(resp.ok && data.ok)) return;
+
+        const countUnread = lastSeq > 0 && !data.reset;
+        const act = getActiveItem();
+        let activeChanged = false, badgeChanged = false, newCount = 0, needLists = false;
+
+        (data.messages || []).forEach(m => {
+          const tab = String(m.chat_id).startsWith("-") ? "groups" : "contacts";
+          const key = "anirem_msgs_v5_" + tab + "_" + String(m.chat_id);
+          const list = JSON.parse(localStorage.getItem(key) || "[]");
+          if (list.some(x => String(x.id) === String(m.id))) return;
+
+          const isSticker = m.type === "sticker";
+          list.push({
+            id: m.id,
+            direction: "incoming",
+            sender: m.sender || "Obunachi",
+            time: new Date((m.ts || 0) * 1000).toTimeString().slice(0, 8),
+            type: isSticker ? "sticker" : "text",
+            text: isSticker ? "" : (m.text || ""),
+            sticker: isSticker ? (m.sticker || "🧸") : "",
+            audioUrl: "",
+            duration: "",
+            replyTo: m.replyTo || null,
+            reaction: ""
+          });
+          localStorage.setItem(key, JSON.stringify(list));
+
+          if (!loadList(tab).some(x => String(x.id) === String(m.chat_id))) needLists = true;
+
+          if (tab === currentTab && act && String(act.id) === String(m.chat_id)) {
+            activeChanged = true;
+          } else if (countUnread) {
+            const uk = tab + ":" + m.chat_id;
+            unread[uk] = (unread[uk] || 0) + 1;
+            badgeChanged = true;
+          }
+          if (countUnread) newCount++;
+        });
+
+        lastSeq = Number(data.last_seq || 0);
+        localStorage.setItem("anirem_seq_v5", String(lastSeq));
+
+        if (needLists) await syncListsFromServer();
+        if (newCount > 0 && tg && tg.HapticFeedback) {
+          try { tg.HapticFeedback.notificationOccurred("success"); } catch (_) {}
+        }
+        if (activeChanged || needLists) renderAll();
+        else if (badgeChanged) updateBadges();
+      } catch (_) {
+      } finally {
+        msgSyncBusy = false;
+      }
+    }
+
+    // ───────────────────────────────────────────────
+    //  Ommaviy xabar yuborish
+    // ───────────────────────────────────────────────
+    function toggleBroadcastBar() {
+      document.getElementById("broadcastBar").classList.toggle("active");
+    }
+
+    function askConfirm(msg) {
+      return new Promise(resolve => {
+        if (tg && typeof tg.showConfirm === "function") {
+          tg.showConfirm(msg, r => resolve(!!r));
+        } else {
+          resolve(window.confirm(msg));
+        }
+      });
+    }
+
+    async function sendBroadcast() {
+      const text = document.getElementById("bcText").value.trim();
+      const mode = document.getElementById("bcMode").value;
+      if (!text) {
+        setSendStatus("⚠️ Avval xabar matnini yozing", true);
+        return;
+      }
+      const labels = {
+        users: "Barcha bot foydalanuvchilariga",
+        chats: "Barcha guruh va kanallarga",
+        all: "Barchaga (odamlar + guruh va kanallar)"
+      };
+      const okConfirm = await askConfirm(`${labels[mode]} yuborilsinmi?\n\n${text}`);
+      if (!okConfirm) return;
+      const data = await dispatchToTelegram({ action: "broadcast", mode, text });
+      if (data) {
+        setSendStatus("✅ " + (data.message || "Tarqatish boshlandi"), false);
+        document.getElementById("bcText").value = "";
+        document.getElementById("broadcastBar").classList.remove("active");
+      }
     }
 
     // Guruh va kontaktlar ro'yxatini serverdan jonli yangilaydi
@@ -682,14 +840,9 @@
         return;
       }
 
-      bar.innerHTML = list.map(item => `
-        <button class="item-chip ${active && String(active.id) === String(item.id) ? "active" : ""}" onclick="selectItem('${String(item.id).replace(/'/g, "\\'")}')">
-          ${esc(item.name)}
-        </button>
-      `).join("");
-
-      sel.innerHTML = list.map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join("");
-      if (active) sel.value = active.id;
+      if (active) delete unread[currentTab + ":" + active.id];
+      paintTabs();
+      paintChips(list, active);
 
       if (active) {
         const link = buildLink(active);
@@ -1081,6 +1234,8 @@
     renderAll();
     syncListsFromServer();
     setInterval(syncListsFromServer, 15000);
+    syncMessages();
+    setInterval(syncMessages, 3000);
   </script>
 </body>
 </html>
