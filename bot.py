@@ -432,13 +432,41 @@ def load_lists() -> dict:
     return {"groups": groups, "contacts": contacts}
 
 
-def build_miniapp_url() -> str:
-    payload = {**load_lists(), "api_base": BACKEND_API_URL, "incoming_message": None}
+MINIAPP_URL_MAX = 3500  # Manzil shundan uzun bo'lsa "URI Too Long" xatosi chiqadi
 
-    encoded = urllib.parse.quote(json.dumps(payload, ensure_ascii=False))
+
+def _miniapp_url_with(payload: dict) -> str:
+    encoded = urllib.parse.quote(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
     sep = "&" if "?" in BASE_MINIAPP_URL else "?"
     # v=... Telegram eski index.html nusxasini ishlatib qolmasligi uchun
     return f"{BASE_MINIAPP_URL}{sep}v={int(time.time())}&data={encoded}"
+
+
+def build_miniapp_url() -> str:
+    """Mini ilova manzili. Foydalanuvchilar ko'payganda manzil juda uzun bo'lib
+    ketmasligi uchun ro'yxat qisqartiriladi; to'liq ro'yxatni mini ilova
+    /api/lists orqali jonli oladi."""
+    lists = load_lists()
+    groups = lists["groups"]
+    contacts = lists["contacts"]
+    base = {"api_base": BACKEND_API_URL, "incoming_message": None}
+
+    n_groups, n_contacts = len(groups), len(contacts)
+    while True:
+        payload = {
+            "groups": groups[:n_groups],
+            "contacts": contacts[:n_contacts],
+            **base,
+            "lists_truncated": n_groups < len(groups) or n_contacts < len(contacts),
+        }
+        url = _miniapp_url_with(payload)
+        if len(url) <= MINIAPP_URL_MAX or (n_groups == 0 and n_contacts == 0):
+            return url
+        # Avval kontaktlarni, keyin guruhlarni kamaytiramiz
+        if n_contacts > 0:
+            n_contacts //= 2
+        else:
+            n_groups //= 2
 
 
 def format_welcome(full_name: str, bot_username: str, is_adm: bool) -> str:
