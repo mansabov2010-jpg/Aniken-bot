@@ -601,6 +601,7 @@
             replyTo: m.replyTo || null,
             reaction: ""
           });
+  
           localStorage.setItem(key, JSON.stringify(list));
 
           if (!loadList(tab).some(x => String(x.id) === String(m.chat_id))) needLists = true;
@@ -759,7 +760,9 @@
         const params = new URLSearchParams(window.location.search);
         const raw = params.get("data");
         if (raw) {
-          ingestPayload(JSON.parse(decodeURIComponent(raw)));
+          let parsed;
+          try { parsed = JSON.parse(raw); } catch (_) { parsed = JSON.parse(decodeURIComponent(raw)); }
+          ingestPayload(parsed);
         }
       } catch (_) {}
     }
@@ -1087,10 +1090,13 @@
       return true;
     }
 
-    async function sendStickerItem(stickerChar) {
+    // Stiker (emoji) yuborish. Bu funksiya fayldan tushib qolgan edi: tugmalar ishlamasdi.
+    async function sendStickerItem(em) {
       if (isSubmitting) return;
+      const active = getActiveItem();
+      if (!active) return;
       isSubmitting = true;
-      const ok = await pushOutMsg({ type: "sticker", sticker: stickerChar, text: "" });
+      const ok = await pushOutMsg({ type: "sticker", sticker: em, text: "" });
       if (ok) clearReply();
       isSubmitting = false;
     }
